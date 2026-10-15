@@ -5,9 +5,10 @@ export interface Item {
   id: number
   name: string
   description: string | null
+  created_at: string
 }
 
-export type ItemCreate = Omit<Item, 'id' | 'description'> & { description?: string }
+export type ItemCreate = Pick<Item, 'name'> & { description?: string }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = options.method ?? 'GET'

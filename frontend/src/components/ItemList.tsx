@@ -14,7 +14,10 @@ export default function ItemList({ items, onDelete }: ItemListProps) {
     <ul>
       {items.map((item) => (
         <li key={item.id}>
-          {item.name}
+          <span>
+            {item.name}
+            <small>{new Date(item.created_at).toLocaleString('pt-BR')}</small>
+          </span>
           <button onClick={() => onDelete(item.id)}>Remover</button>
         </li>
       ))}

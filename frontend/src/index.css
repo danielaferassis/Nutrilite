@@ -43,3 +43,8 @@ li {
   padding: 0.5rem 0;
   border-bottom: 1px solid #dde3e8;
 }
+
+li small {
+  display: block;
+  color: #6b7780;
+}
