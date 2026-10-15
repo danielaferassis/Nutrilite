@@ -1,0 +1,45 @@
+:root {
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  color: #1f2933;
+  background: #f7f9fa;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+input {
+  flex: 1;
+  padding: 0.5rem;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #dde3e8;
+}
