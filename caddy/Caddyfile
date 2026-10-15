@@ -1,0 +1,26 @@
+# Proxy reverso com HTTPS: serve o frontend (build do React) e repassa /api para o backend.
+#
+# {$SITE_ADDRESS} vem do .env (IP ou domínio, SEM https://).
+#
+# "tls internal" emite um certificado self-signed: a conexão é criptografada,
+# mas o navegador avisa na primeira vez. "default_sni" é necessário para acesso
+# por IP (o navegador não manda SNI quando se acessa https://<IP>).
+{
+	default_sni {$SITE_ADDRESS}
+}
+
+{$SITE_ADDRESS} {
+	tls internal
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# SPA: qualquer rota que não seja arquivo cai no index.html
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
