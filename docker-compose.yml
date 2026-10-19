@@ -7,6 +7,8 @@ services:
     environment:
       WATCHFILES_FORCE_POLLING: "true"
       DATABASE_URL: mysql+pymysql://app:app@db:3306/app
+      # Em dev o acesso é por http://; em produção fica o padrão (true)
+      COOKIE_SECURE: "false"
     volumes:
       - ./backend:/app
     depends_on:

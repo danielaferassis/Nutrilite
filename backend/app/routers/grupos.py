@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.acesso import requer_permissao
 from app.database import get_db
 from app.models import Funcionalidade, Grupo
 from app.schemas import GrupoCreate, GrupoRead, GrupoUpdate
@@ -11,6 +12,8 @@ from app.schemas import GrupoCreate, GrupoRead, GrupoUpdate
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/grupos", tags=["grupos"])
+
+pode_gerenciar = [Depends(requer_permissao("grupo.gerenciar"))]
 
 
 def get_grupo_or_404(grupo_id: int, db: Session) -> Grupo:
@@ -38,7 +41,7 @@ def load_funcionalidades(ids: list[int], db: Session) -> list[Funcionalidade]:
     return list(funcionalidades)
 
 
-@router.get("", response_model=list[GrupoRead])
+@router.get("", response_model=list[GrupoRead], dependencies=pode_gerenciar)
 def list_grupos(db: Session = Depends(get_db)):
     grupos = db.scalars(
         select(Grupo).options(selectinload(Grupo.funcionalidades)).order_by(Grupo.nome)
@@ -47,7 +50,7 @@ def list_grupos(db: Session = Depends(get_db)):
     return grupos
 
 
-@router.post("", response_model=GrupoRead, status_code=201)
+@router.post("", response_model=GrupoRead, status_code=201, dependencies=pode_gerenciar)
 def create_grupo(data: GrupoCreate, db: Session = Depends(get_db)):
     ensure_nome_disponivel(data.nome, db)
     grupo = Grupo(**data.model_dump(exclude={"funcionalidade_ids"}))
@@ -59,12 +62,12 @@ def create_grupo(data: GrupoCreate, db: Session = Depends(get_db)):
     return grupo
 
 
-@router.get("/{grupo_id}", response_model=GrupoRead)
+@router.get("/{grupo_id}", response_model=GrupoRead, dependencies=pode_gerenciar)
 def get_grupo(grupo_id: int, db: Session = Depends(get_db)):
     return get_grupo_or_404(grupo_id, db)
 
 
-@router.patch("/{grupo_id}", response_model=GrupoRead)
+@router.patch("/{grupo_id}", response_model=GrupoRead, dependencies=pode_gerenciar)
 def update_grupo(grupo_id: int, data: GrupoUpdate, db: Session = Depends(get_db)):
     grupo = get_grupo_or_404(grupo_id, db)
     campos = data.model_dump(exclude_unset=True, exclude={"funcionalidade_ids"})
@@ -80,7 +83,7 @@ def update_grupo(grupo_id: int, data: GrupoUpdate, db: Session = Depends(get_db)
     return grupo
 
 
-@router.delete("/{grupo_id}", status_code=204)
+@router.delete("/{grupo_id}", status_code=204, dependencies=pode_gerenciar)
 def delete_grupo(grupo_id: int, db: Session = Depends(get_db)):
     grupo = get_grupo_or_404(grupo_id, db)
     db.delete(grupo)

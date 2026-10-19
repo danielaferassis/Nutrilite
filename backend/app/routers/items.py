@@ -4,13 +4,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.acesso import get_usuario_atual
 from app.database import get_db
 from app.models import Item
 from app.schemas import ItemCreate, ItemRead
 
 log = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/items", tags=["items"])
+# Basta estar logado; para restringir mais, troque por requer_permissao("...")
+router = APIRouter(prefix="/items", tags=["items"], dependencies=[Depends(get_usuario_atual)])
 
 
 def get_item_or_404(item_id: int, db: Session) -> Item:

@@ -96,6 +96,31 @@ class UsuarioGrupo(Base):
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class Sessao(Base):
+    """Sessão de login. O navegador guarda o token no cookie; aqui fica só o hash."""
+
+    __tablename__ = "sessao"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uk_sessao_token_hash"),
+        Index("idx_sessao_usuario", "usuario_id"),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("usuario.id", name="fk_sessao_usuario", ondelete="CASCADE"),
+    )
+    token_hash: Mapped[str] = mapped_column(String(64))  # SHA-256 em hex
+    ip: Mapped[str | None] = mapped_column(String(45))
+    user_agent: Mapped[str | None] = mapped_column(String(255))
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Gravados pela aplicação em UTC
+    ultimo_uso: Mapped[datetime] = mapped_column(DateTime)
+    expira_em: Mapped[datetime] = mapped_column(DateTime)
+
+    usuario: Mapped["Usuario"] = relationship()
+
+
 class GrupoFuncionalidade(Base):
     __tablename__ = "grupo_funcionalidade"
     __table_args__ = (Index("idx_gf_funcionalidade", "funcionalidade_id"),)

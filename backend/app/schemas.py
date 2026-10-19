@@ -134,3 +134,23 @@ class UsuarioRead(BaseModel):
     criado_em: UtcDatetime
     atualizado_em: UtcDatetime
     grupos: list[GrupoResumo]
+
+
+# --- Autenticação ---
+
+
+class LoginRequest(BaseModel):
+    email: Email
+    senha: str = Field(max_length=128)
+
+
+class SessaoAtual(BaseModel):
+    """Usuário logado e os códigos de funcionalidade que ele pode usar."""
+
+    usuario: UsuarioRead
+    permissoes: list[str]
+
+
+class AlterarSenha(BaseModel):
+    senha_atual: str = Field(max_length=128)
+    nova_senha: Senha

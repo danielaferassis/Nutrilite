@@ -14,6 +14,9 @@ Aplicação web com **React + TypeScript** (Vite) no frontend e **FastAPI** no b
 │   │   ├── database.py      # conexão com o banco (SQLAlchemy)
 │   │   ├── models.py        # tabelas do banco
 │   │   ├── schemas.py       # formatos de entrada/saída da API (Pydantic)
+│   │   ├── acesso.py        # sessão de login e checagem de permissões
+│   │   ├── security.py      # hash de senha (Argon2id) e de token
+│   │   ├── cli.py           # comandos administrativos (criar admin)
 │   │   └── routers/         # rotas, um arquivo por recurso
 │   ├── migrations/
 │   │   ├── env.py           # configuração do Alembic
@@ -39,7 +42,7 @@ Aplicação web com **React + TypeScript** (Vite) no frontend e **FastAPI** no b
 └── docker-compose.prod.yml  # produção (VPS)
 ```
 
-Para adicionar um recurso novo no backend: crie o model em `models.py`, gere a migration (veja [Migrations](#migrations)), crie os schemas em `schemas.py`, um arquivo em `routers/` e registre-o em `main.py`.
+Para adicionar um recurso novo no backend: crie o model em `models.py`, gere a migration (veja [Migrations](#migrations)), crie os schemas em `schemas.py`, um arquivo em `routers/` e registre-o em `main.py`. Os endpoints exigem login; veja [Autenticação e permissões](#autenticação-e-permissões).
 
 ## Endereços
 
@@ -134,6 +137,46 @@ O nível mínimo é configurável: `LOG_LEVEL` em `backend/.env` (padrão `INFO`
 
 ---
 
+## Autenticação e permissões
+
+O login é por **sessão no servidor**, guardada num cookie `HttpOnly` (o JavaScript do frontend não tem acesso ao token):
+
+- `POST /api/auth/login` com `{email, senha}` cria a sessão e devolve o cookie `sessao` (`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/api`). No banco fica só o hash SHA-256 do token (tabela `sessao`).
+- A sessão expira após **8 h sem uso** ou **7 dias** no máximo (`SESSAO_OCIOSA_MINUTOS`, `SESSAO_MAXIMA_DIAS`).
+- Trocar a senha ou desativar o usuário derruba as sessões dele na hora.
+- Login tem limite de tentativas: 5 erros por e-mail ou 20 por IP a cada 15 min (contagem em memória, zera ao reiniciar o backend).
+- Requisições que alteram dados vindas de outro site são recusadas (`Sec-Fetch-Site`/`Origin`), além do `SameSite=Strict`.
+- `COOKIE_SECURE` fica `true` por padrão (cookie só via HTTPS); o `docker-compose.yml` de dev desliga porque o acesso é por `http://`.
+
+**Permissões:** usuário → grupos → funcionalidades. Cada funcionalidade tem um `codigo` (ex.: `usuario.gerenciar`) que o backend checa com a view `vw_permissao_usuario`. Grupos ou funcionalidades inativos não dão permissão.
+
+| Endpoint | Exige |
+| --- | --- |
+| `/api/health`, `/api/auth/login`, `/api/auth/logout` | nada |
+| `/api/auth/me`, `/api/auth/senha`, `/api/items` | estar logado |
+| `/api/usuarios` | `usuario.gerenciar` |
+| `/api/grupos`, `GET /api/funcionalidades` | `grupo.gerenciar` |
+
+Para proteger um endpoint novo:
+
+```python
+from app.acesso import get_usuario_atual, requer_permissao
+
+@router.get("", dependencies=[Depends(requer_permissao("relatorio.ver"))])  # login + permissão
+@router.get("/meus", dependencies=[Depends(get_usuario_atual)])            # só login
+```
+
+Funcionalidades são cadastradas direto no banco (`INSERT INTO funcionalidade ...`), não pela API.
+
+**Primeiro acesso:** como tudo exige login, crie um administrador pela linha de comando. O comando cria (ou reaproveita) o grupo `Administrador` com **todas** as funcionalidades ativas e coloca o usuário nele (a senha é pedida no terminal):
+
+```bash
+docker compose exec backend python -m app.cli criar-admin --email voce@exemplo.com --nome "Seu Nome"
+# sem Docker (dentro de backend/): python -m app.cli criar-admin --email ...
+```
+
+Rode de novo (com o mesmo e-mail) depois de cadastrar funcionalidades novas, para o grupo recebê-las. Para recuperar o acesso de um admin, use `--redefinir-senha`.
+
 ## Rodando com Docker (recomendado)
 
 Só é preciso ter o Docker instalado. Frontend e backend recarregam sozinhos ao salvar arquivos.
@@ -151,9 +194,10 @@ Só é preciso ter o Docker instalado. Frontend e backend recarregam sozinhos ao
    ```bash
    docker compose up --build
    ```
-4. Em outro terminal, crie as tabelas:
+4. Em outro terminal, crie as tabelas e o primeiro usuário:
    ```bash
    docker compose exec backend alembic upgrade head
+   docker compose exec backend python -m app.cli criar-admin --email voce@exemplo.com
    ```
 
 ### Windows
@@ -164,9 +208,10 @@ Só é preciso ter o Docker instalado. Frontend e backend recarregam sozinhos ao
    ```powershell
    docker compose up --build
    ```
-4. Em outro terminal, crie as tabelas:
+4. Em outro terminal, crie as tabelas e o primeiro usuário:
    ```powershell
    docker compose exec backend alembic upgrade head
+   docker compose exec backend python -m app.cli criar-admin --email voce@exemplo.com
    ```
 
 ### Comandos úteis
@@ -227,6 +272,7 @@ source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env
 alembic upgrade head
+python -m app.cli criar-admin --email voce@exemplo.com   # só na primeira vez
 uvicorn app.main:app --reload
 ```
 
@@ -251,6 +297,7 @@ python -m venv .venv
 pip install -r requirements-dev.txt
 copy .env.example .env
 alembic upgrade head
+python -m app.cli criar-admin --email voce@exemplo.com   # só na primeira vez
 uvicorn app.main:app --reload
 ```
 
@@ -347,6 +394,7 @@ Edite o `.env`: `SITE_ADDRESS` (IP ou domínio, sem `https://`) e as senhas do M
 export COMPOSE_FILE=docker-compose.prod.yml
 docker compose build
 docker compose run --rm backend alembic upgrade head
+docker compose run --rm backend python -m app.cli criar-admin --email voce@exemplo.com
 docker compose up -d
 docker compose logs -f
 ```
