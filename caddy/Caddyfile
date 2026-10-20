@@ -14,6 +14,10 @@
 	encode gzip
 
 	handle /api/* {
+		# Limite de upload (o backend aceita até UPLOAD_MAX_MB=20; a folga cobre o multipart)
+		request_body {
+			max_size 25MB
+		}
 		reverse_proxy backend:8000
 	}
 

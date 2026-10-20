@@ -1,16 +1,19 @@
 from datetime import datetime
+from enum import StrEnum
 
 from sqlalchemy import (
     Boolean,
     DateTime,
+    Enum,
     ForeignKey,
     Index,
     String,
+    Text,
     UniqueConstraint,
     func,
     text,
 )
-from sqlalchemy.dialects.mysql import INTEGER
+from sqlalchemy.dialects.mysql import INTEGER, TINYINT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -136,3 +139,72 @@ class GrupoFuncionalidade(Base):
         primary_key=True,
     )
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class StatusImportacao(StrEnum):
+    PENDENTE = "pendente"  # na fila, esperando o worker
+    PROCESSANDO = "processando"
+    CONCLUIDO = "concluido"
+    ERRO = "erro"
+    CANCELADO = "cancelado"
+
+
+class Importacao(Base):
+    """Arquivo enviado para importação. A tabela também é a fila do worker."""
+
+    __tablename__ = "importacao"
+    __table_args__ = (
+        Index("idx_importacao_status", "status"),
+        Index("idx_importacao_sha256", "sha256"),
+        Index("idx_importacao_usuario", "usuario_id"),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    usuario_id: Mapped[int | None] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("usuario.id", name="fk_importacao_usuario", ondelete="SET NULL"),
+    )
+    tipo: Mapped[str] = mapped_column(String(50))  # chave em app/importacao/tipos.py
+    nome_arquivo: Mapped[str] = mapped_column(String(255))  # nome original, só para exibir
+    # Nome do arquivo no diretório de uploads; NULL depois que a retenção apaga o arquivo
+    arquivo: Mapped[str | None] = mapped_column(String(100))
+    tamanho_bytes: Mapped[int] = mapped_column(INTEGER(unsigned=True))
+    sha256: Mapped[str] = mapped_column(String(64))
+    status: Mapped[StatusImportacao] = mapped_column(
+        Enum(
+            StatusImportacao,
+            name="status_importacao",
+            values_callable=lambda enum: [membro.value for membro in enum],
+        ),
+        server_default=StatusImportacao.PENDENTE.value,
+    )
+    tentativas: Mapped[int] = mapped_column(TINYINT(unsigned=True), server_default=text("0"))
+    linhas_total: Mapped[int | None] = mapped_column(INTEGER(unsigned=True))
+    linhas_com_erro: Mapped[int | None] = mapped_column(INTEGER(unsigned=True))
+    mensagem_erro: Mapped[str | None] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Gravados pela aplicação em UTC
+    iniciado_em: Mapped[datetime | None] = mapped_column(DateTime)
+    finalizado_em: Mapped[datetime | None] = mapped_column(DateTime)
+
+    usuario: Mapped["Usuario | None"] = relationship()
+
+    @property
+    def arquivo_disponivel(self) -> bool:
+        return self.arquivo is not None
+
+
+class ImportacaoErro(Base):
+    """Problema numa linha do arquivo, para o usuário corrigir a planilha."""
+
+    __tablename__ = "importacao_erro"
+    __table_args__ = (Index("idx_ie_importacao", "importacao_id"),)
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    importacao_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("importacao.id", name="fk_ie_importacao", ondelete="CASCADE"),
+    )
+    linha: Mapped[int | None] = mapped_column(INTEGER(unsigned=True))
+    coluna: Mapped[str | None] = mapped_column(String(100))
+    mensagem: Mapped[str] = mapped_column(String(500))

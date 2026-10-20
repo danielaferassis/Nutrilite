@@ -20,5 +20,12 @@ class Settings(BaseSettings):
     # Só envia o cookie por HTTPS. Desligue apenas em dev com http://.
     cookie_secure: bool = True
 
+    # Importação de arquivos: onde os uploads ficam (compartilhado entre backend
+    # e worker), tamanho máximo e por quantos dias o arquivo é guardado depois que
+    # a importação termina.
+    uploads_dir: str = "uploads"
+    upload_max_mb: int = 20
+    importacao_retencao_dias: int = 30
+
 
 settings = Settings()

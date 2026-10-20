@@ -7,11 +7,32 @@ services:
     environment:
       DATABASE_URL: "mysql+pymysql://${MYSQL_USER:-app}:${MYSQL_PASSWORD:?defina MYSQL_PASSWORD no .env}@db:3306/${MYSQL_DATABASE:-app}"
       LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      UPLOADS_DIR: /data/uploads
     expose:
       - "8000"
+    volumes:
+      - uploads:/data/uploads
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+
+  # Processa a fila de importações (mesma imagem do backend)
+  worker:
+    build: ./backend
+    command: python -m app.worker
+    environment:
+      DATABASE_URL: "mysql+pymysql://${MYSQL_USER:-app}:${MYSQL_PASSWORD:?defina MYSQL_PASSWORD no .env}@db:3306/${MYSQL_DATABASE:-app}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      APP_NAME: nutrilite-worker
+      UPLOADS_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    # No deploy, dá tempo para a importação em andamento terminar antes de parar
+    stop_grace_period: 2m
     restart: unless-stopped
 
   web:
@@ -52,3 +73,4 @@ volumes:
   db_data:
   caddy_data:
   caddy_config:
+  uploads:

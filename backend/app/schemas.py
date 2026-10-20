@@ -3,6 +3,8 @@ from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.models import StatusImportacao
+
 
 def _assume_utc(value: datetime) -> datetime:
     # O MySQL devolve a data sem fuso; marcamos como UTC para o frontend converter certo
@@ -154,3 +156,47 @@ class SessaoAtual(BaseModel):
 class AlterarSenha(BaseModel):
     senha_atual: str = Field(max_length=128)
     nova_senha: Senha
+
+
+# --- Importações ---
+
+
+class TipoImportacaoRead(BaseModel):
+    codigo: str
+    nome: str
+    formatos: list[str]
+
+
+class UsuarioResumo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str
+
+
+class ImportacaoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tipo: str
+    nome_arquivo: str
+    tamanho_bytes: int
+    status: StatusImportacao
+    tentativas: int
+    linhas_total: int | None
+    linhas_com_erro: int | None
+    mensagem_erro: str | None
+    # False depois que a retenção apaga o arquivo (aí não dá mais para reprocessar)
+    arquivo_disponivel: bool
+    usuario: UsuarioResumo | None
+    criado_em: UtcDatetime
+    iniciado_em: UtcDatetime | None
+    finalizado_em: UtcDatetime | None
+
+
+class ImportacaoErroRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    linha: int | None
+    coluna: str | None
+    mensagem: str

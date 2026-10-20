@@ -9,9 +9,10 @@ venv/
 node_modules/
 dist/
 
-# Banco local e variáveis de ambiente
+# Banco local, variáveis de ambiente e arquivos enviados
 *.db
 .env
+backend/uploads/
 
 # Editores / SO
 .vscode/

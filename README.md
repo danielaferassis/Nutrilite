@@ -17,6 +17,8 @@ Aplicação web com **React + TypeScript** (Vite) no frontend e **FastAPI** no b
 │   │   ├── acesso.py        # sessão de login e checagem de permissões
 │   │   ├── security.py      # hash de senha (Argon2id) e de token
 │   │   ├── cli.py           # comandos administrativos (criar admin)
+│   │   ├── worker.py        # processa a fila de importações (container próprio)
+│   │   ├── importacao/      # contrato dos parsers, tipos de arquivo e armazenamento
 │   │   └── routers/         # rotas, um arquivo por recurso
 │   ├── migrations/
 │   │   ├── env.py           # configuração do Alembic
@@ -177,6 +179,34 @@ docker compose exec backend python -m app.cli criar-admin --email voce@exemplo.c
 
 Rode de novo (com o mesmo e-mail) depois de cadastrar funcionalidades novas, para o grupo recebê-las. Para recuperar o acesso de um admin, use `--redefinir-senha`.
 
+## Importação de arquivos (CSV/Excel)
+
+A tabela `importacao` é uma **fila**. O usuário envia o arquivo, a API guarda e enfileira, e o serviço **worker** (`python -m app.worker`, container próprio) processa um por vez:
+
+```
+POST /api/importacoes ──► pendente ──► processando ──► concluido
+                              │                    └──► erro ──► (reprocessar) ──► pendente
+                              └──► cancelado
+```
+
+- O arquivo fica em disco (`UPLOADS_DIR`, volume `uploads` no Docker), não no banco. Aceita `.csv`, `.xlsx` e `.xls` de até `UPLOAD_MAX_MB` (20 MB), conferindo o conteúdo e não só a extensão.
+- Enviar de novo um arquivo idêntico (mesmo SHA-256 e tipo) dá `409`, a menos que mande `forcar=true`.
+- **Tudo ou nada:** se o parser registrar qualquer erro de linha ou falhar, nada daquele arquivo é gravado. Os erros por linha ficam em `importacao_erro` para o usuário corrigir a planilha.
+- Se o worker morrer no meio (deploy, falta de memória), a importação volta para a fila sozinha; depois de 3 interrupções vira `erro`. No deploy o worker espera até 2 min a importação atual terminar.
+- Os arquivos são apagados `IMPORTACAO_RETENCAO_DIAS` (30) dias depois que a importação termina; depois disso não dá mais para reprocessar.
+
+| Endpoint (exige `relatorio.importacao`) | |
+| --- | --- |
+| `GET /api/importacoes/tipos` | tipos disponíveis para o select do upload |
+| `POST /api/importacoes` | multipart: `arquivo`, `tipo`, `forcar` (opcional). Responde `202` com a importação |
+| `GET /api/importacoes?status=&tipo=&minhas=&limite=&offset=` | lista, mais recentes primeiro |
+| `GET /api/importacoes/{id}` | status (o frontend consulta a cada poucos segundos enquanto `pendente`/`processando`) |
+| `GET /api/importacoes/{id}/erros` | erros por linha |
+| `POST /api/importacoes/{id}/reprocessar` | volta para a fila (só `erro`/`cancelado`) |
+| `POST /api/importacoes/{id}/cancelar` | só enquanto `pendente` |
+
+**Escrevendo um parser:** veja o passo a passo em `backend/app/importacao/tipos.py`. Em resumo, uma função que recebe um `ContextoImportacao` (`app/importacao/contexto.py`), lê `ctx.arquivo`, grava com `ctx.db` (incluindo `importacao_id=ctx.importacao_id` nas linhas, para saber a origem e poder desfazer), chama `ctx.erro_linha(...)` para linhas inválidas ou lança `ErroImportacao` se o arquivo todo for inválido, e devolve o total de linhas lidas. Não chame `commit`: quem controla a transação é o worker. Em dev o worker reinicia sozinho quando um `.py` muda; os logs saem em `docker compose logs -f worker`.
+
 ## Rodando com Docker (recomendado)
 
 Só é preciso ter o Docker instalado. Frontend e backend recarregam sozinhos ao salvar arquivos.
@@ -230,7 +260,7 @@ docker compose exec backend sh -c "pip install -r requirements-dev.txt && pytest
 
 ## Rodando sem Docker
 
-Requisitos: **Python 3.12+**, **Node.js 20.19+** (recomendado 22 ou 24) e um **MySQL**. Use dois terminais, um para o backend e outro para o frontend.
+Requisitos: **Python 3.12+**, **Node.js 20.19+** (recomendado 22 ou 24) e um **MySQL**. Use dois terminais, um para o backend e outro para o frontend (e um terceiro com `python -m app.worker`, dentro de `backend/` com o venv ativado, se for testar importações).
 
 ### MySQL
 
@@ -346,10 +376,11 @@ O `reset --hard` não mexe em arquivos ignorados pelo git, então o `.env` da VP
 
 ### Stack de produção
 
-`docker-compose.prod.yml` sobe três serviços:
+`docker-compose.prod.yml` sobe quatro serviços:
 
 - **web** — Caddy servindo o build do React e repassando `/api` para o backend. É o **único** serviço exposto, só em HTTPS na porta `8443` (`HTTPS_PORT`), porque 80/443 já são usadas por outro projeto na VPS.
 - **backend** — FastAPI sem `--reload`, sem porta publicada.
+- **worker** — mesma imagem do backend, processando a fila de importações. Divide com o backend o volume `uploads`.
 - **db** — MySQL, sem porta publicada.
 
 Acesso: `https://SEU_IP:8443`. Sem domínio o certificado é self-signed (`tls internal`): o navegador avisa na primeira vez, basta aceitar.
