@@ -42,7 +42,7 @@ cd frontend && npm run typecheck                       # checagem de tipos do fr
 - **Estágios**: fresco → desidratado (secador) → moído (produto acabado). A demanda costuma vir em produto acabado e é convertida para kg de fresco pelos rendimentos (cálculo reverso).
 - **Origens da oferta**: Fazenda Própria, Procompete (produtores parceiros) e P&D.
 - **Oferta não é reagendável**: a erva chega quando é colhida e é perecível. O que não encontra secador dentro do tempo máximo de espera é perda.
-- **Prioridade entre secadores** (regra atual): SCB03 para maiores volumes, SCB01 para picão, SCB02 para menores volumes.
+- **Prioridade entre secadores**: cadastrável em `Capacidade.prioridade` (por erva × secador; menor = preferido). Sem prioridade, a erva vai para o secador de maior capacidade líquida no dia. Política atual do PCP, a cadastrar assim: SCB03 para maiores volumes, SCB01 para picão, SCB02 para menores volumes.
 
 ### Regras que não podem ser quebradas
 
