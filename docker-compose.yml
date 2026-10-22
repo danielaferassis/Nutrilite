@@ -7,8 +7,28 @@ services:
     environment:
       WATCHFILES_FORCE_POLLING: "true"
       DATABASE_URL: mysql+pymysql://app:app@db:3306/app
+      # Em dev o acesso é por http://; em produção fica o padrão (true)
+      COOKIE_SECURE: "false"
+      UPLOADS_DIR: /data/uploads
     volumes:
       - ./backend:/app
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Processa a fila de importações. Reinicia sozinho quando um .py muda
+  worker:
+    build: ./backend
+    command: watchfiles --filter python --target-type command "python -m app.worker" app
+    environment:
+      WATCHFILES_FORCE_POLLING: "true"
+      DATABASE_URL: mysql+pymysql://app:app@db:3306/app
+      APP_NAME: nutrilite-worker
+      UPLOADS_DIR: /data/uploads
+    volumes:
+      - ./backend:/app
+      - uploads:/data/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -45,3 +65,4 @@ services:
 
 volumes:
   db_data:
+  uploads:

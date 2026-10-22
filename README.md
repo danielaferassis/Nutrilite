@@ -14,6 +14,11 @@ Aplicação web com **React + TypeScript** (Vite) no frontend e **FastAPI** no b
 │   │   ├── database.py      # conexão com o banco (SQLAlchemy)
 │   │   ├── models.py        # tabelas do banco
 │   │   ├── schemas.py       # formatos de entrada/saída da API (Pydantic)
+│   │   ├── acesso.py        # sessão de login e checagem de permissões
+│   │   ├── security.py      # hash de senha (Argon2id) e de token
+│   │   ├── cli.py           # comandos administrativos (criar admin)
+│   │   ├── worker.py        # processa a fila de importações (container próprio)
+│   │   ├── importacao/      # contrato dos parsers, tipos de arquivo e armazenamento
 │   │   └── routers/         # rotas, um arquivo por recurso
 │   ├── migrations/
 │   │   ├── env.py           # configuração do Alembic
@@ -39,7 +44,7 @@ Aplicação web com **React + TypeScript** (Vite) no frontend e **FastAPI** no b
 └── docker-compose.prod.yml  # produção (VPS)
 ```
 
-Para adicionar um recurso novo no backend: crie o model em `models.py`, gere a migration (veja [Migrations](#migrations)), crie os schemas em `schemas.py`, um arquivo em `routers/` e registre-o em `main.py`.
+Para adicionar um recurso novo no backend: crie o model em `models.py`, gere a migration (veja [Migrations](#migrations)), crie os schemas em `schemas.py`, um arquivo em `routers/` e registre-o em `main.py`. Os endpoints exigem login; veja [Autenticação e permissões](#autenticação-e-permissões).
 
 ## Endereços
 
@@ -134,6 +139,74 @@ O nível mínimo é configurável: `LOG_LEVEL` em `backend/.env` (padrão `INFO`
 
 ---
 
+## Autenticação e permissões
+
+O login é por **sessão no servidor**, guardada num cookie `HttpOnly` (o JavaScript do frontend não tem acesso ao token):
+
+- `POST /api/auth/login` com `{email, senha}` cria a sessão e devolve o cookie `sessao` (`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/api`). No banco fica só o hash SHA-256 do token (tabela `sessao`).
+- A sessão expira após **8 h sem uso** ou **7 dias** no máximo (`SESSAO_OCIOSA_MINUTOS`, `SESSAO_MAXIMA_DIAS`).
+- Trocar a senha ou desativar o usuário derruba as sessões dele na hora.
+- Login tem limite de tentativas: 5 erros por e-mail ou 20 por IP a cada 15 min (contagem em memória, zera ao reiniciar o backend).
+- Requisições que alteram dados vindas de outro site são recusadas (`Sec-Fetch-Site`/`Origin`), além do `SameSite=Strict`.
+- `COOKIE_SECURE` fica `true` por padrão (cookie só via HTTPS); o `docker-compose.yml` de dev desliga porque o acesso é por `http://`.
+
+**Permissões:** usuário → grupos → funcionalidades. Cada funcionalidade tem um `codigo` (ex.: `usuario.gerenciar`) que o backend checa com a view `vw_permissao_usuario`. Grupos ou funcionalidades inativos não dão permissão.
+
+| Endpoint | Exige |
+| --- | --- |
+| `/api/health`, `/api/auth/login`, `/api/auth/logout` | nada |
+| `/api/auth/me`, `/api/auth/senha`, `/api/items` | estar logado |
+| `/api/usuarios` | `usuario.gerenciar` |
+| `/api/grupos`, `GET /api/funcionalidades` | `grupo.gerenciar` |
+
+Para proteger um endpoint novo:
+
+```python
+from app.acesso import get_usuario_atual, requer_permissao
+
+@router.get("", dependencies=[Depends(requer_permissao("relatorio.ver"))])  # login + permissão
+@router.get("/meus", dependencies=[Depends(get_usuario_atual)])            # só login
+```
+
+Funcionalidades são cadastradas direto no banco (`INSERT INTO funcionalidade ...`), não pela API.
+
+**Primeiro acesso:** como tudo exige login, crie um administrador pela linha de comando. O comando cria (ou reaproveita) o grupo `Administrador` com **todas** as funcionalidades ativas e coloca o usuário nele (a senha é pedida no terminal):
+
+```bash
+docker compose exec backend python -m app.cli criar-admin --email voce@exemplo.com --nome "Seu Nome"
+# sem Docker (dentro de backend/): python -m app.cli criar-admin --email ...
+```
+
+Rode de novo (com o mesmo e-mail) depois de cadastrar funcionalidades novas, para o grupo recebê-las. Para recuperar o acesso de um admin, use `--redefinir-senha`.
+
+## Importação de arquivos (CSV/Excel)
+
+A tabela `importacao` é uma **fila**. O usuário envia o arquivo, a API guarda e enfileira, e o serviço **worker** (`python -m app.worker`, container próprio) processa um por vez:
+
+```
+POST /api/importacoes ──► pendente ──► processando ──► concluido
+                              │                    └──► erro ──► (reprocessar) ──► pendente
+                              └──► cancelado
+```
+
+- O arquivo fica em disco (`UPLOADS_DIR`, volume `uploads` no Docker), não no banco. Aceita `.csv`, `.xlsx` e `.xls` de até `UPLOAD_MAX_MB` (20 MB), conferindo o conteúdo e não só a extensão.
+- Enviar de novo um arquivo idêntico (mesmo SHA-256 e tipo) dá `409`, a menos que mande `forcar=true`.
+- **Tudo ou nada:** se o parser registrar qualquer erro de linha ou falhar, nada daquele arquivo é gravado. Os erros por linha ficam em `importacao_erro` para o usuário corrigir a planilha.
+- Se o worker morrer no meio (deploy, falta de memória), a importação volta para a fila sozinha; depois de 3 interrupções vira `erro`. No deploy o worker espera até 2 min a importação atual terminar.
+- Os arquivos são apagados `IMPORTACAO_RETENCAO_DIAS` (30) dias depois que a importação termina; depois disso não dá mais para reprocessar.
+
+| Endpoint (exige `relatorio.importacao`) | |
+| --- | --- |
+| `GET /api/importacoes/tipos` | tipos disponíveis para o select do upload |
+| `POST /api/importacoes` | multipart: `arquivo`, `tipo`, `forcar` (opcional). Responde `202` com a importação |
+| `GET /api/importacoes?status=&tipo=&minhas=&limite=&offset=` | lista, mais recentes primeiro |
+| `GET /api/importacoes/{id}` | status (o frontend consulta a cada poucos segundos enquanto `pendente`/`processando`) |
+| `GET /api/importacoes/{id}/erros` | erros por linha |
+| `POST /api/importacoes/{id}/reprocessar` | volta para a fila (só `erro`/`cancelado`) |
+| `POST /api/importacoes/{id}/cancelar` | só enquanto `pendente` |
+
+**Escrevendo um parser:** veja o passo a passo em `backend/app/importacao/tipos.py`. Em resumo, uma função que recebe um `ContextoImportacao` (`app/importacao/contexto.py`), lê `ctx.arquivo`, grava com `ctx.db` (incluindo `importacao_id=ctx.importacao_id` nas linhas, para saber a origem e poder desfazer), chama `ctx.erro_linha(...)` para linhas inválidas ou lança `ErroImportacao` se o arquivo todo for inválido, e devolve o total de linhas lidas. Não chame `commit`: quem controla a transação é o worker. Em dev o worker reinicia sozinho quando um `.py` muda; os logs saem em `docker compose logs -f worker`.
+
 ## Rodando com Docker (recomendado)
 
 Só é preciso ter o Docker instalado. Frontend e backend recarregam sozinhos ao salvar arquivos.
@@ -151,9 +224,10 @@ Só é preciso ter o Docker instalado. Frontend e backend recarregam sozinhos ao
    ```bash
    docker compose up --build
    ```
-4. Em outro terminal, crie as tabelas:
+4. Em outro terminal, crie as tabelas e o primeiro usuário:
    ```bash
    docker compose exec backend alembic upgrade head
+   docker compose exec backend python -m app.cli criar-admin --email voce@exemplo.com
    ```
 
 ### Windows
@@ -164,9 +238,10 @@ Só é preciso ter o Docker instalado. Frontend e backend recarregam sozinhos ao
    ```powershell
    docker compose up --build
    ```
-4. Em outro terminal, crie as tabelas:
+4. Em outro terminal, crie as tabelas e o primeiro usuário:
    ```powershell
    docker compose exec backend alembic upgrade head
+   docker compose exec backend python -m app.cli criar-admin --email voce@exemplo.com
    ```
 
 ### Comandos úteis
@@ -185,7 +260,7 @@ docker compose exec backend sh -c "pip install -r requirements-dev.txt && pytest
 
 ## Rodando sem Docker
 
-Requisitos: **Python 3.12+**, **Node.js 20.19+** (recomendado 22 ou 24) e um **MySQL**. Use dois terminais, um para o backend e outro para o frontend.
+Requisitos: **Python 3.12+**, **Node.js 20.19+** (recomendado 22 ou 24) e um **MySQL**. Use dois terminais, um para o backend e outro para o frontend (e um terceiro com `python -m app.worker`, dentro de `backend/` com o venv ativado, se for testar importações).
 
 ### MySQL
 
@@ -227,6 +302,7 @@ source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env
 alembic upgrade head
+python -m app.cli criar-admin --email voce@exemplo.com   # só na primeira vez
 uvicorn app.main:app --reload
 ```
 
@@ -251,6 +327,7 @@ python -m venv .venv
 pip install -r requirements-dev.txt
 copy .env.example .env
 alembic upgrade head
+python -m app.cli criar-admin --email voce@exemplo.com   # só na primeira vez
 uvicorn app.main:app --reload
 ```
 
@@ -299,10 +376,11 @@ O `reset --hard` não mexe em arquivos ignorados pelo git, então o `.env` da VP
 
 ### Stack de produção
 
-`docker-compose.prod.yml` sobe três serviços:
+`docker-compose.prod.yml` sobe quatro serviços:
 
 - **web** — Caddy servindo o build do React e repassando `/api` para o backend. É o **único** serviço exposto, só em HTTPS na porta `8443` (`HTTPS_PORT`), porque 80/443 já são usadas por outro projeto na VPS.
 - **backend** — FastAPI sem `--reload`, sem porta publicada.
+- **worker** — mesma imagem do backend, processando a fila de importações. Divide com o backend o volume `uploads`.
 - **db** — MySQL, sem porta publicada.
 
 Acesso: `https://SEU_IP:8443`. Sem domínio o certificado é self-signed (`tls internal`): o navegador avisa na primeira vez, basta aceitar.
@@ -347,6 +425,7 @@ Edite o `.env`: `SITE_ADDRESS` (IP ou domínio, sem `https://`) e as senhas do M
 export COMPOSE_FILE=docker-compose.prod.yml
 docker compose build
 docker compose run --rm backend alembic upgrade head
+docker compose run --rm backend python -m app.cli criar-admin --email voce@exemplo.com
 docker compose up -d
 docker compose logs -f
 ```
