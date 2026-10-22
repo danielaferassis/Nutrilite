@@ -23,7 +23,14 @@ cd frontend && npm run typecheck                       # checagem de tipos do fr
 - Novo recurso no backend: model em `models.py` → migration (revisar o arquivo gerado) → schemas em `schemas.py` → `routers/<recurso>.py` → registrar em `main.py`.
 - Tabelas só mudam por migration; nunca `create_all`.
 - Logs: `log = logging.getLogger(__name__)` no backend, `logger` de `src/logger.ts` no front. Nada de `print`/`console.log`.
-- Git: uma branch por tarefa (`feature/...`), PR para a `main`. **Nunca fazer push direto na `main`**: todo push nela faz deploy na VPS.
+- Git: uma branch por tarefa (`feature/...`), sem PR. **Nunca commitar direto na `main`**: ela só recebe merge de branch de tarefa. Antes do merge, atualizar a `main` (`git pull`) e rodar `pytest` com o código já integrado; só fazer merge com tudo verde. **Todo push na `main` faz deploy na VPS.**
+
+  ```bash
+  git checkout main && git pull                 # main atualizada
+  git checkout feature/<tarefa> && git merge main
+  docker compose exec backend pytest            # tudo verde antes de seguir
+  git checkout main && git merge feature/<tarefa>
+  ```
 - Mensagens de commit no padrão `tipo(escopo): descrição` (ex.: `feat(planner): ...`).
 
 ## Domínio

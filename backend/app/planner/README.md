@@ -103,10 +103,12 @@ KPIs (`resultado.kpis`):
 - **Demanda só recebe kg secos até o prazo.** O que é seco depois não reduz o `ATRASO`.
 - **Horizonte:** lotes que chegam depois do `fim` ou vencem antes do `inicio` são ignorados. Lote que ainda tem prazo depois do `fim` não é perda.
 - Carga parcial (por carga) ocupa o tempo de uma carga cheia.
+- **Denominador da ocupação:** 24 h de calendário × dias disponíveis do secador. A alternativa seria usar o regime da erva processada (por exemplo, 12 h/dia na camomila). Com 24 h, um secador que só seca camomila chega no máximo a 50% de ocupação, mesmo trabalhando o turno inteiro. Com o regime da erva, ele chegaria a 100%, mas o denominador mudaria conforme a erva, e dias sem erva alocada ficariam sem regime definido.
 
 ### Pendentes de definição
 
 - Validar com o PCP as premissas provisórias acima, principalmente a campanha sem sucessora e a pausa no meio da campanha.
+- **Pergunta ao PCP:** a ocupação planejada deve usar 24 h de calendário (como hoje) ou o regime da erva como denominador? Se for o regime, qual valor usar nos dias em que o secador fica sem erva?
 - Valores oficiais de regime, setups, vazão e carga por erva × secador (tabela de capacidade e matriz de trocas).
 
 ## Testes
