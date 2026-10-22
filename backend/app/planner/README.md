@@ -21,7 +21,7 @@ resultado.viavel               # True se não houver pendências
 | `types.py`       | Contrato de entrada e saída (alterar só em conjunto)                | pronto |
 | `conversion.py`  | Demanda (moído/desidratado) → kg de erva fresca                     | pronto |
 | `validation.py`  | Parâmetros ausentes → `PARAM_AUSENTE` (nunca preencher valor padrão) | pronto |
-| `capacity.py`    | Horas e kg disponíveis por secador/dia                              | testes prontos, implementação a fazer |
+| `capacity.py`    | Horas e kg disponíveis por secador/dia                              | pronto |
 | `engine.py`      | Orquestra o fluxo e faz a alocação gulosa dia a dia (`_alocar`)     | alocação a fazer |
 
 ## Regras

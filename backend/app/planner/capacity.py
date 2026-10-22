@@ -12,9 +12,29 @@ Parâmetro ausente (`None`) levanta ParametroAusenteError; nunca vira zero.
 
 from __future__ import annotations
 
+import math
 from datetime import date
 
-from app.planner.types import BloqueioSecador, Capacidade, Erva
+from app.planner.conversion import ParametroAusenteError
+from app.planner.types import BloqueioSecador, Capacidade, Erva, ModoCapacidade
+
+HORAS_DIA = 24
+# Folga para erro de ponto flutuante ao contar cargas inteiras (0,7 / 0,1 = 6,999…).
+_TOLERANCIA_CARGA = 1e-9
+
+
+def _exigir(valor, nome: str, capacidade: Capacidade):
+    """Retorna `valor` ou levanta ParametroAusenteError se ele for None."""
+    if valor is None:
+        raise ParametroAusenteError(
+            f"{nome} ausente para {capacidade.erva} × {capacidade.secador}", capacidade.erva
+        )
+    return valor
+
+
+def _validar_horas(horas: float) -> None:
+    if horas < 0:
+        raise ValueError(f"Horas negativas: {horas}")
 
 
 def secador_disponivel(
@@ -28,7 +48,11 @@ def secador_disponivel(
 
     Levanta ParametroAusenteError se `dias_operacao` for None.
     """
-    raise NotImplementedError
+    if dias_operacao is None:
+        raise ParametroAusenteError("Dias de operação da fábrica não informados")
+    if dia.weekday() not in dias_operacao:
+        return False
+    return not any(b.secador == secador and b.inicio <= dia <= b.fim for b in bloqueios)
 
 
 def horas_setup_dia(
@@ -47,7 +71,24 @@ def horas_setup_dia(
     Levanta ValueError se `anterior` vier fora do primeiro dia, for da mesma
     erva (não é troca) ou de outro secador.
     """
-    raise NotImplementedError
+    if anterior is not None:
+        if not primeiro_dia:
+            raise ValueError("Troca de erva só acontece no primeiro dia da campanha")
+        if anterior.erva == capacidade.erva:
+            raise ValueError(f"Erva anterior igual à nova ({capacidade.erva}): não é troca")
+        if anterior.secador != capacidade.secador:
+            raise ValueError(
+                f"Erva anterior em outro secador ({anterior.secador} ≠ {capacidade.secador})"
+            )
+
+    horas = _exigir(capacidade.setup_diario_h, "setup_diario_h", capacidade)
+    if primeiro_dia:
+        horas += _exigir(capacidade.setup_inicial_h, "setup_inicial_h", capacidade)
+        if anterior is not None:
+            horas += _exigir(anterior.setup_final_h, "setup_final_h", anterior)
+    if encerra_campanha:
+        horas += _exigir(capacidade.setup_final_h, "setup_final_h", capacidade)
+    return horas
 
 
 def horas_uteis(erva: Erva, capacidade: Capacidade, horas_setup: float) -> float:
@@ -56,7 +97,14 @@ def horas_uteis(erva: Erva, capacidade: Capacidade, horas_setup: float) -> float
     - setup dentro do regime: max(0, regime − setup);
     - setup fora do regime:   max(0, min(regime, 24 − setup)).
     """
-    raise NotImplementedError
+    if erva.regime_horas_dia is None:
+        raise ParametroAusenteError(f"Regime de horas/dia ausente para {erva.codigo}", erva.codigo)
+    regime = erva.regime_horas_dia
+    dentro = _exigir(capacidade.setup_dentro_do_regime, "setup_dentro_do_regime", capacidade)
+
+    if dentro:
+        return max(0.0, regime - horas_setup)
+    return max(0.0, min(regime, HORAS_DIA - horas_setup))
 
 
 def cargas_no_dia(capacidade: Capacidade, horas: float) -> int:
@@ -65,7 +113,11 @@ def cargas_no_dia(capacidade: Capacidade, horas: float) -> int:
     Tolera erro de ponto flutuante (0,7 h / 0,1 h = 7 cargas, não 6).
     Levanta ValueError para horas negativas ou modo diferente de POR_CARGA.
     """
-    raise NotImplementedError
+    _validar_horas(horas)
+    if capacidade.modo != ModoCapacidade.POR_CARGA:
+        raise ValueError(f"Capacidade {capacidade.erva} × {capacidade.secador} não é por carga")
+    horas_por_carga = _exigir(capacidade.horas_por_carga, "horas_por_carga", capacidade)
+    return math.floor(horas / horas_por_carga + _TOLERANCIA_CARGA)
 
 
 def kg_no_dia(capacidade: Capacidade, horas: float) -> float:
@@ -76,4 +128,9 @@ def kg_no_dia(capacidade: Capacidade, horas: float) -> float:
 
     Levanta ValueError para horas negativas.
     """
-    raise NotImplementedError
+    _validar_horas(horas)
+    modo = _exigir(capacidade.modo, "modo", capacidade)
+    if modo == ModoCapacidade.POR_CARGA:
+        kg_por_carga = _exigir(capacidade.kg_por_carga, "kg_por_carga", capacidade)
+        return cargas_no_dia(capacidade, horas) * kg_por_carga
+    return horas * _exigir(capacidade.kg_fresco_por_hora, "kg_fresco_por_hora", capacidade)
