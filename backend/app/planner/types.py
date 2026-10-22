@@ -44,6 +44,13 @@ class TipoPendencia(StrEnum):
     SALDO_NAO_ALOCADO = "saldo_nao_alocado"  # necessidade sem oferta prevista
 
 
+class ModoCapacidade(StrEnum):
+    """Como um secador processa uma erva."""
+
+    CONTINUO = "continuo"  # vazão constante: horas × kg_fresco_por_hora
+    POR_CARGA = "por_carga"  # bateladas: só cargas inteiras cabem no dia
+
+
 # ---------------------------------------------------------------------------
 # Cadastros (parâmetros da fábrica)
 # ---------------------------------------------------------------------------
@@ -69,14 +76,24 @@ class Secador:
 
 @dataclass(frozen=True)
 class Capacidade:
-    """Capacidade de um secador para uma erva específica."""
+    """Capacidade de um secador para uma erva específica.
+
+    Campos exigidos dependem do `modo`: CONTINUO usa kg_fresco_por_hora;
+    POR_CARGA usa kg_por_carga e horas_por_carga.
+    """
 
     erva: str  # Erva.codigo
     secador: str  # Secador.codigo
     kg_fresco_por_hora: float | None = None
-    setup_inicial_h: float | None = None  # ao começar uma campanha da erva
-    setup_final_h: float | None = None  # ao encerrar a campanha (limpeza)
-    setup_diario_h: float | None = None  # perda diária durante a campanha
+    setup_inicial_h: float | None = None  # no 1º dia da campanha da erva
+    setup_final_h: float | None = None  # limpeza ao encerrar a campanha
+    setup_diario_h: float | None = None  # perda em todo dia da campanha
+    modo: ModoCapacidade | None = None
+    kg_por_carga: float | None = None
+    horas_por_carga: float | None = None
+    # True: o setup consome horas do regime (turno). False: o setup é feito
+    # fora do turno e só limita as 24 h do dia.
+    setup_dentro_do_regime: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -144,6 +161,9 @@ class EntradaPlanejamento:
     lotes: list[LotePrevisto] = field(default_factory=list)
     demandas: list[Demanda] = field(default_factory=list)
     bloqueios: list[BloqueioSecador] = field(default_factory=list)
+    # Dias da semana em que a fábrica opera (date.weekday(): 0 = segunda …
+    # 6 = domingo). None = não informado → PARAM_AUSENTE.
+    dias_operacao: frozenset[int] | None = None
 
 
 # ---------------------------------------------------------------------------
