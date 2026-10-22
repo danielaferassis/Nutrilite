@@ -1,7 +1,7 @@
 """Testes do fluxo de simulação (validação + conversão).
 
-A alocação nos secadores ainda é TODO; estes testes garantem o contrato:
-parâmetros ausentes interrompem a simulação com pendências explicáveis.
+Garantem o contrato: parâmetros ausentes interrompem a simulação com
+pendências explicáveis. A alocação tem cenários em test_alocacao.py.
 """
 
 from dataclasses import replace

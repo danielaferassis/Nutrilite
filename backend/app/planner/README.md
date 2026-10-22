@@ -22,7 +22,7 @@ resultado.viavel               # True se não houver pendências
 | `conversion.py`  | Demanda (moído/desidratado) → kg de erva fresca                     | pronto |
 | `validation.py`  | Parâmetros ausentes → `PARAM_AUSENTE` (nunca preencher valor padrão) | pronto |
 | `capacity.py`    | Horas e kg disponíveis por secador/dia                              | pronto |
-| `engine.py`      | Orquestra o fluxo e faz a alocação gulosa dia a dia (`_alocar`)     | alocação a fazer |
+| `engine.py`      | Orquestra o fluxo, faz a alocação gulosa dia a dia e calcula KPIs   | pronto |
 
 ## Regras
 
@@ -64,10 +64,40 @@ Os dois modos exigem `setup_inicial_h`, `setup_final_h`, `setup_diario_h` e `set
 
 Exemplo (camomila fictícia: 12 h, setups 3/9/1): campanha de 1 dia = 0 h; de 3 dias = 8 + 11 + 2 h; por carga (4 h, 350 kg) num dia intermediário = 2 cargas / 700 kg; setup fora do turno em campanha de 1 dia = 11 h.
 
+### Alocação (`engine._alocar`)
+
+Guloso, dia a dia, do `inicio` ao `fim` do horizonte:
+
+1. Lote com saldo após o vencimento (`data_chegada + espera_maxima_dias`) → `CAPACIDADE_EXCEDIDA`. Lote que vence no último dia do horizonte e sobra também é perda.
+2. Enquanto houver secador disponível e erva com saldo disponível no dia:
+   - escolhe primeiro a erva **mais urgente**: menos secadores já usados por ela no dia → vencimento mais próximo → maior prioridade de demanda → maior saldo;
+   - ela vai para o secador livre que **seca mais kg naquele dia**, já descontados os setups. Continuar a campanha sai mais barato que trocar de erva.
+3. Os kg secos saem dos lotes que vencem primeiro e vão para as demandas ainda no prazo, por maior prioridade e prazo mais próximo. O que sobra fica na alocação sem demanda (`demanda_id=None`).
+4. No fim: demanda não coberta até o prazo → `ATRASO`; necessidade maior que a oferta prevista no horizonte → `SALDO_NAO_ALOCADO` (por erva).
+
+A regra do PCP por código de secador (SCB03 maiores volumes, SCB01 picão, SCB02 menores volumes) **não** está fixa no código. Ela sai da tabela de capacidade: o secador mais rápido fica com o volume maior, e só recebe uma erva o secador que tem capacidade cadastrada para ela.
+
+KPIs (`resultado.kpis`):
+
+| Chave | Significado |
+| ----- | ----------- |
+| `horas_ocupadas` | por secador: horas de secagem + setup planejadas |
+| `horas_disponiveis` | por secador: 24 h × dias disponíveis (operação sem bloqueio) |
+| `ocupacao_planejada_pct` | por secador: ocupadas ÷ disponíveis × 100; `None` se não há dia disponível |
+| `saldo_nao_alocado_kg` | por erva: kg de fresco das demandas não cobertos até o prazo |
+
+### Premissas adotadas provisoriamente na alocação
+
+- **Uma erva por secador por dia.**
+- **Campanha sem sucessora:** se não chega mais lote da erva e o saldo cabe no dia junto com a limpeza, a campanha encerra nesse dia e paga o setup final. Se não cabe, a campanha fica aberta e a limpeza só é cobrada se outra erva entrar depois (troca). Nesse caso, a limpeza não aparece nas horas ocupadas do horizonte.
+- **Pausa no meio da campanha** (dia sem trabalho, fora de `dias_operacao` ou com bloqueio): a campanha continua aberta e não paga setup inicial de novo nem setup diário nos dias parados.
+- **Demanda só recebe kg secos até o prazo.** O que é seco depois não reduz o `ATRASO`.
+- **Horizonte:** lotes que chegam depois do `fim` ou vencem antes do `inicio` são ignorados. Lote que ainda tem prazo depois do `fim` não é perda.
+- Carga parcial (por carga) ocupa o tempo de uma carga cheia.
+
 ### Pendentes de definição
 
-- **Campanha sem sucessora** (acabaram os lotes ou o horizonte): onde cobrar o setup final? A alocação decide; `capacity.py` só cobra quando recebe `encerra_campanha=True`.
-- **Pausa no meio da campanha** (dia fora de `dias_operacao` ou bloqueio): a campanha continua ou recomeça, cobrando o setup inicial de novo?
+- Validar com o PCP as premissas provisórias acima, principalmente a campanha sem sucessora e a pausa no meio da campanha.
 - Valores oficiais de regime, setups, vazão e carga por erva × secador (tabela de capacidade e matriz de trocas).
 
 ## Testes
