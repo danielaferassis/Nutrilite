@@ -108,7 +108,8 @@ class _Plano:
     """O que um secador faz com uma erva em um dia."""
 
     capacidade: Capacidade
-    kg: float
+    capacidade_liquida_kg: float  # quanto o secador seca no dia, sem limitar ao saldo
+    kg: float  # quanto vai secar de fato: min(capacidade líquida, saldo)
     horas_secagem: float
     horas_setup: float
     encerra_campanha: bool
@@ -122,8 +123,10 @@ def _alocar(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> None:
     2. Enquanto houver secador livre e erva com saldo disponível:
        - a erva mais urgente escolhe primeiro: menos secadores já usados no
          dia, vencimento mais próximo, maior prioridade de demanda, maior saldo;
-       - ela vai para o secador livre que seca mais kg nesse dia, já
-         descontados os setups (continuar campanha sai mais barato que trocar).
+       - ela vai para o secador livre de menor `Capacidade.prioridade`; sem
+         prioridade cadastrada (ou empate), para o de maior capacidade líquida
+         no dia, já descontados os setups (continuar campanha sai mais barato
+         que trocar).
     3. Os kg secos saem dos lotes que vencem primeiro e atendem as demandas
        de maior prioridade (e prazo mais próximo) que ainda estão no prazo.
     No fim: demanda não coberta até o prazo → ATRASO; necessidade maior que a
@@ -215,8 +218,7 @@ class _Alocador:
                 if plano is not None:
                     candidatos.append((secador, plano))
             if candidatos:
-                # Mais kg; empate: menos setup; depois o código do secador.
-                return min(candidatos, key=lambda c: (-c[1].kg, c[1].horas_setup, c[0]))
+                return min(candidatos, key=_ordem_secador)
         return None
 
     def _planejar(self, dia: date, capacidade: Capacidade, saldo: float) -> _Plano | None:
@@ -237,13 +239,13 @@ class _Alocador:
         if not self._tem_oferta_futura(capacidade.erva, dia):
             setup, kg = no_dia(encerra=True)
             if kg >= saldo - _EPS:
-                return _Plano(capacidade, saldo, _horas_secagem(capacidade, saldo), setup, True)
+                return _Plano(capacidade, kg, saldo, _horas_secagem(capacidade, saldo), setup, True)
 
         setup, kg = no_dia(encerra=False)
         if kg <= _EPS:
             return None
-        kg = min(kg, saldo)
-        return _Plano(capacidade, kg, _horas_secagem(capacidade, kg), setup, False)
+        seco = min(kg, saldo)
+        return _Plano(capacidade, kg, seco, _horas_secagem(capacidade, seco), setup, False)
 
     def _registrar_plano(self, dia: date, secador: str, plano: _Plano) -> None:
         """Baixa o saldo dos lotes, destina às demandas e grava as alocações."""
@@ -375,6 +377,27 @@ class _Alocador:
                         kg=round(falta, 3),
                     )
                 )
+
+
+def _ordem_secador(candidato: tuple[str, _Plano]) -> tuple:
+    """Chave para escolher o secador de uma erva (menor vence).
+
+    1. prioridade cadastrada (menor primeiro); sem prioridade fica por último;
+    2. maior capacidade líquida no dia (kg que o secador consegue secar, já
+       descontados os setups, sem limitar ao saldo: um lote pequeno não
+       empata o secador rápido com o lento);
+    3. menos horas de setup; 4. código do secador.
+    """
+    secador, plano = candidato
+    prioridade = plano.capacidade.prioridade
+    sem_prioridade = prioridade is None
+    return (
+        sem_prioridade,
+        prioridade or 0,
+        -plano.capacidade_liquida_kg,
+        plano.horas_setup,
+        secador,
+    )
 
 
 def _horas_secagem(capacidade: Capacidade, kg: float) -> float:

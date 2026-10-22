@@ -203,6 +203,58 @@ def test_erva_vai_para_o_secador_que_seca_mais_e_o_outro_reforca():
     assert not pendencias(resultado, TipoPendencia.CAPACIDADE_EXCEDIDA)
 
 
+def test_sem_prioridade_vence_a_maior_capacidade_liquida():
+    resultado = simular(
+        entrada(capacidades=[AGR_SCB01, AGR_SCB03], lotes=[lote("L1", "AGRIAO", SEG, 1500)])
+    )
+
+    # SCB03 seca 3200 kg no dia (16 h × 200) contra 1800 kg do SCB01 (18 h × 100).
+    assert [a.secador for a in resultado.alocacoes] == ["SCB03"]
+
+
+def test_prioridade_cadastrada_vence_a_capacidade_liquida():
+    """Política do PCP: SCB01 preferido, mesmo sendo o secador mais lento."""
+    preferido = replace(AGR_SCB01, prioridade=1)
+    mais_rapido = replace(AGR_SCB03, prioridade=2)
+
+    resultado = simular(
+        entrada(capacidades=[preferido, mais_rapido], lotes=[lote("L1", "AGRIAO", SEG, 1500)])
+    )
+
+    # SCB01: setup inicial 2 + diário 2 + final 2 = 6 h → 18 h × 100 = 1800 kg ≥ 1500.
+    assert linhas(resultado) == [("SCB01", SEG, "L1", None, 1500, 15, 6)]
+
+
+def test_secador_com_prioridade_vence_secador_sem_prioridade():
+    preferido = replace(AGR_SCB01, prioridade=5)
+
+    resultado = simular(
+        entrada(capacidades=[preferido, AGR_SCB03], lotes=[lote("L1", "AGRIAO", SEG, 1500)])
+    )
+
+    assert [a.secador for a in resultado.alocacoes] == ["SCB01"]
+
+
+def test_prioridade_escolhe_quem_seca_primeiro_e_o_outro_reforca():
+    agriao_sem_espera = replace(AGRIAO, espera_maxima_dias=0)
+    preferido = replace(AGR_SCB01, prioridade=1)
+
+    resultado = simular(
+        entrada(
+            ervas=[CAMOMILA, agriao_sem_espera],
+            capacidades=[preferido, AGR_SCB03],
+            lotes=[lote("L1", "AGRIAO", SEG, 6000)],
+        )
+    )
+
+    # SCB01 (preferido) seca o máximo dele, 20 h × 100 = 2000 kg; SCB03 reforça com 4000 kg.
+    assert [(a.secador, a.kg_fresco) for a in resultado.alocacoes] == [
+        ("SCB01", 2000),
+        ("SCB03", 4000),
+    ]
+    assert not pendencias(resultado, TipoPendencia.CAPACIDADE_EXCEDIDA)
+
+
 def test_secador_bloqueado_nao_recebe_alocacao():
     resultado = simular(
         entrada(

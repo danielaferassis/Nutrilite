@@ -71,11 +71,11 @@ Guloso, dia a dia, do `inicio` ao `fim` do horizonte:
 1. Lote com saldo após o vencimento (`data_chegada + espera_maxima_dias`) → `CAPACIDADE_EXCEDIDA`. Lote que vence no último dia do horizonte e sobra também é perda.
 2. Enquanto houver secador disponível e erva com saldo disponível no dia:
    - escolhe primeiro a erva **mais urgente**: menos secadores já usados por ela no dia → vencimento mais próximo → maior prioridade de demanda → maior saldo;
-   - ela vai para o secador livre que **seca mais kg naquele dia**, já descontados os setups. Continuar a campanha sai mais barato que trocar de erva.
+   - ela vai para o secador livre com **menor `prioridade` cadastrada** na capacidade erva × secador. Sem prioridade (ou em empate), vai para o de **maior capacidade líquida no dia**: os kg que ele consegue secar, já descontados os setups, sem limitar ao saldo do lote. Continuar a campanha sai mais barato que trocar de erva.
 3. Os kg secos saem dos lotes que vencem primeiro e vão para as demandas ainda no prazo, por maior prioridade e prazo mais próximo. O que sobra fica na alocação sem demanda (`demanda_id=None`).
 4. No fim: demanda não coberta até o prazo → `ATRASO`; necessidade maior que a oferta prevista no horizonte → `SALDO_NAO_ALOCADO` (por erva).
 
-A regra do PCP por código de secador (SCB03 maiores volumes, SCB01 picão, SCB02 menores volumes) **não** está fixa no código. Ela sai da tabela de capacidade: o secador mais rápido fica com o volume maior, e só recebe uma erva o secador que tem capacidade cadastrada para ela.
+A regra do PCP por código de secador (SCB03 maiores volumes, SCB01 picão, SCB02 menores volumes) **não** está fixa no código. Ela é cadastrada na tabela de capacidade (veja "Prioridade entre secadores" abaixo).
 
 KPIs (`resultado.kpis`):
 
@@ -85,6 +85,15 @@ KPIs (`resultado.kpis`):
 | `horas_disponiveis` | por secador: 24 h × dias disponíveis (operação sem bloqueio) |
 | `ocupacao_planejada_pct` | por secador: ocupadas ÷ disponíveis × 100; `None` se não há dia disponível |
 | `saldo_nao_alocado_kg` | por erva: kg de fresco das demandas não cobertos até o prazo |
+
+### Prioridade entre secadores (`Capacidade.prioridade`)
+
+- **Padrão (sem prioridade):** a erva vai para o secador com maior capacidade líquida no dia, isto é, os kg que ele consegue secar depois dos setups. A comparação não limita ao saldo: com um lote pequeno que os dois secadores dariam conta, ainda vence o mais rápido, e o mais lento fica livre. Assim o secador mais rápido fica com o volume maior.
+- **Com prioridade:** campo opcional por erva × secador, em que o menor valor é o preferido. Quando informado, decide **antes** da capacidade líquida. A capacidade líquida só desempata secadores de mesma prioridade.
+- Secador com prioridade informada vence secador sem prioridade.
+- `None` significa "sem preferência" e não gera `PARAM_AUSENTE`: a prioridade é opcional por definição, e nenhum valor é inventado.
+- A prioridade só define quem recebe a erva primeiro. Se o preferido não dá conta do volume, os outros secadores livres reforçam no mesmo dia. Secador que não seca nada no dia (0 kg) não é escolhido.
+- Exemplo da política atual do PCP: picão × SCB01 com `prioridade=1`. "SCB03 para grandes volumes" já é o comportamento padrão quando o SCB03 é o mais rápido; para garantir, é possível cadastrar `prioridade=1` nas ervas de grande volume × SCB03.
 
 ### Premissas adotadas provisoriamente na alocação
 

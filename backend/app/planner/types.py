@@ -94,6 +94,9 @@ class Capacidade:
     # True: o setup consome horas do regime (turno). False: o setup é feito
     # fora do turno e só limita as 24 h do dia.
     setup_dentro_do_regime: bool | None = None
+    # Preferência do PCP por este secador para a erva (menor = preferido).
+    # Opcional: None = sem preferência, decide a maior capacidade líquida no dia.
+    prioridade: int | None = None
 
 
 @dataclass(frozen=True)
