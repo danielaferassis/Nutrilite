@@ -1,9 +1,10 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.models import StatusImportacao
+from app.models import ModoCapacidade, StatusImportacao
 
 
 def _assume_utc(value: datetime) -> datetime:
@@ -200,3 +201,106 @@ class ImportacaoErroRead(BaseModel):
     linha: int | None
     coluna: str | None
     mensagem: str
+
+
+# --- Cadastros do planejamento ---
+
+
+def _codigo_canonico(value: str) -> str:
+    codigo = value.strip().upper()
+    if not codigo:
+        raise ValueError("não pode ser vazio")
+    return codigo
+
+
+def _nome_limpo(value: str) -> str:
+    nome = value.strip()
+    if not nome:
+        raise ValueError("não pode ser vazio")
+    return nome
+
+
+class ErvaCreate(BaseModel):
+    codigo: str = Field(min_length=1, max_length=50)
+    nome: str = Field(min_length=1, max_length=150)
+    ativo: bool = True
+    regime_horas_dia: Decimal | None = Field(default=None, gt=0, le=24)
+    espera_maxima_dias: int | None = Field(default=None, ge=0)
+
+    @field_validator("codigo")
+    @classmethod
+    def normaliza_codigo(cls, value: str) -> str:
+        return _codigo_canonico(value)
+
+    @field_validator("nome")
+    @classmethod
+    def normaliza_nome(cls, value: str) -> str:
+        return _nome_limpo(value)
+
+
+class ErvaRead(ErvaCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    criado_em: UtcDatetime
+    atualizado_em: UtcDatetime
+
+
+class SecadorCreate(BaseModel):
+    codigo: str = Field(min_length=1, max_length=50)
+    nome: str = Field(min_length=1, max_length=150)
+    ativo: bool = True
+
+    @field_validator("codigo")
+    @classmethod
+    def normaliza_codigo(cls, value: str) -> str:
+        return _codigo_canonico(value)
+
+    @field_validator("nome")
+    @classmethod
+    def normaliza_nome(cls, value: str) -> str:
+        return _nome_limpo(value)
+
+
+class SecadorRead(SecadorCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    criado_em: UtcDatetime
+    atualizado_em: UtcDatetime
+
+
+class CapacidadeCreate(BaseModel):
+    erva_id: int = Field(gt=0)
+    secador_id: int = Field(gt=0)
+    modo: ModoCapacidade | None = None
+    kg_fresco_por_hora: Decimal | None = Field(default=None, gt=0)
+    kg_por_carga: Decimal | None = Field(default=None, gt=0)
+    horas_por_carga: Decimal | None = Field(default=None, gt=0)
+    setup_inicial_h: Decimal | None = Field(default=None, ge=0)
+    setup_final_h: Decimal | None = Field(default=None, ge=0)
+    setup_diario_h: Decimal | None = Field(default=None, ge=0)
+    setup_dentro_do_regime: bool | None = None
+    prioridade: int | None = Field(default=None, ge=0)
+
+
+class CapacidadeRead(CapacidadeCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    criado_em: UtcDatetime
+    atualizado_em: UtcDatetime
+
+
+class RendimentoCreate(BaseModel):
+    erva_id: int = Field(gt=0)
+    fresco_por_desidratado: Decimal | None = Field(default=None, gt=0)
+    desidratado_por_moido: Decimal | None = Field(default=None, gt=0)
+
+
+class RendimentoRead(RendimentoCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    criado_em: UtcDatetime
+    atualizado_em: UtcDatetime
