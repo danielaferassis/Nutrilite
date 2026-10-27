@@ -33,7 +33,13 @@ Aplicação web com **React + TypeScript** (Vite) no frontend e **FastAPI** no b
 │   │   ├── App.tsx          # componente principal
 │   │   ├── api.ts           # chamadas à API e tipos
 │   │   ├── logger.ts        # padrão de logs
-│   │   └── components/      # componentes reutilizáveis
+│   │   └── components/      # componentes reutilizáveis e telas principais
+│   │       ├── DashboardPCP.tsx      # Visão centralizada para o perfil PCP/Gestor
+│   │       ├── EntradaPrevisoes.tsx  # Tela de Lançamento de Previsões (Entrada do Campo)
+│   │       ├── GestaoDemandas.tsx    # Tela de Gestão de Demandas (Cadastro e conversão)
+│   │       ├── ItemList.tsx          # Componente auxiliar para listagem de itens
+│   │       ├── Login.tsx             # Tela de Autenticação e Controle de Acesso (RBAC)
+│   │       └── MatrizCapacidade.tsx  # Tela de Cadastros (Ervas, Secadores e Restrições)
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── Dockerfile           # desenvolvimento (Vite dev server)

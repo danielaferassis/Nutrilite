@@ -19,3 +19,6 @@ backend/uploads/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Instruções pessoais do Claude Code (cada um mantém o seu)
+CLAUDE.local.md
