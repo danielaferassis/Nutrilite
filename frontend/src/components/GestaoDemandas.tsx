@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calculator, Target, ArrowRight } from 'lucide-react';
+import { Calculator, Target } from 'lucide-react';
 
 export default function GestaoDemandas() {
   const [demandaSeca, setDemandaSeca] = useState<number>(1000);

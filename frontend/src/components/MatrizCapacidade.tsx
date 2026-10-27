@@ -1,4 +1,4 @@
-import { Settings, Save, Zap } from 'lucide-react';
+import { Settings, Save} from 'lucide-react';
 
 export default function MatrizCapacidade() {
   return (
