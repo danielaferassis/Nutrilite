@@ -1,52 +1,46 @@
-import { useState } from 'react';
+import { Settings, Save } from 'lucide-react';
 
-// Tipagem baseada nos secadores e semanas (W32 a W52)[cite: 14, 25]
-interface AlocacaoSemana {
-  semana: string;
-  scb01: number; // kg alocados
-  scb02: number;
-  scb03: number;
-  excedente: number; // Saldo não alocado[cite: 31]
-}
-
-export function MatrizCapacidade() {
-  // Dados mockados representando o cruzamento do simulador de capacidade[cite: 16]
-  const [matriz] = useState<AlocacaoSemana[]>([
-    { semana: 'W32', scb01: 2000, scb02: 1500, scb03: 5600, excedente: 0 },
-    { semana: 'W33', scb01: 2000, scb02: 1500, scb03: 5600, excedente: 0 },
-    { semana: 'W34', scb01: 2000, scb02: 1500, scb03: 5600, excedente: 1040 }, // Exemplo de conflito[cite: 31]
-    { semana: 'W35', scb01: 2000, scb02: 1500, scb03: 5600, excedente: 720 },
-  ]);
-
+export default function MatrizCapacidade() {
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Matriz de Capacidade dos Secadores</h2>
-      <p>Análise de ocupação das semanas W32 a W52 e identificação de excedentes[cite: 25].</p>
-
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
-        <thead>
-          <tr style={{ background: '#e0e0e0', textAlign: 'left' }}>
-            <th style={{ padding: '10px', border: '1px solid #ccc' }}>Semana</th>
-            <th style={{ padding: '10px', border: '1px solid #ccc' }}>SCB01 (Elétrico)</th>
-            <th style={{ padding: '10px', border: '1px solid #ccc' }}>SCB02 (Vapor)</th>
-            <th style={{ padding: '10px', border: '1px solid #ccc' }}>SCB03 (GLP)</th>
-            <th style={{ padding: '10px', border: '1px solid #ccc' }}>Excedente / Risco</th>
-          </tr>
-        </thead>
-        <tbody>
-          {matriz.map((linha) => (
-            <tr key={linha.semana}>
-              <td style={{ padding: '10px', border: '1px solid #ccc', fontWeight: 'bold' }}>{linha.semana}</td>
-              <td style={{ padding: '10px', border: '1px solid #ccc' }}>{linha.scb01} kg</td>
-              <td style={{ padding: '10px', border: '1px solid #ccc' }}>{linha.scb02} kg</td>
-              <td style={{ padding: '10px', border: '1px solid #ccc' }}>{linha.scb03} kg</td>
-              <td style={{ padding: '10px', border: '1px solid #ccc', background: linha.excedente > 0 ? '#ffcdd2' : '#c8e6c9', color: linha.excedente > 0 ? '#b71c1c' : '#1b5e20', fontWeight: 'bold' }}>
-                {linha.excedente > 0 ? `${linha.excedente} kg (Sobrecarga)` : 'Capacidade OK'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="flex items-center gap-2 mb-6 border-b pb-4">
+        <Settings className="text-[#006F44]" />
+        <h1 className="text-2xl font-bold text-[#211E16]">Matriz de Capacidade e Regras</h1>
+      </div>
+      
+      <div className="bg-white rounded-lg shadow p-6 space-y-6">
+        <div className="grid grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Erva / Cultura</label>
+            <select className="w-full border-gray-300 rounded-md shadow-sm focus:ring-[#84BD00] focus:border-[#84BD00] p-2 border">
+              <option>Acerola</option>
+              <option>Picão Preto</option>
+              <option>Alecrim</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Equipamento (Secador)</label>
+            <select className="w-full border-gray-300 rounded-md shadow-sm focus:ring-[#84BD00] focus:border-[#84BD00] p-2 border">
+              <option>Secador A (Esteira)</option>
+              <option>Secador B (Rotativo)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Capacidade (kg/h)</label>
+            <input type="number" className="w-full border-gray-300 rounded-md shadow-sm p-2 border" placeholder="Ex: 500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Rendimento Esperado (%)</label>
+            <input type="number" className="w-full border-gray-300 rounded-md shadow-sm p-2 border" placeholder="Ex: 12" />
+          </div>
+        </div>
+        
+        <div className="flex justify-end pt-4 border-t">
+          <button className="flex items-center gap-2 bg-[#006F44] text-white px-4 py-2 rounded-md hover:bg-green-800">
+            <Save size={16} /> Salvar Parâmetros
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

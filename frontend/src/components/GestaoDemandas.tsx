@@ -1,61 +1,54 @@
 import { useState } from 'react';
-import { logger } from '../logger';
+import { Calculator, Target } from 'lucide-react';
 
-export function GestaoDemanda() {
-  const [cultura, setCultura] = useState('Agrião');
-  const [metaSeca, setMetaSeca] = useState<number | ''>('');
-  const [reserva, setReserva] = useState<number | ''>('');
-  const [necessidadeFresca, setNecessidadeFresca] = useState<number>(0);
-
-  // Fatores de conversão baseados no levantamento (ex: Agrião 23.3:1, Camomila 6:1)[cite: 17]
-  const fatoresConversao: Record<string, number> = {
-    'Agrião': 23.3,
-    'Camomila': 6.0,
-    'Picão-preto': 4.5, // Fictício para exemplo
-  };
-
-  const calcularNecessidade = () => {
-    if (!metaSeca) return;
-    const fator = fatoresConversao[cultura];
-    const totalSeco = Number(metaSeca) + Number(reserva);
-    const calculoFresco = totalSeco * fator;
-    setNecessidadeFresca(calculoFresco);
-    logger.info(`Cálculo de demanda realizado para ${cultura}: Necessidade de ${calculoFresco.toFixed(2)}kg frescos.`);
-  };
+export default function GestaoDemandas() {
+  const [demandaSeca, setDemandaSeca] = useState(1000);
+  const rendimento = 0.12; // 12% simulado do backend
+  const materiaPrimaFresca = demandaSeca / rendimento;
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px' }}>
-      <h2>Gestão de Demandas (Exportação)</h2>
-      <p>Conversão de produto acabado para necessidade de campo[cite: 30].</p>
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="flex items-center gap-2 mb-6 border-b pb-4">
+        <Target className="text-[#006F44]" />
+        <h1 className="text-2xl font-bold text-[#211E16]">Gestão de Demandas</h1>
+      </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', background: '#f9f9f9', padding: '20px', borderRadius: '8px' }}>
-        <label>
-          Cultura Alvo:
-          <select value={cultura} onChange={(e) => setCultura(e.target.value)} style={{ marginLeft: '10px' }}>
-            {Object.keys(fatoresConversao).map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </label>
-        
-        <label>
-          Meta de Produto Seco (kg):
-          <input type="number" value={metaSeca} onChange={(e) => setMetaSeca(Number(e.target.value))} />
-        </label>
-
-        <label>
-          Reserva de Segurança (kg):
-          <input type="number" value={reserva} onChange={(e) => setReserva(Number(e.target.value))} />
-        </label>
-
-        <button onClick={calcularNecessidade} style={{ padding: '10px', background: '#2e7d32', color: 'white' }}>
-          Calcular Necessidade Fresca
-        </button>
-
-        {necessidadeFresca > 0 && (
-          <div style={{ marginTop: '20px', padding: '15px', background: '#e8f5e9', border: '1px solid #4caf50' }}>
-            <h4>Resultado do Planejamento:</h4>
-            <p>Para produzir {Number(metaSeca) + Number(reserva)}kg secos de {cultura}, serão necessários <strong>{necessidadeFresca.toFixed(2)} kg de matéria-prima fresca</strong>.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-medium mb-4">Cadastro de Meta Líquida</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Demanda (Kg Produto Seco)</label>
+              <input 
+                type="number" 
+                value={demandaSeca}
+                onChange={(e) => setDemandaSeca(Number(e.target.value))}
+                className="mt-1 w-full border-gray-300 rounded-md p-2 border" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Prazo / Prioridade</label>
+              <select className="mt-1 w-full border-gray-300 rounded-md p-2 border">
+                <option>Alta (Semana Atual)</option>
+                <option>Média (Próxima Semana)</option>
+              </select>
+            </div>
           </div>
-        )}
+        </div>
+
+        <div className="bg-[#f4f4f5] rounded-lg border border-[#C7C8CA] p-6 flex flex-col justify-center">
+          <div className="flex items-center gap-2 mb-2 text-gray-600">
+            <Calculator size={20} />
+            <h3 className="font-medium">Conversão Automática</h3>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">Baseado no rendimento atual aprovado (12%)</p>
+          <div className="bg-white p-4 rounded text-center shadow-sm">
+            <span className="block text-sm text-gray-500">Necessidade de Campo (Fresca)</span>
+            <span className="block text-3xl font-bold text-[#006F44]">
+              {materiaPrimaFresca.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} Kg
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

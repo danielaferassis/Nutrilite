@@ -1,70 +1,40 @@
-import { useState } from 'react';
-import { api } from '../api'; // Certifique-se de que a interface Previsao está exportada aqui
-import { logger } from '../logger';
+import { Calendar, Sprout } from 'lucide-react';
 
-export function EntradaPrevisoes() {
-  const [cultura, setCultura] = useState('');
-  const [volume, setVolume] = useState('');
-  const [semana, setSemana] = useState('');
-  const [loading, setLoading] = useState(false); // Adição de estado de carregamento
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      // Uso do método de domínio tipado ao invés do .post() genérico
-      await api.enviarPrevisao({ 
-        cultura, 
-        volume_kg: Number(volume), // Garantir que o nome da propriedade bate com a API
-        semana 
-      });
-      
-      // Log seguro: não expõe dados estratégicos da indústria no console do navegador[cite: 4, 5]
-      logger.info('Previsão submetida com sucesso para o servidor.');
-      alert('Previsão enviada com sucesso para análise do PCP.');
-      
-      // Limpeza do formulário após sucesso
-      setCultura('');
-      setVolume('');
-      setSemana('');
-    } catch (error) {
-      logger.error('Erro ao registrar previsão no servidor', error);
-      alert('Ocorreu um erro ao enviar a previsão. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+export default function EntradaPrevisoes() {
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-      <h2>Lançamento de Previsões de Colheita</h2>
-      <p>Interface exclusiva para Fazenda Própria, Procompete e P&D.</p>
-      
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <label>Tipo de Erva/Cultura:
-          <select value={cultura} onChange={(e) => setCultura(e.target.value)} required>
-            <option value="">Selecione...</option>
-            <option value="Agrião">Agrião</option>
-            <option value="Camomila">Camomila</option>
-            <option value="Picão-preto">Picão-preto</option>
-            <option value="Salsa">Salsa</option>
-          </select>
-        </label>
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="flex items-center gap-2 mb-6 border-b pb-4">
+        <Sprout className="text-[#84BD00]" />
+        <h1 className="text-2xl font-bold text-[#211E16]">Entrada do Campo (Previsões)</h1>
+      </div>
 
-        <label>Volume Previsto (Kg):
-          <input type="number" min="1" value={volume} onChange={(e) => setVolume(e.target.value)} required disabled={loading} />
-        </label>
-
-        <label>Semana/Data Estimada:
-          {/* Validações futuras de regex podem ser aplicadas aqui para garantir o formato W32 */}
-          <input type="text" placeholder="Ex: W32" value={semana} onChange={(e) => setSemana(e.target.value)} required disabled={loading} />
-        </label>
-
-        <button type="submit" disabled={loading} style={{ padding: '10px', background: loading ? '#ccc' : '#0056b3', color: 'white', border: 'none' }}>
-          {loading ? 'Registrando...' : 'Registrar Previsão'}
-        </button>
-      </form>
+      <div className="bg-white rounded-lg shadow p-6">
+        <form className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Cultura</label>
+              <select className="mt-1 w-full border-gray-300 rounded-md p-2 border">
+                <option>Acerola Verde</option>
+                <option>Acerola Madura</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Volume Previsto (Kg)</label>
+              <input type="number" className="mt-1 w-full border-gray-300 rounded-md p-2 border" placeholder="0" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Semana de Entrega</label>
+              <div className="mt-1 relative">
+                <Calendar className="absolute inset-y-0 left-0 pl-3 h-full w-8 text-gray-400 pointer-events-none" />
+                <input type="week" className="pl-10 w-full border-gray-300 rounded-md p-2 border" />
+              </div>
+            </div>
+          </div>
+          <button className="mt-4 bg-[#84BD00] text-[#211E16] font-medium px-4 py-2 rounded-md hover:bg-opacity-90">
+            Registrar Estimativa
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
