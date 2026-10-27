@@ -1,38 +1,54 @@
-import { Calendar, Sprout } from 'lucide-react';
+import { Calendar, Sprout, Send } from 'lucide-react';
 
 export default function EntradaPrevisoes() {
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-2 mb-6 border-b pb-4">
-        <Sprout className="text-[#84BD00]" />
-        <h1 className="text-2xl font-bold text-[#211E16]">Entrada do Campo (Previsões)</h1>
-      </div>
+    <div className="max-w-5xl mx-auto p-6 space-y-6 animate-in fade-in duration-300">
+      <header className="flex items-center gap-3 border-b border-gray-200 pb-4">
+        <div className="bg-[#84BD00] p-2 rounded-lg shadow-sm">
+          <Sprout className="text-[#211E16]" size={24} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Entrada do Campo (Previsões)</h1>
+          <p className="text-sm text-gray-500">Módulo exclusivo para as fontes fornecedoras registrarem estimativas semanais.</p>
+        </div>
+      </header>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <form className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-white rounded-xl shadow-md border border-gray-100 p-8">
+        <form className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Cultura</label>
-              <select className="mt-1 w-full border-gray-300 rounded-md p-2 border">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Cultura</label>
+              <select className="block w-full py-2.5 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84BD00] bg-gray-50 transition-colors">
                 <option>Acerola Verde</option>
                 <option>Acerola Madura</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Volume Previsto (Kg)</label>
-              <input type="number" className="mt-1 w-full border-gray-300 rounded-md p-2 border" placeholder="0" />
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Volume Previsto</label>
+              <div className="relative">
+                <input type="number" className="block w-full py-2.5 pl-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84BD00] bg-gray-50 transition-colors" placeholder="Ex: 1500" />
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <span className="text-gray-400 text-sm">Kg</span>
+                </div>
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Semana de Entrega</label>
-              <div className="mt-1 relative">
-                <Calendar className="absolute inset-y-0 left-0 pl-3 h-full w-8 text-gray-400 pointer-events-none" />
-                <input type="week" className="pl-10 w-full border-gray-300 rounded-md p-2 border" />
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Semana de Entrega</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Calendar size={18} className="text-gray-400" />
+                </div>
+                <input type="week" className="block w-full py-2.5 pl-10 pr-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84BD00] bg-gray-50 transition-colors" />
               </div>
             </div>
           </div>
-          <button className="mt-4 bg-[#84BD00] text-[#211E16] font-medium px-4 py-2 rounded-md hover:bg-opacity-90">
-            Registrar Estimativa
-          </button>
+          
+          <div className="flex justify-end pt-4">
+            <button className="flex items-center gap-2 bg-[#84BD00] text-[#211E16] px-6 py-2.5 rounded-lg font-bold hover:bg-opacity-90 focus:ring-4 focus:ring-green-100 transition-all active:scale-[0.98] shadow-sm">
+              <Send size={18} />
+              Registrar Estimativa
+            </button>
+          </div>
         </form>
       </div>
     </div>
