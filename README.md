@@ -29,11 +29,17 @@ Aplicação web com **React + TypeScript** (Vite) no frontend e **FastAPI** no b
 │   └── Dockerfile
 ├── frontend/                # app React
 │   ├── src/
-│   │   ├── main.tsx         # ponto de entrada
-│   │   ├── App.tsx          # componente principal
+│   │   ├── main.tsx         # ponto de entrada (montagem do React no DOM)
+│   │   ├── App.tsx          # componente principal e roteamento básico
 │   │   ├── api.ts           # chamadas à API e tipos
+│   │   ├── index.css        # folha de estilos global (Tailwind)
 │   │   ├── logger.ts        # padrão de logs
-│   │   └── components/      # componentes reutilizáveis e telas principais
+│   │   └── components/      
+│   │       ├── ui/                   # biblioteca base de componentes estritos e reutilizáveis
+│   │       │   ├── Button.tsx        # encapsulamento de botões
+│   │       │   ├── Card.tsx          # containers de layout
+│   │       │   ├── Input.tsx         # campos de formulário e validação
+│   │       │   └── index.ts          # agregador de exportações (Padrão Barrel)
 │   │       ├── DashboardPCP.tsx      # Visão centralizada para o perfil PCP/Gestor
 │   │       ├── EntradaPrevisoes.tsx  # Tela de Lançamento de Previsões (Entrada do Campo)
 │   │       ├── GestaoDemandas.tsx    # Tela de Gestão de Demandas (Cadastro e conversão)
