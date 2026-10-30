@@ -3,6 +3,7 @@ import DashboardPCP from './components/DashboardPCP';
 import GestaoDemandas from './components/GestaoDemandas';
 import EntradaPrevisoes from './components/EntradaPrevisoes';
 import MatrizCapacidade from './components/MatrizCapacidade';
+import ImportacaoInfinity from './components/ImportacaoInfinity';
 
 export default function App() {
   const path = window.location.pathname;
@@ -20,6 +21,7 @@ export default function App() {
           <a href="/demandas" className="block px-4 py-2 rounded hover:bg-[#211E16]">Gestão de Demandas</a>
           <a href="/previsoes" className="block px-4 py-2 rounded hover:bg-[#211E16]">Entrada de Previsões</a>
           <a href="/matriz" className="block px-4 py-2 rounded hover:bg-[#211E16]">Matriz de Capacidade</a>
+          <a href="/importacao-infinity" className="block px-4 py-2 rounded hover:bg-[#211E16]">Importação Infinity</a>
         </nav>
         <div className="p-4 border-t border-[#FFFFFF]/20">
           <button 
@@ -38,6 +40,7 @@ export default function App() {
         {path === '/demandas' && <GestaoDemandas />}
         {path === '/previsoes' && <EntradaPrevisoes />}
         {path === '/matriz' && <MatrizCapacidade />}
+        {path === '/importacao-infinity' && <ImportacaoInfinity />}
       </main>
     </div>
   );

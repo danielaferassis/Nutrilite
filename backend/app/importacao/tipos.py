@@ -19,6 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from app.importacao.contexto import ContextoImportacao
+from app.importacao.parsers.infinity_csv import importar_infinity_csv
 
 FORMATOS = frozenset({"csv", "xlsx", "xls"})
 
@@ -34,6 +35,11 @@ class TipoImportacao:
 TIPOS: dict[str, TipoImportacao] = {
     tipo.codigo: tipo
     for tipo in [
-        # TipoImportacao("colheita", "Colheitas de erva fresca", importar_colheitas),
+        TipoImportacao(
+            "infinity_csv",
+            "CSV do Infinity",
+            importar_infinity_csv,
+            formatos=frozenset({"csv"}),
+        ),
     ]
 }
