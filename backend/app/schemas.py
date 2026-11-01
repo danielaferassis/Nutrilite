@@ -1,10 +1,10 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.models import ModoCapacidade, StatusImportacao
+from app.models import Estagio, ModoCapacidade, Origem, StatusImportacao
 
 
 def _assume_utc(value: datetime) -> datetime:
@@ -302,5 +302,98 @@ class RendimentoRead(RendimentoCreate):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    criado_em: UtcDatetime
+    atualizado_em: UtcDatetime
+
+
+# --- Demanda e previsão de oferta ---
+
+# Mesma precisão da coluna Numeric(12, 3): evita o banco arredondar calado
+Kg = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=3)]
+Observacao = Annotated[str | None, Field(default=None, max_length=500)]
+
+
+class ErvaResumo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    codigo: str
+    nome: str
+
+
+class DemandaCreate(BaseModel):
+    erva_id: int = Field(gt=0)
+    # Demanda líquida (já descontado o estoque), no estágio informado
+    kg: Kg
+    estagio: Estagio
+    prazo: date
+    reserva_kg: Decimal = Field(default=Decimal(0), ge=0, max_digits=12, decimal_places=3)
+    # Maior = mais prioritária
+    prioridade: int = Field(default=0, ge=0)
+    observacao: Observacao
+
+
+class DemandaUpdate(BaseModel):
+    """Atualização parcial: só os campos enviados são alterados."""
+
+    erva_id: int | None = Field(default=None, gt=0)
+    kg: Kg | None = None
+    estagio: Estagio | None = None
+    prazo: date | None = None
+    reserva_kg: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=3)
+    prioridade: int | None = Field(default=None, ge=0)
+    observacao: Observacao
+
+    _valida_nao_nulos = field_validator(
+        "erva_id", "kg", "estagio", "prazo", "reserva_kg", "prioridade"
+    )(_nao_nulo)
+
+
+class DemandaRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    erva: ErvaResumo
+    kg: Decimal
+    estagio: Estagio
+    prazo: date
+    reserva_kg: Decimal
+    prioridade: int
+    observacao: str | None
+    criado_por: UsuarioResumo
+    criado_em: UtcDatetime
+    atualizado_em: UtcDatetime
+
+
+class PrevisaoCreate(BaseModel):
+    erva_id: int = Field(gt=0)
+    origem: Origem
+    data_chegada: date
+    kg_fresco: Kg
+    observacao: Observacao
+
+
+class PrevisaoUpdate(BaseModel):
+    """Atualização parcial: só os campos enviados são alterados."""
+
+    erva_id: int | None = Field(default=None, gt=0)
+    origem: Origem | None = None
+    data_chegada: date | None = None
+    kg_fresco: Kg | None = None
+    observacao: Observacao
+
+    _valida_nao_nulos = field_validator("erva_id", "origem", "data_chegada", "kg_fresco")(_nao_nulo)
+
+
+class PrevisaoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    erva: ErvaResumo
+    origem: Origem
+    data_chegada: date
+    kg_fresco: Decimal
+    observacao: str | None
+    criado_por: UsuarioResumo
     criado_em: UtcDatetime
     atualizado_em: UtcDatetime

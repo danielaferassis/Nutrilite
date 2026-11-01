@@ -9,6 +9,7 @@ import logging
 import threading
 import time
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException, Request, Response
@@ -175,6 +176,43 @@ def requer_permissao(codigo: str):
             log.warning("Usuário %s sem permissão %s", usuario.id, codigo)
             raise HTTPException(status_code=403, detail="Sem permissão")
         return usuario
+
+    return dependencia
+
+
+@dataclass(frozen=True)
+class Permissoes:
+    """Usuário logado e quais das permissões pedidas ele tem."""
+
+    usuario: Usuario
+    codigos: frozenset[str]
+
+    def tem(self, codigo: str) -> bool:
+        return codigo in self.codigos
+
+
+def requer_alguma_permissao(*codigos: str):
+    """Exige login e pelo menos uma das funcionalidades `codigos`.
+
+    Devolve quais delas o usuário tem, para o router decidir o escopo
+    (ex.: ver todas as previsões ou só as próprias).
+    """
+
+    def dependencia(
+        usuario: Usuario = Depends(get_usuario_atual), db: Session = Depends(get_db)
+    ) -> Permissoes:
+        possui = frozenset(
+            db.scalars(
+                select(_vw_permissao.c.funcionalidade_codigo).where(
+                    _vw_permissao.c.usuario_id == usuario.id,
+                    _vw_permissao.c.funcionalidade_codigo.in_(codigos),
+                )
+            ).all()
+        )
+        if not possui:
+            log.warning("Usuário %s sem nenhuma das permissões %s", usuario.id, codigos)
+            raise HTTPException(status_code=403, detail="Sem permissão")
+        return Permissoes(usuario, possui)
 
     return dependencia
 

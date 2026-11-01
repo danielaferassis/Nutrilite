@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -234,7 +235,7 @@ class ModoCapacidade(StrEnum):
     POR_CARGA = "por_carga"
 
 
-def _enum_capacidade(enum):
+def _valores_do_enum(enum):
     return [membro.value for membro in enum]
 
 
@@ -355,7 +356,7 @@ class Capacidade(Base):
         Enum(
             ModoCapacidade,
             name="modo_capacidade",
-            values_callable=_enum_capacidade,
+            values_callable=_valores_do_enum,
         )
     )
     # Modo continuo: kg de erva fresca por hora.
@@ -412,3 +413,108 @@ class Rendimento(Base):
     )
 
     erva: Mapped["Erva"] = relationship(back_populates="rendimento")
+
+
+# ---------------------------------------------------------------------------
+# Demanda e oferta prevista
+#
+# Espelham Demanda e LotePrevisto de app/planner/types.py. Quantidades em kg,
+# no estágio informado (demanda) ou sempre de erva fresca (previsão).
+# ---------------------------------------------------------------------------
+
+
+class Estagio(StrEnum):
+    """Mesmos valores de app.planner.types.Estagio."""
+
+    FRESCO = "fresco"
+    DESIDRATADO = "desidratado"
+    MOIDO = "moido"
+
+
+class Origem(StrEnum):
+    """Mesmos valores de app.planner.types.Origem."""
+
+    FAZENDA_PROPRIA = "fazenda_propria"
+    PROCOMPETE = "procompete"
+    PD = "pd"
+
+
+class Demanda(Base):
+    """Meta de produção de uma erva com prazo.
+
+    `kg` é a demanda líquida (já descontado o estoque), no `estagio` informado.
+    O motor converte para kg de fresco pelos rendimentos.
+    """
+
+    __tablename__ = "demanda"
+    __table_args__ = (
+        Index("idx_demanda_erva_prazo", "erva_id", "prazo"),
+        CheckConstraint("kg > 0", name="ck_demanda_kg"),
+        CheckConstraint("reserva_kg >= 0", name="ck_demanda_reserva_kg"),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    erva_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("erva.id", name="fk_demanda_erva", ondelete="RESTRICT"),
+    )
+    kg: Mapped[Decimal] = mapped_column(KG)
+    estagio: Mapped[Estagio] = mapped_column(
+        Enum(Estagio, name="estagio", values_callable=_valores_do_enum)
+    )
+    # Data até a qual a secagem precisa estar concluída
+    prazo: Mapped[date] = mapped_column(Date)
+    # Margem adicional, no mesmo estágio de `kg`. Zero é valor informado.
+    reserva_kg: Mapped[Decimal] = mapped_column(KG, server_default=text("0"))
+    # Maior = mais prioritária
+    prioridade: Mapped[int] = mapped_column(INTEGER(unsigned=True), server_default=text("0"))
+    observacao: Mapped[str | None] = mapped_column(String(500))
+    criado_por_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("usuario.id", name="fk_demanda_criado_por", ondelete="RESTRICT"),
+    )
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    erva: Mapped["Erva"] = relationship()
+    criado_por: Mapped["Usuario"] = relationship()
+
+
+class PrevisaoOferta(Base):
+    """Entrega prevista de erva fresca (lote). A data não é reagendável.
+
+    `criado_por_id` é o dono da previsão: o perfil Fonte fornecedora só vê e
+    altera as que ele mesmo cadastrou.
+    """
+
+    __tablename__ = "previsao_oferta"
+    __table_args__ = (
+        Index("idx_previsao_erva_chegada", "erva_id", "data_chegada"),
+        Index("idx_previsao_criado_por", "criado_por_id"),
+        CheckConstraint("kg_fresco > 0", name="ck_previsao_kg_fresco"),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    erva_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("erva.id", name="fk_previsao_erva", ondelete="RESTRICT"),
+    )
+    origem: Mapped[Origem] = mapped_column(
+        Enum(Origem, name="origem", values_callable=_valores_do_enum)
+    )
+    data_chegada: Mapped[date] = mapped_column(Date)
+    kg_fresco: Mapped[Decimal] = mapped_column(KG)
+    observacao: Mapped[str | None] = mapped_column(String(500))
+    criado_por_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("usuario.id", name="fk_previsao_criado_por", ondelete="RESTRICT"),
+    )
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    erva: Mapped["Erva"] = relationship()
+    criado_por: Mapped["Usuario"] = relationship()

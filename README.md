@@ -170,6 +170,10 @@ O login é por **sessão no servidor**, guardada num cookie `HttpOnly` (o JavaSc
 | `/api/auth/me`, `/api/auth/senha`, `/api/items` | estar logado |
 | `/api/usuarios` | `usuario.gerenciar` |
 | `/api/grupos`, `GET /api/funcionalidades` | `grupo.gerenciar` |
+| `GET /api/demandas` | `demanda.consultar` |
+| `POST`, `PATCH`, `DELETE /api/demandas` | `demanda.gerenciar` |
+| `GET /api/previsoes` | `previsao.consultar` ou `previsao.gerenciar` (todas), `previsao.propria` (só as próprias) |
+| `POST`, `PATCH`, `DELETE /api/previsoes` | `previsao.gerenciar` (qualquer uma) ou `previsao.propria` (só as próprias) |
 
 Para proteger um endpoint novo:
 
@@ -180,7 +184,7 @@ from app.acesso import get_usuario_atual, requer_permissao
 @router.get("/meus", dependencies=[Depends(get_usuario_atual)])            # só login
 ```
 
-Funcionalidades são cadastradas direto no banco (`INSERT INTO funcionalidade ...`), não pela API.
+Funcionalidades não são cadastradas pela API. As novas entram pela migration que cria o recurso (veja `FUNCIONALIDADES` na migration de demanda e previsão); depois rode `criar-admin` de novo para o grupo Administrador recebê-las.
 
 **Primeiro acesso:** como tudo exige login, crie um administrador pela linha de comando. O comando cria (ou reaproveita) o grupo `Administrador` com **todas** as funcionalidades ativas e coloca o usuário nele (a senha é pedida no terminal):
 

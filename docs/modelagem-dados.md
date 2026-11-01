@@ -184,6 +184,29 @@ Os testes de cadastro sobem um SQLite em memória. Eles não substituem a aplica
 
 1. Endpoints de cadastro destas quatro entidades, reutilizando os schemas.
 2. Seed das permissões, no padrão já usado por `usuario.gerenciar`.
-3. Tabelas de demanda, lote previsto e bloqueio.
+3. Tabelas de demanda e lote previsto: feitas (veja abaixo). Falta bloqueio.
 4. Serviço que filtre registros ativos, chame `app.cadastro` e então `simular()`.
 5. Só depois, com o formato definido pela empresa, importar planilha. Infinity e OEE continuam fora.
+
+## Demanda e previsão de oferta
+
+Migration `1711dd75ad70`, sobre `c4d8f1a6b2e0`. Espelham `Demanda` e `LotePrevisto` de `app/planner/types.py`.
+
+| Tabela | Campos principais | Regras |
+| --- | --- | --- |
+| `demanda` | `erva_id`, `kg`, `estagio` (fresco, desidratado, moido), `prazo`, `reserva_kg`, `prioridade`, `criado_por_id` | `kg > 0`; `reserva_kg >= 0` (padrão 0); `prioridade` maior = mais prioritária (padrão 0) |
+| `previsao_oferta` | `erva_id`, `origem` (fazenda_propria, procompete, pd), `data_chegada`, `kg_fresco`, `criado_por_id` | `kg_fresco > 0`; a data não é reagendável pelo motor |
+
+`kg` da demanda está no estágio informado; o motor converte para fresco pelos rendimentos. `reserva_kg` e `prioridade` têm padrão porque zero é uma escolha válida do PCP, não um parâmetro de fábrica ausente.
+
+`criado_por_id` guarda quem cadastrou. Na previsão ele também define o dono: o perfil Fonte fornecedora só vê e altera as próprias.
+
+A migration cadastra as funcionalidades usadas pelos routers (módulo `planejamento`):
+
+| Funcionalidade | Permite |
+| --- | --- |
+| `demanda.consultar` | listar e ver demandas |
+| `demanda.gerenciar` | cadastrar, alterar e remover demandas |
+| `previsao.consultar` | ver as previsões de todas as fontes |
+| `previsao.gerenciar` | cadastrar, alterar e remover qualquer previsão |
+| `previsao.propria` | cadastrar, ver, alterar e remover só as próprias previsões |
