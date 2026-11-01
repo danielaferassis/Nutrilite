@@ -1,12 +1,15 @@
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Enum,
     ForeignKey,
     Index,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -208,3 +211,204 @@ class ImportacaoErro(Base):
     linha: Mapped[int | None] = mapped_column(INTEGER(unsigned=True))
     coluna: Mapped[str | None] = mapped_column(String(100))
     mensagem: Mapped[str] = mapped_column(String(500))
+
+
+# ---------------------------------------------------------------------------
+# Cadastros do planejamento (parâmetros da fábrica)
+#
+# Espelham os dataclasses de app/planner/types.py sem importar o motor.
+# Campo nulo significa "não informado": o motor gera PARAM_AUSENTE.
+# A conversão para esses dataclasses fica em app/cadastro.py.
+# ---------------------------------------------------------------------------
+
+# Horas (regime, setup, duração de carga), kg e razões de rendimento.
+HORAS = Numeric(6, 2)
+KG = Numeric(12, 3)
+RAZAO = Numeric(10, 4)
+
+
+class ModoCapacidade(StrEnum):
+    """Mesmos valores de app.planner.types.ModoCapacidade."""
+
+    CONTINUO = "continuo"
+    POR_CARGA = "por_carga"
+
+
+def _enum_capacidade(enum):
+    return [membro.value for membro in enum]
+
+
+class Erva(Base):
+    """Erva que pode ser secada. `regime_horas_dia` é hora por dia, não dia por semana."""
+
+    __tablename__ = "erva"
+    __table_args__ = (
+        UniqueConstraint("codigo", name="uk_erva_codigo"),
+        CheckConstraint("LENGTH(TRIM(codigo)) > 0", name="ck_erva_codigo"),
+        CheckConstraint("LENGTH(TRIM(nome)) > 0", name="ck_erva_nome"),
+        CheckConstraint(
+            "regime_horas_dia IS NULL OR (regime_horas_dia > 0 AND regime_horas_dia <= 24)",
+            name="ck_erva_regime_horas_dia",
+        ),
+        CheckConstraint(
+            "espera_maxima_dias IS NULL OR espera_maxima_dias >= 0",
+            name="ck_erva_espera_maxima_dias",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(50))
+    nome: Mapped[str] = mapped_column(String(150))
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
+    # Horas de operação por dia. None = não informado.
+    regime_horas_dia: Mapped[Decimal | None] = mapped_column(HORAS)
+    # Dias que a erva fresca pode esperar antes da secagem. None = não informado.
+    espera_maxima_dias: Mapped[int | None] = mapped_column(INTEGER(unsigned=True))
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    capacidades: Mapped[list["Capacidade"]] = relationship(back_populates="erva")
+    rendimento: Mapped["Rendimento | None"] = relationship(back_populates="erva")
+
+
+class Secador(Base):
+    """Equipamento de secagem. Código canônico do motor: SCB01, SCB02, SCB03.
+
+    `ativo` é situação cadastral. Indisponibilidade de calendário (manutenção,
+    feriado) não fica aqui: o motor chama isso de BloqueioSecador.
+    """
+
+    __tablename__ = "secador"
+    __table_args__ = (
+        UniqueConstraint("codigo", name="uk_secador_codigo"),
+        CheckConstraint("LENGTH(TRIM(codigo)) > 0", name="ck_secador_codigo"),
+        CheckConstraint("LENGTH(TRIM(nome)) > 0", name="ck_secador_nome"),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    codigo: Mapped[str] = mapped_column(String(50))
+    nome: Mapped[str] = mapped_column(String(150))
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    capacidades: Mapped[list["Capacidade"]] = relationship(back_populates="secador")
+
+
+class Capacidade(Base):
+    """Parâmetros de uma erva em um secador.
+
+    Uma linha significa que o par está no cadastro. Campos nulos não são
+    preenchidos com zero: faltam dados. Kg por semana e cenários de 2 a 6
+    dias de operação não são colunas — o motor recalcula o dia a partir
+    da vazão horária ou da carga.
+    """
+
+    __tablename__ = "capacidade"
+    __table_args__ = (
+        UniqueConstraint("erva_id", "secador_id", name="uk_capacidade_erva_secador"),
+        Index("idx_capacidade_secador", "secador_id"),
+        CheckConstraint(
+            "kg_fresco_por_hora IS NULL OR kg_fresco_por_hora > 0",
+            name="ck_capacidade_kg_fresco_por_hora",
+        ),
+        CheckConstraint(
+            "kg_por_carga IS NULL OR kg_por_carga > 0",
+            name="ck_capacidade_kg_por_carga",
+        ),
+        CheckConstraint(
+            "horas_por_carga IS NULL OR horas_por_carga > 0",
+            name="ck_capacidade_horas_por_carga",
+        ),
+        CheckConstraint(
+            "setup_inicial_h IS NULL OR setup_inicial_h >= 0",
+            name="ck_capacidade_setup_inicial_h",
+        ),
+        CheckConstraint(
+            "setup_final_h IS NULL OR setup_final_h >= 0",
+            name="ck_capacidade_setup_final_h",
+        ),
+        CheckConstraint(
+            "setup_diario_h IS NULL OR setup_diario_h >= 0",
+            name="ck_capacidade_setup_diario_h",
+        ),
+        CheckConstraint(
+            "prioridade IS NULL OR prioridade >= 0",
+            name="ck_capacidade_prioridade",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    erva_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("erva.id", name="fk_capacidade_erva", ondelete="RESTRICT"),
+    )
+    secador_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("secador.id", name="fk_capacidade_secador", ondelete="RESTRICT"),
+    )
+    modo: Mapped[ModoCapacidade | None] = mapped_column(
+        Enum(
+            ModoCapacidade,
+            name="modo_capacidade",
+            values_callable=_enum_capacidade,
+        )
+    )
+    # Modo continuo: kg de erva fresca por hora.
+    kg_fresco_por_hora: Mapped[Decimal | None] = mapped_column(KG)
+    # Modo por_carga: kg de fresco e horas de uma carga inteira.
+    kg_por_carga: Mapped[Decimal | None] = mapped_column(KG)
+    horas_por_carga: Mapped[Decimal | None] = mapped_column(HORAS)
+    setup_inicial_h: Mapped[Decimal | None] = mapped_column(HORAS)
+    setup_final_h: Mapped[Decimal | None] = mapped_column(HORAS)
+    setup_diario_h: Mapped[Decimal | None] = mapped_column(HORAS)
+    # None = não informado. False é valor informado (setup fora do turno).
+    setup_dentro_do_regime: Mapped[bool | None] = mapped_column(Boolean)
+    # Menor número = secador preferido para a erva. None = sem preferência.
+    prioridade: Mapped[int | None] = mapped_column(INTEGER(unsigned=True))
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    erva: Mapped["Erva"] = relationship(back_populates="capacidades")
+    secador: Mapped["Secador"] = relationship(back_populates="capacidades")
+
+
+class Rendimento(Base):
+    """Razões de conversão de uma erva. Uma linha vigente por erva.
+
+    `fresco_por_desidratado`: kg de fresco para obter 1 kg desidratado.
+    `desidratado_por_moido`: kg desidratado para obter 1 kg moído.
+    """
+
+    __tablename__ = "rendimento"
+    __table_args__ = (
+        UniqueConstraint("erva_id", name="uk_rendimento_erva"),
+        CheckConstraint(
+            "fresco_por_desidratado IS NULL OR fresco_por_desidratado > 0",
+            name="ck_rendimento_fresco_por_desidratado",
+        ),
+        CheckConstraint(
+            "desidratado_por_moido IS NULL OR desidratado_por_moido > 0",
+            name="ck_rendimento_desidratado_por_moido",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    erva_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("erva.id", name="fk_rendimento_erva", ondelete="RESTRICT"),
+    )
+    fresco_por_desidratado: Mapped[Decimal | None] = mapped_column(RAZAO)
+    desidratado_por_moido: Mapped[Decimal | None] = mapped_column(RAZAO)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    erva: Mapped["Erva"] = relationship(back_populates="rendimento")
