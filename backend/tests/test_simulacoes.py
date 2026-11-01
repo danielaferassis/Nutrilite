@@ -1,7 +1,6 @@
 """POST /api/simulacoes: do cadastro no banco até o resultado do motor.
 
-Usa as fixtures de tests/conftest.py (SQLite em memória). Números sintéticos:
-1 kg moído = 1,25 kg desidratado = 6,25 kg fresco; secador de 100 kg/h.
+Usa as fixtures de tests/conftest.py (SQLite em memória, números sintéticos).
 """
 
 from datetime import date
@@ -9,56 +8,9 @@ from decimal import Decimal
 
 import pytest
 
-from app.models import (
-    Capacidade,
-    Demanda,
-    Erva,
-    Estagio,
-    ModoCapacidade,
-    Origem,
-    PrevisaoOferta,
-    Rendimento,
-    Secador,
-)
+from app.models import Capacidade, ModoCapacidade, Secador
 from app.simulacao import montar_entrada
-from tests.conftest import FONTE_A, PCP
-
-TODOS_OS_DIAS = [0, 1, 2, 3, 4, 5, 6]
-
-
-@pytest.fixture
-def cadastro(db):
-    """Erva A (id 1) pronta para simular no secador SEC-1."""
-    erva = db.get(Erva, 1)
-    erva.regime_horas_dia = Decimal(24)
-    erva.espera_maxima_dias = 3
-    db.add_all([
-        Secador(id=1, codigo="SEC-1", nome="Secador sintético 1"),
-        Rendimento(
-            erva_id=1, fresco_por_desidratado=Decimal(5), desidratado_por_moido=Decimal("1.25")
-        ),
-        Capacidade(
-            erva_id=1, secador_id=1, modo=ModoCapacidade.CONTINUO,
-            kg_fresco_por_hora=Decimal(100), setup_inicial_h=Decimal(1),
-            setup_final_h=Decimal(1), setup_diario_h=Decimal(0), setup_dentro_do_regime=True,
-        ),
-    ])
-    db.commit()
-    return db
-
-
-def demanda(db, **campos):
-    valores = {"erva_id": 1, "kg": Decimal(100), "estagio": Estagio.MOIDO,
-               "prazo": date(2026, 12, 5), "criado_por_id": PCP, **campos}
-    db.add(Demanda(**valores))
-    db.commit()
-
-
-def lote(db, **campos):
-    valores = {"erva_id": 1, "origem": Origem.PROCOMPETE, "data_chegada": date(2026, 12, 1),
-               "kg_fresco": Decimal(800), "criado_por_id": FONTE_A, **campos}
-    db.add(PrevisaoOferta(**valores))
-    db.commit()
+from tests.conftest import FONTE_A, PCP, TODOS_OS_DIAS, demanda, lote
 
 
 def simular(cliente, **campos):

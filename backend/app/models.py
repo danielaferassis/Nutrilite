@@ -10,6 +10,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    JSON,
     Numeric,
     String,
     Text,
@@ -518,3 +519,110 @@ class PrevisaoOferta(Base):
 
     erva: Mapped["Erva"] = relationship()
     criado_por: Mapped["Usuario"] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# Plano de secagem salvo
+#
+# Fotografia de uma simulação: guarda a entrada usada e o resultado. Erva,
+# secador, lote e demanda ficam como texto (código/id), sem FK: alterar ou
+# remover o cadastro depois não pode mudar um plano já aprovado.
+# ---------------------------------------------------------------------------
+
+
+class StatusPlano(StrEnum):
+    RASCUNHO = "rascunho"  # salvo para análise, ainda não vale
+    APROVADO = "aprovado"  # plano vigente para o horizonte
+    SUBSTITUIDO = "substituido"  # era aprovado; outro aprovado cobriu o horizonte
+
+
+class Plano(Base):
+    """Plano salvo. `versao` conta os planos do mesmo horizonte (inicio, fim)."""
+
+    __tablename__ = "plano"
+    __table_args__ = (
+        UniqueConstraint("inicio", "fim", "versao", name="uk_plano_horizonte_versao"),
+        Index("idx_plano_status", "status"),
+        CheckConstraint("fim >= inicio", name="ck_plano_horizonte"),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    versao: Mapped[int] = mapped_column(INTEGER(unsigned=True))
+    status: Mapped[StatusPlano] = mapped_column(
+        Enum(StatusPlano, name="status_plano", values_callable=_valores_do_enum),
+        server_default=StatusPlano.RASCUNHO.value,
+    )
+    inicio: Mapped[date] = mapped_column(Date)
+    fim: Mapped[date] = mapped_column(Date)
+    viavel: Mapped[bool] = mapped_column(Boolean)
+    # EntradaPlanejamento usada, inteira (cadastro, demandas, lotes, dias de operação)
+    parametros: Mapped[dict] = mapped_column(JSON)
+    necessidades: Mapped[list] = mapped_column(JSON)
+    kpis: Mapped[dict] = mapped_column(JSON)
+    avisos: Mapped[list] = mapped_column(JSON)
+    observacao: Mapped[str | None] = mapped_column(String(500))
+    criado_por_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("usuario.id", name="fk_plano_criado_por", ondelete="RESTRICT"),
+    )
+    aprovado_por_id: Mapped[int | None] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("usuario.id", name="fk_plano_aprovado_por", ondelete="RESTRICT"),
+    )
+    # Gravado pela aplicação em UTC
+    aprovado_em: Mapped[datetime | None] = mapped_column(DateTime)
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    criado_por: Mapped["Usuario"] = relationship(foreign_keys=[criado_por_id])
+    aprovado_por: Mapped["Usuario | None"] = relationship(foreign_keys=[aprovado_por_id])
+    alocacoes: Mapped[list["PlanoAlocacao"]] = relationship(
+        cascade="all, delete-orphan",
+        order_by="(PlanoAlocacao.dia, PlanoAlocacao.secador, PlanoAlocacao.id)",
+    )
+    pendencias: Mapped[list["PlanoPendencia"]] = relationship(
+        cascade="all, delete-orphan", order_by="PlanoPendencia.id"
+    )
+
+
+class PlanoAlocacao(Base):
+    """Uma erva ocupando um secador em um dia (linha do cronograma)."""
+
+    __tablename__ = "plano_alocacao"
+    __table_args__ = (Index("idx_pa_plano_dia", "plano_id", "dia"),)
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    plano_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("plano.id", name="fk_pa_plano", ondelete="CASCADE"),
+    )
+    secador: Mapped[str] = mapped_column(String(50))  # Secador.codigo
+    erva: Mapped[str] = mapped_column(String(50))  # Erva.codigo
+    dia: Mapped[date] = mapped_column(Date)
+    kg_fresco: Mapped[Decimal] = mapped_column(KG)
+    horas_secagem: Mapped[Decimal] = mapped_column(HORAS)
+    horas_setup: Mapped[Decimal] = mapped_column(HORAS)
+    lote_id: Mapped[str] = mapped_column(String(50))  # PrevisaoOferta.id
+    demanda_id: Mapped[str | None] = mapped_column(String(50))  # Demanda.id
+
+
+class PlanoPendencia(Base):
+    """Motivo pelo qual o plano não atende algo."""
+
+    __tablename__ = "plano_pendencia"
+    __table_args__ = (Index("idx_pp_plano", "plano_id"),)
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    plano_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("plano.id", name="fk_pp_plano", ondelete="CASCADE"),
+    )
+    tipo: Mapped[str] = mapped_column(String(30))  # app.planner.types.TipoPendencia
+    mensagem: Mapped[str] = mapped_column(String(500))
+    erva: Mapped[str | None] = mapped_column(String(50))
+    secador: Mapped[str | None] = mapped_column(String(50))
+    lote_id: Mapped[str | None] = mapped_column(String(50))
+    demanda_id: Mapped[str | None] = mapped_column(String(50))
+    kg: Mapped[Decimal | None] = mapped_column(KG)

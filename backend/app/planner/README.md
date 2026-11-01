@@ -126,6 +126,19 @@ KPIs (`resultado.kpis`):
 - Bloqueios ainda não têm tabela. A lista vai vazia e a resposta traz isso em `avisos`.
 - IDs de demanda e lote saem como texto (`"12"`): é o `id` da tabela.
 
+## Plano salvo (`/api/planos`)
+
+`POST /api/planos` recebe o mesmo pedido da simulação (mais `observacao`), roda o motor no servidor e grava o resultado como **rascunho**. O cliente nunca envia o resultado pronto.
+
+- **Rastreabilidade:** `parametros` guarda a `EntradaPlanejamento` inteira em JSON (cadastro, demandas, lotes, dias de operação). Junto ficam `criado_por`, `aprovado_por` e `aprovado_em`.
+- **Fotografia:** alocações e pendências guardam códigos e ids como texto, sem FK. Alterar o cadastro depois não muda um plano salvo.
+- **Versão:** conta os planos do mesmo horizonte (`inicio`, `fim`): v1, v2, v3…
+- **Status:** `rascunho` → `aprovado` (`POST /api/planos/{id}/aprovar`). Ao aprovar, os aprovados anteriores com horizonte sobreposto viram `substituido`. Só rascunho pode ser removido.
+- Plano com `PARAM_AUSENTE` não pode ser aprovado. Com `ATRASO` ou `SALDO_NAO_ALOCADO` pode: o PCP aprova ciente, e as pendências ficam gravadas.
+- `plano.consultar` (Produção) só vê aprovados e substituídos.
+
+Premissa a validar com o PCP: o aprovado mais recente substitui **inteiro** qualquer aprovado que se sobreponha, mesmo que só em parte do horizonte.
+
 ## Testes
 
 ```bash

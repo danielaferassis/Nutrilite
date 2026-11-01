@@ -12,7 +12,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.models import Estagio, ModoCapacidade, Origem, StatusImportacao
+from app.models import Estagio, ModoCapacidade, Origem, StatusImportacao, StatusPlano
 
 
 def _assume_utc(value: datetime) -> datetime:
@@ -476,4 +476,37 @@ class SimulacaoRead(BaseModel):
     # Valores None = "não aplicável" (denominador zero), nunca 0
     kpis: dict[str, Any]
     # Limitações da simulação que não são pendência do motor (ex.: sem bloqueios)
+    avisos: list[str]
+
+
+# --- Plano salvo ---
+
+
+class PlanoCreate(SimulacaoRequest):
+    observacao: Observacao
+
+
+class PlanoResumo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    versao: int
+    status: StatusPlano
+    inicio: date
+    fim: date
+    viavel: bool
+    observacao: str | None
+    criado_por: UsuarioResumo
+    criado_em: UtcDatetime
+    aprovado_por: UsuarioResumo | None
+    aprovado_em: UtcDatetime | None
+
+
+class PlanoRead(PlanoResumo):
+    # Entrada completa usada na simulação (rastreabilidade)
+    parametros: dict[str, Any]
+    necessidades: list[NecessidadeRead]
+    alocacoes: list[AlocacaoRead]
+    pendencias: list[PendenciaRead]
+    kpis: dict[str, Any]
     avisos: list[str]

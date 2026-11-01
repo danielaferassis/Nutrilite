@@ -1,8 +1,14 @@
 """Fixtures da API: SQLite em memória com usuários e permissões sintéticos.
 
+`cadastro` deixa a erva A (id 1) pronta para simular no secador SEC-1:
+1 kg moído = 1,25 kg desidratado = 6,25 kg fresco; secador de 100 kg/h.
+
 A view `vw_permissao_usuario` vira uma tabela simples: o teste grava nela
 quais funcionalidades cada usuário tem e o router faz a checagem real.
 """
+
+from datetime import date
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,6 +23,12 @@ from app.models import (
     Capacidade,
     Demanda,
     Erva,
+    Estagio,
+    ModoCapacidade,
+    Origem,
+    Plano,
+    PlanoAlocacao,
+    PlanoPendencia,
     PrevisaoOferta,
     Rendimento,
     Secador,
@@ -29,14 +41,17 @@ FONTE_A = 2
 FONTE_B = 3
 CONSULTA = 4
 SEM_PERMISSAO = 5
+GESTOR = 6
+TODOS_OS_DIAS = [0, 1, 2, 3, 4, 5, 6]
 PERMISSOES = {
     PCP: [
         "demanda.consultar", "demanda.gerenciar", "previsao.gerenciar", "plano.simular",
     ],
     FONTE_A: ["previsao.propria"],
     FONTE_B: ["previsao.propria"],
-    CONSULTA: ["demanda.consultar", "previsao.consultar"],
+    CONSULTA: ["demanda.consultar", "previsao.consultar", "plano.consultar"],
     SEM_PERMISSAO: [],
+    GESTOR: ["plano.aprovar"],
 }
 
 
@@ -69,6 +84,7 @@ def db():
     tabelas = [
         Erva.__table__, Secador.__table__, Capacidade.__table__, Rendimento.__table__,
         Demanda.__table__, PrevisaoOferta.__table__,
+        Plano.__table__, PlanoAlocacao.__table__, PlanoPendencia.__table__,
     ]
     Base.metadata.create_all(engine, tables=tabelas)
     sessao = sessionmaker(bind=engine, autoflush=False)()
@@ -95,3 +111,37 @@ def cliente(db):
     client.logar = lambda usuario_id: usuario_atual.update(id=usuario_id)
     yield client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def cadastro(db):
+    erva = db.get(Erva, 1)
+    erva.regime_horas_dia = Decimal(24)
+    erva.espera_maxima_dias = 3
+    db.add_all([
+        Secador(id=1, codigo="SEC-1", nome="Secador sintético 1"),
+        Rendimento(
+            erva_id=1, fresco_por_desidratado=Decimal(5), desidratado_por_moido=Decimal("1.25")
+        ),
+        Capacidade(
+            erva_id=1, secador_id=1, modo=ModoCapacidade.CONTINUO,
+            kg_fresco_por_hora=Decimal(100), setup_inicial_h=Decimal(1),
+            setup_final_h=Decimal(1), setup_diario_h=Decimal(0), setup_dentro_do_regime=True,
+        ),
+    ])
+    db.commit()
+    return db
+
+
+def demanda(db, **campos):
+    valores = {"erva_id": 1, "kg": Decimal(100), "estagio": Estagio.MOIDO,
+               "prazo": date(2026, 12, 5), "criado_por_id": PCP, **campos}
+    db.add(Demanda(**valores))
+    db.commit()
+
+
+def lote(db, **campos):
+    valores = {"erva_id": 1, "origem": Origem.PROCOMPETE, "data_chegada": date(2026, 12, 1),
+               "kg_fresco": Decimal(800), "criado_por_id": FONTE_A, **campos}
+    db.add(PrevisaoOferta(**valores))
+    db.commit()

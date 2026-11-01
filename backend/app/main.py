@@ -10,6 +10,7 @@ from app.routers import (
     health,
     importacoes,
     items,
+    planos,
     previsoes,
     simulacoes,
     usuarios,
@@ -31,3 +32,4 @@ app.include_router(importacoes.router, prefix="/api")
 app.include_router(demandas.router, prefix="/api")
 app.include_router(previsoes.router, prefix="/api")
 app.include_router(simulacoes.router, prefix="/api")
+app.include_router(planos.router, prefix="/api")

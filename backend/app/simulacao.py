@@ -15,6 +15,7 @@ Bloqueios de secador ainda não têm tabela: a lista vai vazia.
 """
 
 import logging
+from dataclasses import asdict
 from datetime import date, timedelta
 
 from sqlalchemy import func, select
@@ -29,9 +30,15 @@ from app.cadastro import (
     para_secador,
 )
 from app.models import Capacidade, Demanda, Erva, PrevisaoOferta, Rendimento, Secador
-from app.planner.types import EntradaPlanejamento
+from app.planner import simular
+from app.planner.types import EntradaPlanejamento, ResultadoPlano
 
 log = logging.getLogger(__name__)
+
+AVISO_SEM_BLOQUEIOS = (
+    "Bloqueios de secador (manutenção, feriados) ainda não são cadastráveis: "
+    "a simulação considera os secadores disponíveis em todos os dias de operação."
+)
 
 
 def montar_entrada(
@@ -87,3 +94,27 @@ def montar_entrada(
         bloqueios=[],
         dias_operacao=dias_operacao,
     )
+
+
+def executar(
+    db: Session, inicio: date, fim: date, dias_operacao: frozenset[int] | None
+) -> tuple[EntradaPlanejamento, ResultadoPlano, list[str]]:
+    """Monta a entrada, roda o motor e devolve também os avisos da simulação."""
+    entrada = montar_entrada(db, inicio, fim, dias_operacao)
+    resultado = simular(entrada)
+    return entrada, resultado, [AVISO_SEM_BLOQUEIOS]
+
+
+def para_json(valor):
+    """Converte dataclasses do motor em JSON (datas ISO, conjuntos ordenados)."""
+    if hasattr(valor, "__dataclass_fields__"):
+        return para_json(asdict(valor))
+    if isinstance(valor, dict):
+        return {chave: para_json(v) for chave, v in valor.items()}
+    if isinstance(valor, (list, tuple)):
+        return [para_json(v) for v in valor]
+    if isinstance(valor, (set, frozenset)):
+        return sorted(para_json(v) for v in valor)
+    if isinstance(valor, date):
+        return valor.isoformat()
+    return valor
