@@ -111,6 +111,21 @@ KPIs (`resultado.kpis`):
 - **Pergunta ao PCP:** a ocupação planejada deve usar 24 h de calendário (como hoje) ou o regime da erva como denominador? Se for o regime, qual valor usar nos dias em que o secador fica sem erva?
 - Valores oficiais de regime, setups, vazão e carga por erva × secador (tabela de capacidade e matriz de trocas).
 
+## Uso pela API (`POST /api/simulacoes`)
+
+`app/simulacao.py` lê o banco e monta a `EntradaPlanejamento`; `app/cadastro.py` converte cada model no dataclass. O resultado volta na resposta e **não é gravado** (salvar e aprovar o plano é a próxima etapa).
+
+```json
+{"inicio": "2026-12-01", "fim": "2026-12-07", "dias_operacao": [0, 1, 2, 3, 4]}
+```
+
+- `dias_operacao` omitido → `PARAM_AUSENTE` (o dado ainda não tem cadastro; vai no pedido).
+- Entram só ervas e secadores ativos, e capacidades em que os dois estão ativos.
+- Demandas: só as com prazo dentro do horizonte. Lotes: chegada até o `fim` e a partir de `inicio − maior espera cadastrada` (o motor descarta os vencidos).
+- Demanda ou lote de erva inativa não some: vira `PARAM_AUSENTE`.
+- Bloqueios ainda não têm tabela. A lista vai vazia e a resposta traz isso em `avisos`.
+- IDs de demanda e lote saem como texto (`"12"`): é o `id` da tabela.
+
 ## Testes
 
 ```bash

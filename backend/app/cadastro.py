@@ -9,10 +9,14 @@ fica com quem monta a entrada da simulação.
 
 from decimal import Decimal
 
-from app.models import Capacidade, Erva, Rendimento, Secador
+from app.models import Capacidade, Demanda, Erva, PrevisaoOferta, Rendimento, Secador
 from app.planner.types import Capacidade as CapacidadePlanner
+from app.planner.types import Demanda as DemandaPlanner
 from app.planner.types import Erva as ErvaPlanner
+from app.planner.types import Estagio as EstagioPlanner
+from app.planner.types import LotePrevisto
 from app.planner.types import ModoCapacidade as ModoPlanner
+from app.planner.types import Origem as OrigemPlanner
 from app.planner.types import Rendimento as RendimentoPlanner
 from app.planner.types import Secador as SecadorPlanner
 
@@ -60,4 +64,26 @@ def para_rendimento(rendimento: Rendimento) -> RendimentoPlanner:
         erva=rendimento.erva.codigo,
         fresco_por_desidratado=_numero(rendimento.fresco_por_desidratado),
         desidratado_por_moido=_numero(rendimento.desidratado_por_moido),
+    )
+
+
+def para_demanda(demanda: Demanda) -> DemandaPlanner:
+    return DemandaPlanner(
+        id=str(demanda.id),
+        erva=demanda.erva.codigo,
+        kg=float(demanda.kg),
+        estagio=EstagioPlanner(demanda.estagio.value),
+        prazo=demanda.prazo,
+        reserva_kg=float(demanda.reserva_kg),
+        prioridade=demanda.prioridade,
+    )
+
+
+def para_lote(previsao: PrevisaoOferta) -> LotePrevisto:
+    return LotePrevisto(
+        id=str(previsao.id),
+        erva=previsao.erva.codigo,
+        origem=OrigemPlanner(previsao.origem.value),
+        data_chegada=previsao.data_chegada,
+        kg_fresco=float(previsao.kg_fresco),
     )

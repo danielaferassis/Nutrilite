@@ -1,8 +1,16 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from app.models import Estagio, ModoCapacidade, Origem, StatusImportacao
 
@@ -397,3 +405,75 @@ class PrevisaoRead(BaseModel):
     criado_por: UsuarioResumo
     criado_em: UtcDatetime
     atualizado_em: UtcDatetime
+
+
+# --- Simulação ---
+
+# Evita uma simulação gigante travar o backend (o motor anda dia a dia)
+HORIZONTE_MAXIMO_DIAS = 366
+
+
+class SimulacaoRequest(BaseModel):
+    inicio: date
+    fim: date  # inclusivo
+    # Dias da semana em que a fábrica opera (0 = segunda … 6 = domingo).
+    # Omitido = não informado: o motor devolve PARAM_AUSENTE, sem supor nada.
+    dias_operacao: list[Annotated[int, Field(ge=0, le=6)]] | None = None
+
+    @model_validator(mode="after")
+    def valida_horizonte(self):
+        if self.fim < self.inicio:
+            raise ValueError("fim não pode ser anterior ao início")
+        if (self.fim - self.inicio).days + 1 > HORIZONTE_MAXIMO_DIAS:
+            raise ValueError(f"horizonte máximo de {HORIZONTE_MAXIMO_DIAS} dias")
+        return self
+
+
+class NecessidadeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    demanda_id: str
+    erva: str
+    kg_meta: float
+    estagio_meta: Estagio
+    kg_fresco: float
+    prazo: date
+
+
+class AlocacaoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    secador: str
+    erva: str
+    dia: date
+    kg_fresco: float
+    horas_secagem: float
+    horas_setup: float
+    lote_id: str
+    demanda_id: str | None
+
+
+class PendenciaRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    tipo: str
+    mensagem: str
+    erva: str | None
+    secador: str | None
+    lote_id: str | None
+    demanda_id: str | None
+    kg: float | None
+
+
+class SimulacaoRead(BaseModel):
+    inicio: date
+    fim: date
+    dias_operacao: list[int] | None
+    viavel: bool
+    necessidades: list[NecessidadeRead]
+    alocacoes: list[AlocacaoRead]
+    pendencias: list[PendenciaRead]
+    # Valores None = "não aplicável" (denominador zero), nunca 0
+    kpis: dict[str, Any]
+    # Limitações da simulação que não são pendência do motor (ex.: sem bloqueios)
+    avisos: list[str]

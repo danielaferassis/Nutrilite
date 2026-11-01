@@ -174,6 +174,7 @@ O login é por **sessão no servidor**, guardada num cookie `HttpOnly` (o JavaSc
 | `POST`, `PATCH`, `DELETE /api/demandas` | `demanda.gerenciar` |
 | `GET /api/previsoes` | `previsao.consultar` ou `previsao.gerenciar` (todas), `previsao.propria` (só as próprias) |
 | `POST`, `PATCH`, `DELETE /api/previsoes` | `previsao.gerenciar` (qualquer uma) ou `previsao.propria` (só as próprias) |
+| `POST /api/simulacoes` | `plano.simular` |
 
 Para proteger um endpoint novo:
 

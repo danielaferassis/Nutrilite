@@ -11,6 +11,7 @@ from app.routers import (
     importacoes,
     items,
     previsoes,
+    simulacoes,
     usuarios,
 )
 
@@ -29,3 +30,4 @@ app.include_router(funcionalidades.router, prefix="/api")
 app.include_router(importacoes.router, prefix="/api")
 app.include_router(demandas.router, prefix="/api")
 app.include_router(previsoes.router, prefix="/api")
+app.include_router(simulacoes.router, prefix="/api")
