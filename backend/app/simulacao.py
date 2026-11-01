@@ -9,9 +9,10 @@ Regras de recorte do horizonte [inicio, fim]:
   (chegada a partir de `inicio - maior espera cadastrada`). O motor descarta o
   que já tiver vencido.
 
+- Bloqueios: os que tocam o horizonte, de secadores ativos.
+
 Demanda ou lote de erva inativa continua na entrada: o motor gera
 PARAM_AUSENTE ("erva não cadastrada") em vez de o plano ignorá-los calado.
-Bloqueios de secador ainda não têm tabela: a lista vai vazia.
 """
 
 import logging
@@ -22,6 +23,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.cadastro import (
+    para_bloqueio,
     para_capacidade,
     para_demanda,
     para_erva,
@@ -29,16 +31,20 @@ from app.cadastro import (
     para_rendimento,
     para_secador,
 )
-from app.models import Capacidade, Demanda, Erva, PrevisaoOferta, Rendimento, Secador
+from app.models import (
+    BloqueioSecador,
+    Capacidade,
+    Demanda,
+    Erva,
+    PrevisaoOferta,
+    Rendimento,
+    Secador,
+)
 from app.planner import simular
 from app.planner.types import EntradaPlanejamento, ResultadoPlano
 
 log = logging.getLogger(__name__)
 
-AVISO_SEM_BLOQUEIOS = (
-    "Bloqueios de secador (manutenção, feriados) ainda não são cadastráveis: "
-    "a simulação considera os secadores disponíveis em todos os dias de operação."
-)
 
 
 def montar_entrada(
@@ -78,6 +84,18 @@ def montar_entrada(
         .order_by(PrevisaoOferta.id)
     ).all()
 
+    bloqueios = db.scalars(
+        select(BloqueioSecador)
+        .join(BloqueioSecador.secador)
+        .options(joinedload(BloqueioSecador.secador))
+        .where(
+            Secador.ativo.is_(True),
+            BloqueioSecador.inicio <= fim,
+            BloqueioSecador.fim >= inicio,
+        )
+        .order_by(BloqueioSecador.inicio, BloqueioSecador.id)
+    ).all()
+
     log.debug(
         "Entrada %s a %s: %s demandas, %s lotes, %s capacidades",
         inicio, fim, len(demandas), len(lotes), len(capacidades),
@@ -91,7 +109,7 @@ def montar_entrada(
         rendimentos=[para_rendimento(r) for r in rendimentos],
         lotes=[para_lote(p) for p in lotes],
         demandas=[para_demanda(d) for d in demandas],
-        bloqueios=[],
+        bloqueios=[para_bloqueio(b) for b in bloqueios],
         dias_operacao=dias_operacao,
     )
 
@@ -99,10 +117,14 @@ def montar_entrada(
 def executar(
     db: Session, inicio: date, fim: date, dias_operacao: frozenset[int] | None
 ) -> tuple[EntradaPlanejamento, ResultadoPlano, list[str]]:
-    """Monta a entrada, roda o motor e devolve também os avisos da simulação."""
+    """Monta a entrada, roda o motor e devolve também os avisos da simulação.
+
+    Avisos são limitações que não viram pendência do motor. Hoje não há
+    nenhuma; a lista fica para as próximas (ex.: calendário ainda no pedido).
+    """
     entrada = montar_entrada(db, inicio, fim, dias_operacao)
     resultado = simular(entrada)
-    return entrada, resultado, [AVISO_SEM_BLOQUEIOS]
+    return entrada, resultado, []
 
 
 def para_json(valor):

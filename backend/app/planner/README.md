@@ -123,7 +123,8 @@ KPIs (`resultado.kpis`):
 - Entram só ervas e secadores ativos, e capacidades em que os dois estão ativos.
 - Demandas: só as com prazo dentro do horizonte. Lotes: chegada até o `fim` e a partir de `inicio − maior espera cadastrada` (o motor descarta os vencidos).
 - Demanda ou lote de erva inativa não some: vira `PARAM_AUSENTE`.
-- Bloqueios ainda não têm tabela. A lista vai vazia e a resposta traz isso em `avisos`.
+- Bloqueios (`/api/bloqueios`, tabela `bloqueio_secador`): entram os que tocam o horizonte, de secadores ativos. Datas inclusivas e motivo obrigatório.
+- `avisos`: limitações que não viram pendência do motor. Hoje vem vazio.
 - IDs de demanda e lote saem como texto (`"12"`): é o `id` da tabela.
 
 ## Plano salvo (`/api/planos`)

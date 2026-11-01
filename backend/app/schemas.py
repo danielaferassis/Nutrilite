@@ -510,3 +510,61 @@ class PlanoRead(PlanoResumo):
     pendencias: list[PendenciaRead]
     kpis: dict[str, Any]
     avisos: list[str]
+
+
+# --- Bloqueio de secador ---
+
+
+class SecadorResumo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    codigo: str
+    nome: str
+
+
+class BloqueioCreate(BaseModel):
+    secador_id: int = Field(gt=0)
+    inicio: date
+    fim: date  # inclusivo
+    motivo: str = Field(min_length=1, max_length=255)
+
+    @field_validator("motivo")
+    @classmethod
+    def normaliza_motivo(cls, value: str) -> str:
+        return _nome_limpo(value)
+
+    @model_validator(mode="after")
+    def valida_periodo(self):
+        if self.fim < self.inicio:
+            raise ValueError("fim não pode ser anterior ao início")
+        return self
+
+
+class BloqueioUpdate(BaseModel):
+    """Atualização parcial: só os campos enviados são alterados."""
+
+    secador_id: int | None = Field(default=None, gt=0)
+    inicio: date | None = None
+    fim: date | None = None
+    motivo: str | None = Field(default=None, min_length=1, max_length=255)
+
+    _valida_nao_nulos = field_validator("secador_id", "inicio", "fim", "motivo")(_nao_nulo)
+
+    @field_validator("motivo")
+    @classmethod
+    def normaliza_motivo(cls, value: str) -> str:
+        return _nome_limpo(value)
+
+
+class BloqueioRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    secador: SecadorResumo
+    inicio: date
+    fim: date
+    motivo: str
+    criado_por: UsuarioResumo
+    criado_em: UtcDatetime
+    atualizado_em: UtcDatetime

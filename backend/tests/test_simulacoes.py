@@ -63,8 +63,7 @@ def test_simulacao_viavel_cobre_a_demanda(cliente, cadastro):
     assert sum(a["kg_fresco"] for a in alocacoes if a["demanda_id"] == "1") == pytest.approx(625)
     assert {a["secador"] for a in alocacoes} == {"SEC-1"}
     assert corpo["kpis"]["ocupacao_planejada_pct"]["SEC-1"] is not None
-    # Sem tabela de bloqueios a simulação avisa que supõe secadores livres
-    assert corpo["avisos"]
+    assert corpo["avisos"] == []
 
 
 def test_dias_de_operacao_omitidos_viram_pendencia(cliente, cadastro):

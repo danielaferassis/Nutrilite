@@ -626,3 +626,38 @@ class PlanoPendencia(Base):
     lote_id: Mapped[str | None] = mapped_column(String(50))
     demanda_id: Mapped[str | None] = mapped_column(String(50))
     kg: Mapped[Decimal | None] = mapped_column(KG)
+
+
+class BloqueioSecador(Base):
+    """Período em que o secador não está disponível (manutenção, feriado...).
+
+    `inicio` e `fim` são inclusivos. Espelha BloqueioSecador do motor.
+    """
+
+    __tablename__ = "bloqueio_secador"
+    __table_args__ = (
+        Index("idx_bloqueio_secador_periodo", "secador_id", "inicio", "fim"),
+        CheckConstraint("fim >= inicio", name="ck_bloqueio_periodo"),
+        CheckConstraint("LENGTH(TRIM(motivo)) > 0", name="ck_bloqueio_motivo"),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    secador_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("secador.id", name="fk_bloqueio_secador", ondelete="RESTRICT"),
+    )
+    inicio: Mapped[date] = mapped_column(Date)
+    fim: Mapped[date] = mapped_column(Date)
+    # Obrigatório: o PCP precisa saber por que o secador parou
+    motivo: Mapped[str] = mapped_column(String(255))
+    criado_por_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("usuario.id", name="fk_bloqueio_criado_por", ondelete="RESTRICT"),
+    )
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    secador: Mapped["Secador"] = relationship()
+    criado_por: Mapped["Usuario"] = relationship()

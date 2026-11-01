@@ -20,6 +20,7 @@ from app.acesso import get_usuario_atual
 from app.database import Base, get_db
 from app.main import app
 from app.models import (
+    BloqueioSecador,
     Capacidade,
     Demanda,
     Erva,
@@ -46,10 +47,13 @@ TODOS_OS_DIAS = [0, 1, 2, 3, 4, 5, 6]
 PERMISSOES = {
     PCP: [
         "demanda.consultar", "demanda.gerenciar", "previsao.gerenciar", "plano.simular",
+        "bloqueio.consultar", "bloqueio.gerenciar",
     ],
     FONTE_A: ["previsao.propria"],
     FONTE_B: ["previsao.propria"],
-    CONSULTA: ["demanda.consultar", "previsao.consultar", "plano.consultar"],
+    CONSULTA: [
+        "demanda.consultar", "previsao.consultar", "plano.consultar", "bloqueio.consultar",
+    ],
     SEM_PERMISSAO: [],
     GESTOR: ["plano.aprovar"],
 }
@@ -85,6 +89,7 @@ def db():
         Erva.__table__, Secador.__table__, Capacidade.__table__, Rendimento.__table__,
         Demanda.__table__, PrevisaoOferta.__table__,
         Plano.__table__, PlanoAlocacao.__table__, PlanoPendencia.__table__,
+        BloqueioSecador.__table__,
     ]
     Base.metadata.create_all(engine, tables=tabelas)
     sessao = sessionmaker(bind=engine, autoflush=False)()

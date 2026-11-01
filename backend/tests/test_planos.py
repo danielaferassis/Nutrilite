@@ -56,7 +56,7 @@ def test_salva_rascunho_com_resultado_e_parametros_usados(cliente, cenario):
     assert sum(a["kg_fresco"] for a in plano["alocacoes"]) == pytest.approx(800)
     assert plano["necessidades"][0]["kg_fresco"] == pytest.approx(625)
     assert plano["kpis"]["ocupacao_planejada_pct"]["SEC-1"] is not None
-    assert plano["avisos"]
+    assert plano["avisos"] == []
     # Rastreabilidade: a entrada inteira fica gravada
     parametros = plano["parametros"]
     assert parametros["dias_operacao"] == TODOS_OS_DIAS

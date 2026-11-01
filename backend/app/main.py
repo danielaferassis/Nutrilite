@@ -4,6 +4,7 @@ from app.acesso import verificar_origem
 from app.logger import setup_logging
 from app.routers import (
     auth,
+    bloqueios,
     demandas,
     funcionalidades,
     grupos,
@@ -33,3 +34,4 @@ app.include_router(demandas.router, prefix="/api")
 app.include_router(previsoes.router, prefix="/api")
 app.include_router(simulacoes.router, prefix="/api")
 app.include_router(planos.router, prefix="/api")
+app.include_router(bloqueios.router, prefix="/api")

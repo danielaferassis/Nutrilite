@@ -9,7 +9,16 @@ fica com quem monta a entrada da simulação.
 
 from decimal import Decimal
 
-from app.models import Capacidade, Demanda, Erva, PrevisaoOferta, Rendimento, Secador
+from app.models import (
+    BloqueioSecador,
+    Capacidade,
+    Demanda,
+    Erva,
+    PrevisaoOferta,
+    Rendimento,
+    Secador,
+)
+from app.planner.types import BloqueioSecador as BloqueioPlanner
 from app.planner.types import Capacidade as CapacidadePlanner
 from app.planner.types import Demanda as DemandaPlanner
 from app.planner.types import Erva as ErvaPlanner
@@ -86,4 +95,13 @@ def para_lote(previsao: PrevisaoOferta) -> LotePrevisto:
         origem=OrigemPlanner(previsao.origem.value),
         data_chegada=previsao.data_chegada,
         kg_fresco=float(previsao.kg_fresco),
+    )
+
+
+def para_bloqueio(bloqueio: BloqueioSecador) -> BloqueioPlanner:
+    return BloqueioPlanner(
+        secador=bloqueio.secador.codigo,
+        inicio=bloqueio.inicio,
+        fim=bloqueio.fim,
+        motivo=bloqueio.motivo,
     )
