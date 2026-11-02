@@ -10,8 +10,9 @@ Recusa rodar se já houver erva cadastrada, para nunca misturar com dados reais.
 """
 
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal as D
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -32,6 +33,9 @@ from app.models import (
 
 log = logging.getLogger(__name__)
 
+# O container roda em UTC: depois das 21h de Ubajara, date.today() já seria amanhã
+FUSO_FAZENDA = ZoneInfo("America/Fortaleza")
+
 
 class BancoJaTemCadastro(Exception):
     pass
@@ -42,7 +46,7 @@ def carregar(db: Session, usuario: Usuario, hoje: date | None = None) -> None:
         raise BancoJaTemCadastro(
             "Já existem ervas cadastradas: os dados fictícios não foram carregados"
         )
-    hoje = hoje or date.today()
+    hoje = hoje or datetime.now(FUSO_FAZENDA).date()
 
     def dia(n: int) -> date:
         return hoje + timedelta(days=n)

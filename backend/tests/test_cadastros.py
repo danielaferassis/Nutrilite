@@ -1,11 +1,11 @@
 """Listagem de ervas e secadores para os selects das telas, e dados fictícios."""
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 
 from app import dados_ficticios
-from app.models import Erva, Secador, Usuario
+from app.models import Demanda, Erva, Secador, Usuario
 from tests.conftest import FONTE_A, PCP, TODOS_OS_DIAS
 
 
@@ -65,3 +65,20 @@ def test_dados_ficticios_simulam_e_mostram_pendencias(cliente, db):
     # Prioridade cadastrada (picão no SCB01) e maior vazão (salsa no SCB03)
     assert secadores_por_erva["PICAO"] == {"SCB01"}
     assert secadores_por_erva["SALSA"] == {"SCB03"}
+
+
+def test_dados_ficticios_usam_a_data_da_fazenda(db, monkeypatch):
+    class Relogio(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            # 01/11 às 23h30 em Ubajara = 02/11 em UTC
+            return datetime(2026, 11, 2, 2, 30, tzinfo=timezone.utc).astimezone(tz)
+
+    monkeypatch.setattr(dados_ficticios, "datetime", Relogio)
+    db.query(Erva).delete()
+    db.commit()
+
+    dados_ficticios.carregar(db, db.get(Usuario, PCP))
+
+    demandas = db.query(Demanda).all()
+    assert min(d.prazo for d in demandas) == date(2026, 11, 6)  # hoje (01/11) + 5
