@@ -209,7 +209,9 @@ Rode de novo (com o mesmo e-mail) depois de cadastrar funcionalidades novas, par
 
 ```bash
 docker compose exec backend python -m app.cli dados-ficticios --email admin@exemplo.com
-``` Para recuperar o acesso de um admin, use `--redefinir-senha`.
+```
+
+O roteiro de demonstração (banca) que usa esses dados está em `docs/roteiro-demonstracao.md`. Para recuperar o acesso de um admin, use `--redefinir-senha`.
 
 ## Importação de arquivos (CSV/Excel)
 

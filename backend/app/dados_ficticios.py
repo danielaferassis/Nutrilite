@@ -114,6 +114,9 @@ def carregar(db: Session, usuario: Usuario, hoje: date | None = None) -> None:
             prioridade=prioridade, criado_por_id=usuario.id, observacao="Dado fictício",
         )
 
+    # Fora do domingo: com a fábrica parada, a manutenção não teria efeito visível
+    manutencao = dia(3) if dia(3).weekday() != 6 else dia(4)
+
     def lote(codigo: str, origem: Origem, chegada: int, kg: str) -> PrevisaoOferta:
         return PrevisaoOferta(
             erva_id=ervas[codigo].id, origem=origem, data_chegada=dia(chegada), kg_fresco=D(kg),
@@ -133,7 +136,7 @@ def carregar(db: Session, usuario: Usuario, hoje: date | None = None) -> None:
         lote("SALSA", Origem.PROCOMPETE, 8, "300"),
         lote("FIBRA", Origem.FAZENDA_PROPRIA, 5, "300"),
         BloqueioSecador(
-            secador_id=secadores["SCB02"].id, inicio=dia(3), fim=dia(3),
+            secador_id=secadores["SCB02"].id, inicio=manutencao, fim=manutencao,
             motivo="Manutenção preventiva (fictícia)", criado_por_id=usuario.id,
         ),
     ])
