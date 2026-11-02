@@ -168,6 +168,7 @@ O login é por **sessão no servidor**, guardada num cookie `HttpOnly` (o JavaSc
 | --- | --- |
 | `/api/health`, `/api/auth/login`, `/api/auth/logout` | nada |
 | `/api/auth/me`, `/api/auth/senha`, `/api/items` | estar logado |
+| `GET /api/ervas`, `GET /api/secadores`, `GET /api/capacidades` (só leitura, para os selects) | estar logado |
 | `/api/usuarios` | `usuario.gerenciar` |
 | `/api/grupos`, `GET /api/funcionalidades` | `grupo.gerenciar` |
 | `GET /api/demandas` | `demanda.consultar` |
@@ -199,7 +200,13 @@ docker compose exec backend python -m app.cli criar-admin --email voce@exemplo.c
 # sem Docker (dentro de backend/): python -m app.cli criar-admin --email ...
 ```
 
-Rode de novo (com o mesmo e-mail) depois de cadastrar funcionalidades novas, para o grupo recebê-las. Para recuperar o acesso de um admin, use `--redefinir-senha`.
+Rode de novo (com o mesmo e-mail) depois de cadastrar funcionalidades novas, para o grupo recebê-las.
+
+**Dados de demonstração:** para ver as telas e a simulação funcionando em desenvolvimento, carregue um cadastro com números **fictícios** (ervas, secadores, capacidades, demandas, previsões e uma manutenção, com datas relativas a hoje). O comando se recusa a rodar se já houver ervas cadastradas:
+
+```bash
+docker compose exec backend python -m app.cli dados-ficticios --email admin@exemplo.com
+``` Para recuperar o acesso de um admin, use `--redefinir-senha`.
 
 ## Importação de arquivos (CSV/Excel)
 

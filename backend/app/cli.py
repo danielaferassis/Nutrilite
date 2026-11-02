@@ -1,11 +1,15 @@
 """Comandos administrativos.
 
     python -m app.cli criar-admin --email admin@exemplo.com --nome "Administrador"
+    python -m app.cli dados-ficticios --email admin@exemplo.com
 
 Cria (ou atualiza) o grupo "Administrador" com TODAS as funcionalidades ativas
 e coloca o usuário nele. Se o usuário não existe, é criado com a senha digitada.
 Rode de novo sempre que uma migration adicionar funcionalidades novas, para o
 grupo recebê-las.
+
+`dados-ficticios` carrega um cadastro de demonstração (só em banco sem ervas),
+com demandas e previsões em nome do usuário informado.
 """
 
 import argparse
@@ -16,6 +20,7 @@ import sys
 from pydantic import ValidationError
 from sqlalchemy import select
 
+from app import dados_ficticios
 from app.acesso import encerrar_sessoes
 from app.database import SessionLocal
 from app.logger import setup_logging
@@ -70,6 +75,17 @@ def criar_admin(email: str, nome: str, redefinir_senha: bool) -> None:
         )
 
 
+def carregar_ficticios(email: str) -> None:
+    with SessionLocal() as db:
+        usuario = db.scalar(select(Usuario).where(Usuario.email == email.lower()))
+        if usuario is None:
+            sys.exit(f"Usuário {email} não existe: crie com criar-admin antes")
+        try:
+            dados_ficticios.carregar(db, usuario)
+        except dados_ficticios.BancoJaTemCadastro as erro:
+            sys.exit(str(erro))
+
+
 def main() -> None:
     setup_logging()
     parser = argparse.ArgumentParser(prog="python -m app.cli")
@@ -82,10 +98,17 @@ def main() -> None:
         "--redefinir-senha", action="store_true", help="pede uma senha nova se o usuário já existe"
     )
 
+    ficticios = sub.add_parser(
+        "dados-ficticios", help="carrega cadastro de demonstração (números fictícios)"
+    )
+    ficticios.add_argument("--email", required=True, help="usuário dono das demandas e previsões")
+
     args = parser.parse_args()
     try:
         if args.comando == "criar-admin":
             criar_admin(args.email, args.nome, args.redefinir_senha)
+        elif args.comando == "dados-ficticios":
+            carregar_ficticios(args.email)
     except ValidationError as erro:
         detalhes = "; ".join(f"{e['loc'][0]}: {e['msg']}" for e in erro.errors())
         sys.exit(f"Dados inválidos: {detalhes}")

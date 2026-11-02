@@ -5,6 +5,7 @@ from app.logger import setup_logging
 from app.routers import (
     auth,
     bloqueios,
+    cadastros,
     demandas,
     funcionalidades,
     grupos,
@@ -35,3 +36,4 @@ app.include_router(previsoes.router, prefix="/api")
 app.include_router(simulacoes.router, prefix="/api")
 app.include_router(planos.router, prefix="/api")
 app.include_router(bloqueios.router, prefix="/api")
+app.include_router(cadastros.router, prefix="/api")
