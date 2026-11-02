@@ -33,6 +33,14 @@ def ve_todas(permissoes: Permissoes) -> bool:
     return permissoes.tem("previsao.consultar") or permissoes.tem("previsao.gerenciar")
 
 
+def ensure_nao_recebida(previsao: PrevisaoOferta) -> None:
+    # O recebimento aponta para a previsão: mudá-la apagaria a origem do registro
+    if previsao.recebimentos:
+        raise HTTPException(
+            status_code=409, detail="Previsão já recebida não pode ser alterada nem removida"
+        )
+
+
 def ensure_pode_alterar(permissoes: Permissoes) -> None:
     if not (permissoes.tem("previsao.gerenciar") or permissoes.tem("previsao.propria")):
         log.warning("Usuário %s só consulta previsões", permissoes.usuario.id)
@@ -126,6 +134,7 @@ def update_previsao(
     db: Session = Depends(get_db),
 ):
     previsao = get_previsao_alteravel_or_404(previsao_id, permissoes, db)
+    ensure_nao_recebida(previsao)
     campos = data.model_dump(exclude_unset=True)
     if "erva_id" in campos:
         ensure_erva_ativa(campos["erva_id"], db)
@@ -144,6 +153,7 @@ def delete_previsao(
     db: Session = Depends(get_db),
 ):
     previsao = get_previsao_alteravel_or_404(previsao_id, permissoes, db)
+    ensure_nao_recebida(previsao)
     db.delete(previsao)
     db.commit()
     log.info("Previsão %s removida por %s", previsao_id, permissoes.usuario.id)

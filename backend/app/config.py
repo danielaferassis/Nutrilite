@@ -27,5 +27,8 @@ class Settings(BaseSettings):
     upload_max_mb: int = 20
     importacao_retencao_dias: int = 30
 
+    # Fuso da fazenda (Ubajara-CE). O servidor roda em UTC; "hoje" é o dia de lá.
+    fuso_fazenda: str = "America/Fortaleza"
+
 
 settings = Settings()

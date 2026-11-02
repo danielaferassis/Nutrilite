@@ -11,7 +11,7 @@ const COR_PENDENCIA: Record<TipoPendencia, EtiquetaCor> = {
 };
 
 /** Cronograma: uma linha por dia, uma coluna por secador. */
-function Cronograma({ alocacoes }: { alocacoes: Alocacao[] }) {
+export function Cronograma({ alocacoes }: { alocacoes: Alocacao[] }) {
   const secadores = [...new Set(alocacoes.map((a) => a.secador))].sort();
   const dias = [...new Set(alocacoes.map((a) => a.dia))].sort();
   // Num dia o secador tem uma erva só, mas pode ter várias linhas (lotes/demandas)

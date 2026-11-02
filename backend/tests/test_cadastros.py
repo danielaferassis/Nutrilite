@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from app import dados_ficticios
+from app import calendario, dados_ficticios
 from app.models import Demanda, Erva, Secador, Usuario
 from tests.conftest import FONTE_A, PCP, TODOS_OS_DIAS
 
@@ -74,7 +74,7 @@ def test_dados_ficticios_usam_a_data_da_fazenda(db, monkeypatch):
             # 01/11 às 23h30 em Ubajara = 02/11 em UTC
             return datetime(2026, 11, 2, 2, 30, tzinfo=timezone.utc).astimezone(tz)
 
-    monkeypatch.setattr(dados_ficticios, "datetime", Relogio)
+    monkeypatch.setattr(calendario, "datetime", Relogio)
     db.query(Erva).delete()
     db.commit()
 

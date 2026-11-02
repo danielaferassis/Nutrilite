@@ -125,6 +125,8 @@ KPIs (`resultado.kpis`):
 - Demanda ou lote de erva inativa não some: vira `PARAM_AUSENTE`.
 - Bloqueios (`/api/bloqueios`, tabela `bloqueio_secador`): entram os que tocam o horizonte, de secadores ativos. Datas inclusivas e motivo obrigatório.
 - `avisos`: limitações que não viram pendência do motor. Hoje vem vazio.
+- **Recebido substitui previsto** (`/api/recebimentos`): previsão com recebimento sai da entrada, e cada recebimento entra como lote com data e kg reais (id `R<n>`). Chegada não prevista também entra. Previsão recebida não pode mais ser alterada nem removida. Premissa a validar com o PCP: com entrega parcial, o restante previsto **não** é mais esperado (se ainda vier, cadastra-se nova previsão).
+- "Hoje" (data futura de recebimento, chegada atrasada) é o dia no fuso da fazenda (`FUSO_FAZENDA`, padrão `America/Fortaleza`), não o do servidor em UTC.
 - IDs de demanda e lote saem como texto (`"12"`): é o `id` da tabela.
 
 ## Plano salvo (`/api/planos`)
@@ -139,6 +141,10 @@ KPIs (`resultado.kpis`):
 - `plano.consultar` (Produção) só vê aprovados e substituídos.
 
 Premissa a validar com o PCP: o aprovado mais recente substitui **inteiro** qualquer aprovado que se sobreponha, mesmo que só em parte do horizonte.
+
+## Cronograma (`GET /api/cronograma?de=&ate=`)
+
+Para o período: linha do tempo dos planos aprovados e substituídos, alocações só dos aprovados e as chegadas com situação (`recebida`, `aguardando`, `atrasada` = passou a data sem chegar, `nao_prevista`) e desvio (recebido − previsto). Na tela, aprovar um plano mostra antes quais aprovados ele vai substituir e se estão em andamento.
 
 ## Testes
 

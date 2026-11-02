@@ -1,4 +1,4 @@
-import { Estagio, Origem, StatusPlano, TipoPendencia } from './tipos';
+import { Estagio, Origem, SituacaoChegada, StatusPlano, TipoPendencia } from './tipos';
 
 /** "2026-12-01" → "01/12/2026". Sem `new Date`, que desloca o dia pelo fuso. */
 export const formatarData = (iso: string) => {
@@ -51,3 +51,14 @@ export const ROTULO_PENDENCIA: Record<TipoPendencia, string> = {
 
 // date.weekday() do Python: 0 = segunda … 6 = domingo
 export const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+export const ROTULO_SITUACAO: Record<SituacaoChegada, string> = {
+  recebida: 'Recebida',
+  aguardando: 'Aguardando',
+  atrasada: 'Não chegou',
+  nao_prevista: 'Não prevista',
+};
+
+/** Planos aprovados que um novo aprovado vai substituir (horizontes que se cruzam). */
+export const sobrepostos = <T extends { inicio: string; fim: string }>(novo: T, aprovados: T[]) =>
+  aprovados.filter((p) => p !== novo && p.inicio <= novo.fim && p.fim >= novo.inicio);

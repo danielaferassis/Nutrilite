@@ -181,6 +181,9 @@ O login é por **sessão no servidor**, guardada num cookie `HttpOnly` (o JavaSc
 | `POST /api/planos/{id}/aprovar` | `plano.aprovar` |
 | `GET /api/bloqueios` | `bloqueio.consultar` |
 | `POST`, `PATCH`, `DELETE /api/bloqueios` | `bloqueio.gerenciar` |
+| `GET /api/recebimentos` | `recebimento.consultar` ou `recebimento.registrar` |
+| `POST`, `PATCH`, `DELETE /api/recebimentos` | `recebimento.registrar` |
+| `GET /api/cronograma?de=&ate=` | qualquer `plano.*` ou `recebimento.*` |
 
 Para proteger um endpoint novo:
 

@@ -6,6 +6,7 @@ import MatrizCapacidade from './components/MatrizCapacidade';
 import ImportacaoInfinity from './components/ImportacaoInfinity';
 import PlanoSecagem from './components/PlanoSecagem';
 import Bloqueios from './components/Bloqueios';
+import CronogramaRecebimentos from './components/CronogramaRecebimentos';
 import { SessaoProvider, useSessao } from './sessao';
 
 function UsuarioLogado() {
@@ -30,6 +31,7 @@ export default function App() {
             <a href="/demandas" className="block px-4 py-2 rounded hover:bg-[#211E16]">Gestão de Demandas</a>
             <a href="/previsoes" className="block px-4 py-2 rounded hover:bg-[#211E16]">Entrada de Previsões</a>
             <a href="/planos" className="block px-4 py-2 rounded hover:bg-[#211E16]">Plano de Secagem</a>
+            <a href="/cronograma" className="block px-4 py-2 rounded hover:bg-[#211E16]">Cronograma e Recebimentos</a>
             <a href="/bloqueios" className="block px-4 py-2 rounded hover:bg-[#211E16]">Bloqueios de Secador</a>
             <a href="/matriz" className="block px-4 py-2 rounded hover:bg-[#211E16]">Matriz de Capacidade</a>
             <a href="/importacao-infinity" className="block px-4 py-2 rounded hover:bg-[#211E16]">Importação Infinity</a>
@@ -53,6 +55,7 @@ export default function App() {
           {path === '/previsoes' && <EntradaPrevisoes />}
           {path === '/matriz' && <MatrizCapacidade />}
           {path === '/planos' && <PlanoSecagem />}
+          {path === '/cronograma' && <CronogramaRecebimentos />}
           {path === '/bloqueios' && <Bloqueios />}
           {path === '/importacao-infinity' && <ImportacaoInfinity />}
         </main>

@@ -6,6 +6,7 @@ from app.routers import (
     auth,
     bloqueios,
     cadastros,
+    cronograma,
     demandas,
     funcionalidades,
     grupos,
@@ -14,6 +15,7 @@ from app.routers import (
     items,
     planos,
     previsoes,
+    recebimentos,
     simulacoes,
     usuarios,
 )
@@ -37,3 +39,5 @@ app.include_router(simulacoes.router, prefix="/api")
 app.include_router(planos.router, prefix="/api")
 app.include_router(bloqueios.router, prefix="/api")
 app.include_router(cadastros.router, prefix="/api")
+app.include_router(recebimentos.router, prefix="/api")
+app.include_router(cronograma.router, prefix="/api")

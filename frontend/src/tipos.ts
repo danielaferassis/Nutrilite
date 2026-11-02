@@ -147,3 +147,37 @@ export interface PlanoResumo {
 export interface PlanoDetalhe extends PlanoResumo, ResultadoSimulacao {
   parametros: { dias_operacao: number[] | null; [chave: string]: unknown };
 }
+
+export type SituacaoChegada = 'recebida' | 'aguardando' | 'atrasada' | 'nao_prevista';
+
+export interface Recebimento {
+  id: number;
+  previsao_id: number | null;
+  erva: Resumo;
+  origem: Origem;
+  data_recebimento: string;
+  kg_fresco: string;
+  observacao: string | null;
+  registrado_por: UsuarioResumo;
+}
+
+export interface Chegada {
+  previsao_id: number | null;
+  erva: Resumo;
+  origem: Origem;
+  data_prevista: string | null;
+  kg_previsto: string | null;
+  recebimentos: Recebimento[];
+  kg_recebido: string;
+  desvio_kg: string | null;
+  situacao: SituacaoChegada;
+}
+
+export interface Cronograma {
+  de: string;
+  ate: string;
+  hoje: string;
+  planos: PlanoResumo[];
+  alocacoes: (Alocacao & { plano_id: number; versao: number })[];
+  chegadas: Chegada[];
+}

@@ -568,3 +568,82 @@ class BloqueioRead(BaseModel):
     criado_por: UsuarioResumo
     criado_em: UtcDatetime
     atualizado_em: UtcDatetime
+
+
+# --- Recebimento e cronograma ---
+
+
+class RecebimentoCreate(BaseModel):
+    # Com previsão, erva e origem vêm dela. Sem previsão (chegada não prevista),
+    # as duas são obrigatórias.
+    previsao_id: int | None = Field(default=None, gt=0)
+    erva_id: int | None = Field(default=None, gt=0)
+    origem: Origem | None = None
+    data_recebimento: date
+    kg_fresco: Kg
+    observacao: Observacao
+
+    @model_validator(mode="after")
+    def valida_vinculo(self):
+        if self.previsao_id is not None and (self.erva_id is not None or self.origem is not None):
+            raise ValueError("com previsão, erva e origem vêm da previsão: não informe")
+        if self.previsao_id is None and (self.erva_id is None or self.origem is None):
+            raise ValueError("chegada não prevista precisa de erva e origem")
+        return self
+
+
+class RecebimentoUpdate(BaseModel):
+    """Corrige data, kg ou observação. Vínculo, erva e origem não mudam."""
+
+    data_recebimento: date | None = None
+    kg_fresco: Kg | None = None
+    observacao: Observacao
+
+    _valida_nao_nulos = field_validator("data_recebimento", "kg_fresco")(_nao_nulo)
+
+
+class RecebimentoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    previsao_id: int | None
+    erva: ErvaResumo
+    origem: Origem
+    data_recebimento: date
+    kg_fresco: Decimal
+    observacao: str | None
+    registrado_por: UsuarioResumo
+    criado_em: UtcDatetime
+    atualizado_em: UtcDatetime
+
+
+class AlocacaoCronograma(AlocacaoRead):
+    plano_id: int
+    versao: int
+
+
+class ChegadaCronograma(BaseModel):
+    """Uma previsão e o que chegou dela, ou uma chegada não prevista."""
+
+    previsao_id: int | None
+    erva: ErvaResumo
+    origem: Origem
+    data_prevista: date | None
+    kg_previsto: Decimal | None
+    recebimentos: list[RecebimentoRead]
+    kg_recebido: Decimal
+    # recebido − previsto; None enquanto não chegou ou sem previsão
+    desvio_kg: Decimal | None
+    # recebida | aguardando | atrasada (passou a data sem chegar) | nao_prevista
+    situacao: str
+
+
+class CronogramaRead(BaseModel):
+    de: date
+    ate: date
+    hoje: date
+    # Aprovados e substituídos que tocam o período (linha do tempo)
+    planos: list[PlanoResumo]
+    # Só dos planos aprovados (vigentes)
+    alocacoes: list[AlocacaoCronograma]
+    chegadas: list[ChegadaCronograma]

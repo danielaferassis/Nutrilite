@@ -15,6 +15,7 @@ from app.models import (
     Demanda,
     Erva,
     PrevisaoOferta,
+    Recebimento,
     Rendimento,
     Secador,
 )
@@ -104,4 +105,16 @@ def para_bloqueio(bloqueio: BloqueioSecador) -> BloqueioPlanner:
         inicio=bloqueio.inicio,
         fim=bloqueio.fim,
         motivo=bloqueio.motivo,
+    )
+
+
+def para_lote_recebido(recebimento: Recebimento) -> LotePrevisto:
+    """O que chegou de fato vira lote com data e kg reais. Id com "R" para não
+    confundir com o id de previsão."""
+    return LotePrevisto(
+        id=f"R{recebimento.id}",
+        erva=recebimento.erva.codigo,
+        origem=OrigemPlanner(recebimento.origem.value),
+        data_chegada=recebimento.data_recebimento,
+        kg_fresco=float(recebimento.kg_fresco),
     )

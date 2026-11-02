@@ -8,6 +8,9 @@ Regras de recorte do horizonte [inicio, fim]:
 - Lotes: chegada até o `fim` e que ainda podem estar esperando no `inicio`
   (chegada a partir de `inicio - maior espera cadastrada`). O motor descarta o
   que já tiver vencido.
+- Recebido substitui previsto: previsão com recebimento sai da entrada, e cada
+  recebimento entra como lote com data e kg reais (id "R<n>"). Chegada não
+  prevista também entra.
 
 - Bloqueios: os que tocam o horizonte, de secadores ativos.
 
@@ -28,6 +31,7 @@ from app.cadastro import (
     para_demanda,
     para_erva,
     para_lote,
+    para_lote_recebido,
     para_rendimento,
     para_secador,
 )
@@ -37,6 +41,7 @@ from app.models import (
     Demanda,
     Erva,
     PrevisaoOferta,
+    Recebimento,
     Rendimento,
     Secador,
 )
@@ -74,14 +79,25 @@ def montar_entrada(
 
     # Espera ausente não amplia a janela: o motor já gera PARAM_AUSENTE para ela
     maior_espera = db.scalar(select(func.max(Erva.espera_maxima_dias))) or 0
+    primeira_chegada = inicio - timedelta(days=maior_espera)
     lotes = db.scalars(
         select(PrevisaoOferta)
         .options(joinedload(PrevisaoOferta.erva))
         .where(
-            PrevisaoOferta.data_chegada >= inicio - timedelta(days=maior_espera),
+            PrevisaoOferta.data_chegada >= primeira_chegada,
             PrevisaoOferta.data_chegada <= fim,
+            ~PrevisaoOferta.recebimentos.any(),
         )
         .order_by(PrevisaoOferta.id)
+    ).all()
+    recebimentos = db.scalars(
+        select(Recebimento)
+        .options(joinedload(Recebimento.erva))
+        .where(
+            Recebimento.data_recebimento >= primeira_chegada,
+            Recebimento.data_recebimento <= fim,
+        )
+        .order_by(Recebimento.id)
     ).all()
 
     bloqueios = db.scalars(
@@ -97,8 +113,8 @@ def montar_entrada(
     ).all()
 
     log.debug(
-        "Entrada %s a %s: %s demandas, %s lotes, %s capacidades",
-        inicio, fim, len(demandas), len(lotes), len(capacidades),
+        "Entrada %s a %s: %s demandas, %s lotes previstos, %s recebidos, %s capacidades",
+        inicio, fim, len(demandas), len(lotes), len(recebimentos), len(capacidades),
     )
     return EntradaPlanejamento(
         inicio=inicio,
@@ -107,7 +123,7 @@ def montar_entrada(
         secadores=[para_secador(s) for s in secadores],
         capacidades=[para_capacidade(c) for c in capacidades],
         rendimentos=[para_rendimento(r) for r in rendimentos],
-        lotes=[para_lote(p) for p in lotes],
+        lotes=[para_lote(p) for p in lotes] + [para_lote_recebido(r) for r in recebimentos],
         demandas=[para_demanda(d) for d in demandas],
         bloqueios=[para_bloqueio(b) for b in bloqueios],
         dias_operacao=dias_operacao,

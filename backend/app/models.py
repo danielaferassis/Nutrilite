@@ -519,6 +519,9 @@ class PrevisaoOferta(Base):
 
     erva: Mapped["Erva"] = relationship()
     criado_por: Mapped["Usuario"] = relationship()
+    recebimentos: Mapped[list["Recebimento"]] = relationship(
+        back_populates="previsao", order_by="Recebimento.data_recebimento"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -661,3 +664,53 @@ class BloqueioSecador(Base):
 
     secador: Mapped["Secador"] = relationship()
     criado_por: Mapped["Usuario"] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# Recebimento de erva fresca (o que chegou de fato)
+# ---------------------------------------------------------------------------
+
+
+class Recebimento(Base):
+    """Chegada real de erva fresca. Normalmente ligada à previsão que a anunciou.
+
+    Sem previsão = chegada não prevista (erva e origem informadas na hora).
+    Com previsão, erva e origem são copiadas dela. Uma previsão pode ter mais
+    de um recebimento (entrega parcial).
+    """
+
+    __tablename__ = "recebimento"
+    __table_args__ = (
+        Index("idx_recebimento_data", "data_recebimento"),
+        Index("idx_recebimento_previsao", "previsao_id"),
+        CheckConstraint("kg_fresco > 0", name="ck_recebimento_kg_fresco"),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    previsao_id: Mapped[int | None] = mapped_column(
+        INTEGER(unsigned=True),
+        # RESTRICT: previsão já recebida não pode sumir (rastreabilidade)
+        ForeignKey("previsao_oferta.id", name="fk_recebimento_previsao", ondelete="RESTRICT"),
+    )
+    erva_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("erva.id", name="fk_recebimento_erva", ondelete="RESTRICT"),
+    )
+    origem: Mapped[Origem] = mapped_column(
+        Enum(Origem, name="origem", values_callable=_valores_do_enum)
+    )
+    data_recebimento: Mapped[date] = mapped_column(Date)
+    kg_fresco: Mapped[Decimal] = mapped_column(KG)
+    observacao: Mapped[str | None] = mapped_column(String(500))
+    registrado_por_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("usuario.id", name="fk_recebimento_registrado_por", ondelete="RESTRICT"),
+    )
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    previsao: Mapped["PrevisaoOferta | None"] = relationship(back_populates="recebimentos")
+    erva: Mapped["Erva"] = relationship()
+    registrado_por: Mapped["Usuario"] = relationship()

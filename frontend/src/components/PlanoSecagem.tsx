@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 
 import { apiFetch, textoDoErro } from '../api';
-import { DIAS_SEMANA, ROTULO_STATUS, formatarData, formatarDataHora, hojeIso } from '../formatar';
+import { DIAS_SEMANA, ROTULO_STATUS, formatarData, formatarDataHora, hojeIso, sobrepostos } from '../formatar';
 import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { useSessao } from '../sessao';
@@ -81,7 +81,17 @@ export default function PlanoSecagem() {
     });
 
   const aprovar = (p: PlanoResumo) => {
-    if (!window.confirm(`Aprovar o plano v${p.versao}? Aprovados sobrepostos passam a "substituído".`)) return;
+    // Mostra o que a aprovação tira de vigor antes de confirmar
+    const hoje = hojeIso();
+    const aprovados = (planos.dados ?? []).filter((x) => x.status === 'aprovado');
+    const impacto = sobrepostos(p, aprovados).map((x) => {
+      const fase = x.fim < hoje ? 'já executado' : x.inicio <= hoje ? 'EM ANDAMENTO' : 'futuro';
+      return `• v${x.versao} (${formatarData(x.inicio)} a ${formatarData(x.fim)}), ${fase}`;
+    });
+    const aviso = impacto.length
+      ? `\n\nEle vai substituir por inteiro:\n${impacto.join('\n')}`
+      : '\n\nNenhum plano aprovado é afetado.';
+    if (!window.confirm(`Aprovar o plano v${p.versao} (${formatarData(p.inicio)} a ${formatarData(p.fim)})?${aviso}`)) return;
     executar(async () => {
       setPlano(await apiFetch<PlanoDetalhe>(`/planos/${p.id}/aprovar`, { method: 'POST' }));
       setMensagem(`Plano v${p.versao} aprovado.`);

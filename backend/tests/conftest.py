@@ -31,6 +31,7 @@ from app.models import (
     PlanoAlocacao,
     PlanoPendencia,
     PrevisaoOferta,
+    Recebimento,
     Rendimento,
     Secador,
     Usuario,
@@ -47,12 +48,13 @@ TODOS_OS_DIAS = [0, 1, 2, 3, 4, 5, 6]
 PERMISSOES = {
     PCP: [
         "demanda.consultar", "demanda.gerenciar", "previsao.gerenciar", "plano.simular",
-        "bloqueio.consultar", "bloqueio.gerenciar",
+        "bloqueio.consultar", "bloqueio.gerenciar", "recebimento.registrar",
     ],
     FONTE_A: ["previsao.propria"],
     FONTE_B: ["previsao.propria"],
     CONSULTA: [
         "demanda.consultar", "previsao.consultar", "plano.consultar", "bloqueio.consultar",
+        "recebimento.consultar",
     ],
     SEM_PERMISSAO: [],
     GESTOR: ["plano.aprovar"],
@@ -89,7 +91,7 @@ def db():
         Erva.__table__, Secador.__table__, Capacidade.__table__, Rendimento.__table__,
         Demanda.__table__, PrevisaoOferta.__table__,
         Plano.__table__, PlanoAlocacao.__table__, PlanoPendencia.__table__,
-        BloqueioSecador.__table__,
+        BloqueioSecador.__table__, Recebimento.__table__,
     ]
     Base.metadata.create_all(engine, tables=tabelas)
     sessao = sessionmaker(bind=engine, autoflush=False)()
