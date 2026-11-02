@@ -60,11 +60,16 @@ def test_dados_ficticios_simulam_e_mostram_pendencias(cliente, db):
     assert "capacidade_excedida" in tipos
     assert "param_ausente" not in tipos
     secadores_por_erva = {}
+    secador_da_salsa = {}
     for a in corpo["alocacoes"]:
         secadores_por_erva.setdefault(a["erva"], set()).add(a["secador"])
-    # Prioridade cadastrada (picão no SCB01) e maior vazão (salsa no SCB03)
+        if a["erva"] == "SALSA":
+            secador_da_salsa[a["dia"]] = a["secador"]
+    # Prioridade cadastrada: picão sempre no SCB01
     assert secadores_por_erva["PICAO"] == {"SCB01"}
-    assert secadores_por_erva["SALSA"] == {"SCB03"}
+    # Salsa prefere o SCB03 (maior capacidade); no dia 03 ele está na campanha
+    # de camomila, então a salsa vai para o SCB02
+    assert secador_da_salsa == {"2026-12-03": "SCB02", "2026-12-09": "SCB03"}
 
 
 def test_dados_ficticios_usam_a_data_da_fazenda(db, monkeypatch):
@@ -82,3 +87,20 @@ def test_dados_ficticios_usam_a_data_da_fazenda(db, monkeypatch):
 
     demandas = db.query(Demanda).all()
     assert min(d.prazo for d in demandas) == date(2026, 11, 6)  # hoje (01/11) + 5
+
+
+def test_dados_ficticios_trazem_historico_de_chegadas(cliente, db, monkeypatch):
+    monkeypatch.setattr(calendario, "hoje", lambda: date(2026, 12, 1))
+    db.query(Erva).delete()
+    db.commit()
+    dados_ficticios.carregar(db, db.get(Usuario, PCP), hoje=date(2026, 12, 1))
+
+    cliente.logar(PCP)
+    chegadas = cliente.get(
+        "/api/cronograma", params={"de": "2026-11-01", "ate": "2026-11-30"}
+    ).json()["chegadas"]
+
+    situacoes = sorted(c["situacao"] for c in chegadas)
+    assert situacoes == ["atrasada", "nao_prevista", "recebida", "recebida", "recebida"]
+    desvios = sorted(float(c["desvio_kg"]) for c in chegadas if c["desvio_kg"] is not None)
+    assert desvios == [-80, 0, 10]

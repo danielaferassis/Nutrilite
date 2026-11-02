@@ -1,11 +1,15 @@
 import { query } from '../api';
-import { formatarData, formatarNumero, hojeIso } from '../formatar';
+import { ROTULO_ORIGEM, formatarData, formatarKg, formatarNumero, hojeIso } from '../formatar';
 import { useApi } from '../hooks';
+import { confiabilidadePorOrigem, naoChegaram } from '../indicadores';
 import { useSessao } from '../sessao';
-import { Demanda, PlanoDetalhe, PlanoResumo, Previsao } from '../tipos';
+import { Cronograma, Demanda, PlanoDetalhe, PlanoResumo, Previsao } from '../tipos';
+import ItemList from './ItemList';
 import { Card } from './ui';
 
 const JANELA_DIAS = 30;
+
+const formatarPct = (valor: number | null) => (valor === null ? 'n/a' : `${formatarNumero(valor)}%`);
 
 export default function DashboardPCP() {
   const { pode } = useSessao();
@@ -26,6 +30,18 @@ export default function DashboardPCP() {
       ? `/previsoes${query({ chegada_de: hoje, chegada_ate: ate })}`
       : null
   );
+
+  // Últimos 30 dias de chegadas: base dos indicadores de confiabilidade das fontes
+  const passado = hojeIso(-JANELA_DIAS);
+  const chegadas = useApi<Cronograma>(
+    pode('plano.consultar', 'plano.simular', 'plano.aprovar', 'recebimento.consultar', 'recebimento.registrar')
+      ? `/cronograma${query({ de: passado, ate: hoje })}`
+      : null
+  );
+  const confiabilidade = chegadas.dados
+    ? confiabilidadePorOrigem(chegadas.dados.chegadas, passado, chegadas.dados.hoje)
+    : [];
+  const faltando = chegadas.dados ? naoChegaram(chegadas.dados.chegadas) : [];
 
   const ocupacao = Object.entries(plano.dados?.kpis.ocupacao_planejada_pct ?? {});
   const pendencias = plano.dados?.pendencias.length;
@@ -61,6 +77,46 @@ export default function DashboardPCP() {
           <p className={`text-2xl font-bold ${pendencias ? 'text-red-700' : 'text-[#211E16]'}`}>{pendencias ?? '—'}</p>
         </Card>
       </div>
+
+      {chegadas.dados && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <h2 className="text-lg font-semibold mb-1">Confiabilidade das fontes</h2>
+            <p className="text-xs text-gray-500 mb-3">
+              Previsões com data nos últimos {JANELA_DIAS} dias. Aderência = recebido ÷ previsto; pontualidade =
+              chegou até a data prevista.
+            </p>
+            <ItemList
+              colunas={['Origem', 'Previsões', 'Previsto', 'Recebido', 'Aderência', 'Pontualidade']}
+              dados={confiabilidade.map((c) => ({
+                origem: ROTULO_ORIGEM[c.origem],
+                previsoes: c.previsoes,
+                previsto: formatarKg(c.kgPrevisto),
+                recebido: formatarKg(c.kgRecebido),
+                aderencia: formatarPct(c.aderenciaPct),
+                pontualidade: formatarPct(c.pontualidadePct),
+              }))}
+              vazio="Nenhuma previsão vencida no período."
+            />
+          </Card>
+          <Card className={faltando.length ? 'border-red-200' : ''}>
+            <h2 className={`text-lg font-semibold mb-3 ${faltando.length ? 'text-red-800' : ''}`}>
+              Chegadas que não vieram ({faltando.length})
+            </h2>
+            <ItemList
+              colunas={['Previsão', 'Erva', 'Origem', 'Prevista para', 'Previsto']}
+              dados={faltando.map((c) => ({
+                previsao: `#${c.previsao_id}`,
+                erva: c.erva.nome,
+                origem: ROTULO_ORIGEM[c.origem],
+                data: formatarData(c.data_prevista!),
+                kg: formatarKg(c.kg_previsto!),
+              }))}
+              vazio="Todas as previsões vencidas chegaram."
+            />
+          </Card>
+        </div>
+      )}
 
       {ocupacao.length > 0 && (
         <div>
