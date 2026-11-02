@@ -97,7 +97,7 @@ KPIs (`resultado.kpis`):
 
 ### Premissas adotadas provisoriamente na alocação
 
-- **Uma erva por secador por dia.**
+- **Uma erva por secador por dia.** ⚠️ **Contradiz o PCP (21/10):** a fábrica troca de erva no mesmo secador no mesmo dia (termina, limpa, coloca outra). Até o motor ser ajustado, o plano tende a subestimar a capacidade em dias de troca. Próxima tarefa do motor.
 - **Campanha sem sucessora:** se não chega mais lote da erva e o saldo cabe no dia junto com a limpeza, a campanha encerra nesse dia e paga o setup final. Se não cabe, a campanha fica aberta e a limpeza só é cobrada se outra erva entrar depois (troca). Nesse caso, a limpeza não aparece nas horas ocupadas do horizonte.
 - **Pausa no meio da campanha** (dia sem trabalho, fora de `dias_operacao` ou com bloqueio): a campanha continua aberta e não paga setup inicial de novo nem setup diário nos dias parados.
 - **Demanda só recebe kg secos até o prazo.** O que é seco depois não reduz o `ATRASO`.
@@ -105,11 +105,27 @@ KPIs (`resultado.kpis`):
 - Carga parcial (por carga) ocupa o tempo de uma carga cheia.
 - **Denominador da ocupação:** 24 h de calendário × dias disponíveis do secador. A alternativa seria usar o regime da erva processada (por exemplo, 12 h/dia na camomila). Com 24 h, um secador que só seca camomila chega no máximo a 50% de ocupação, mesmo trabalhando o turno inteiro. Com o regime da erva, ele chegaria a 100%, mas o denominador mudaria conforme a erva, e dias sem erva alocada ficariam sem regime definido.
 
+### Respostas do PCP (21/10/2026)
+
+Só a regra; os valores da tabela oficial **não** entram no repositório (são reais e vão direto para o cadastro).
+
+| Pergunta | Resposta | No sistema |
+| --- | --- | --- |
+| Contínuo ou por carga? | Por carga, com tempo fixo; tabela erva × secador com kg e horas por carga | Modo `POR_CARGA` (`kg_por_carga`, `horas_por_carga`) |
+| Setup dentro do turno? | "Dentro da programação da campanha" | `setup_dentro_do_regime = True` |
+| Trocar de erva no mesmo dia? | Sim | **Ainda não suportado** (ver premissa acima) |
+| Dividir um lote entre secadores? | Sim, em paralelo quando passa da capacidade de um | Já suportado (reforço no mesmo dia) |
+| Dias por semana? | Geralmente 6, depende da oferta | `dias_operacao` em cada simulação |
+
+Dúvidas que a tabela levantou:
+- A coluna **"Interv"** é parada diária (`setup_diario_h`) ou intervalo entre cargas (a cada carga)?
+- A fibra tem dois SKUs com os mesmos parâmetros. A capacidade pode variar por SKU da mesma matéria-prima? Se sim, o cadastro precisa ser por SKU, não por erva.
+
 ### Pendentes de definição
 
 - Validar com o PCP as premissas provisórias acima, principalmente a campanha sem sucessora e a pausa no meio da campanha.
 - **Pergunta ao PCP:** a ocupação planejada deve usar 24 h de calendário (como hoje) ou o regime da erva como denominador? Se for o regime, qual valor usar nos dias em que o secador fica sem erva?
-- Valores oficiais de regime, setups, vazão e carga por erva × secador (tabela de capacidade e matriz de trocas).
+- Cadastrar os valores oficiais da tabela de capacidade (recebida em 21/10) quando houver endpoints de cadastro. Matriz de trocas (custo de limpeza entre pares de ervas) ainda não recebida.
 
 ## Uso pela API (`POST /api/simulacoes`)
 
