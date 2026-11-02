@@ -10,7 +10,9 @@ De propósito, inclui situações que o PCP precisa ver:
 - um lote grande de camomila que não cabe nos secadores (CAPACIDADE_EXCEDIDA);
 - uma manutenção no SCB02;
 - histórico de chegadas: entrega menor que a prevista, uma atrasada, uma que
-  não veio e uma não prevista (alimentam a confiabilidade das fontes).
+  não veio e uma não prevista (alimentam a confiabilidade das fontes);
+- um lote único de fibra que termina cedo, para aparecer troca de erva no
+  mesmo secador no mesmo dia.
 
 Recusa rodar se já houver erva cadastrada, para nunca misturar com dados reais.
 """
@@ -134,7 +136,9 @@ def carregar(db: Session, usuario: Usuario, hoje: date | None = None) -> None:
         lote("PICAO", Origem.PD, 4, "400"),
         lote("SALSA", Origem.PROCOMPETE, 2, "400"),
         lote("SALSA", Origem.PROCOMPETE, 8, "300"),
-        lote("FIBRA", Origem.FAZENDA_PROPRIA, 5, "300"),
+        # Lote único e pequeno: a fibra encerra a campanha cedo e, no mesmo dia,
+        # o secador troca de erva (regra confirmada pelo PCP em 21/10)
+        lote("FIBRA", Origem.PD, 3, "120"),
         BloqueioSecador(
             secador_id=secadores["SCB02"].id, inicio=manutencao, fim=manutencao,
             motivo="Manutenção preventiva (fictícia)", criado_por_id=usuario.id,

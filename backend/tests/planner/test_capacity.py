@@ -278,3 +278,18 @@ def test_carga_ausente_gera_erro():
         kg_no_dia(replace(CAP_CAMOMILA_CARGA, kg_por_carga=None), 10)
     with pytest.raises(ParametroAusenteError):
         cargas_no_dia(replace(CAP_CAMOMILA_CARGA, horas_por_carga=None), 10)
+
+
+@pytest.mark.parametrize(
+    "dentro, livres, esperado",
+    [
+        (True, 24, 9),  # dia inteiro: regime 12 − setup 3
+        (True, 10, 7),  # sobram 10 h: min(12, 10) − 3
+        (True, 2, 0),  # o setup não cabe
+        (False, 24, 12),  # setup fora do regime: min(12, 24 − 3)
+        (False, 10, 7),  # min(12, 10 − 3)
+    ],
+)
+def test_horas_uteis_respeitam_o_que_sobra_do_dia(dentro, livres, esperado):
+    cap = CAP_CAMOMILA if dentro else CAP_CAMOMILA_FORA
+    assert horas_uteis(CAMOMILA, cap, horas_setup=3, horas_livres=livres) == esperado

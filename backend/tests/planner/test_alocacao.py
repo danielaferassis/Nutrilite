@@ -334,3 +334,72 @@ def test_ocupacao_sem_dia_disponivel_e_nao_aplicavel():
 
     assert resultado.kpis["ocupacao_planejada_pct"] == {"SCB01": None, "SCB03": None}
     assert resultado.kpis["saldo_nao_alocado_kg"] == {}
+
+
+# --- Troca de erva no mesmo secador no mesmo dia (PCP, 21/10/2026) ---
+
+# Camomila com setups curtos, para a campanha caber num dia com sobra
+CAM_SCB03_CURTA = capacidade("CAMOMILA", "SCB03", 100, inicial=1, final=1, diario=0)
+
+
+def test_troca_de_erva_no_mesmo_dia_depois_que_a_primeira_encerra():
+    resultado = simular(
+        entrada(
+            capacidades=[CAM_SCB03_CURTA, AGR_SCB03],
+            secadores=[Secador("SCB03", "GLP")],
+            lotes=[lote("C1", "CAMOMILA", SEG, 300), lote("A1", "AGRIAO", SEG, 1000)],
+        )
+    )
+
+    # Agrião primeiro (maior saldo): setup diário 2 + inicial 2 + final 4 = 8 h,
+    # secagem 1000 / 200 = 5 h → 13 h; a campanha encerra e sobram 11 h.
+    # Camomila no que sobra: min(regime 12, 11) − setup 2 = 9 h úteis ≥ 3 h
+    # de secagem (300 / 100), então também encerra. Total do dia: 18 h.
+    assert linhas(resultado) == [
+        ("SCB03", SEG, "A1", None, 1000, 5, 8),
+        ("SCB03", SEG, "C1", None, 300, 3, 2),
+    ]
+    assert resultado.viavel
+    assert resultado.kpis["horas_ocupadas"] == {"SCB03": 18.0}
+
+
+def test_segunda_erva_comeca_no_que_sobra_e_continua_amanha():
+    resultado = simular(
+        entrada(
+            capacidades=[CAM_SCB03_CURTA, AGR_SCB03],
+            secadores=[Secador("SCB03", "GLP")],
+            lotes=[lote("C1", "CAMOMILA", SEG, 300), lote("A1", "AGRIAO", SEG, 2800)],
+        )
+    )
+
+    # SEG: agrião 8 h de setup + 2800 / 200 = 14 h → 22 h; sobram 2 h.
+    #   Encerrar a camomila hoje custaria inicial 1 + final 1 = 2 h e não
+    #   sobraria tempo de secagem. Sem encerrar: inicial 1 h + 1 h secando 100 kg,
+    #   e a campanha fica aberta. O secador fecha o dia com 24 h.
+    # TER: camomila continua: limpeza final 1 h + 200 / 100 = 2 h, e encerra.
+    assert linhas(resultado) == [
+        ("SCB03", SEG, "A1", None, 2800, 14, 8),
+        ("SCB03", SEG, "C1", None, 100, 1, 1),
+        ("SCB03", TER, "C1", None, 200, 2, 1),
+    ]
+    assert resultado.kpis["horas_ocupadas"] == {"SCB03": 27.0}
+
+
+def test_campanha_aberta_segura_o_secador_ate_o_dia_seguinte():
+    resultado = simular(
+        entrada(
+            capacidades=[CAM_SCB03_CURTA, AGR_SCB03],
+            secadores=[Secador("SCB03", "GLP")],
+            lotes=[
+                lote("A1", "AGRIAO", SEG, 1000),
+                lote("A2", "AGRIAO", TER, 1000),  # agrião continua amanhã
+                lote("C1", "CAMOMILA", SEG, 300),
+            ],
+        )
+    )
+
+    # Na segunda o agrião termina o lote, mas tem oferta amanhã: a campanha fica
+    # aberta e o secador não troca de erva (continuar é mais barato que limpar).
+    no_dia = {(a.dia, a.erva) for a in resultado.alocacoes}
+    assert (SEG, "AGRIAO") in no_dia
+    assert (SEG, "CAMOMILA") not in no_dia

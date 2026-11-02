@@ -57,7 +57,8 @@ Hoje o PCP planeja a secagem em planilhas. A erva fresca chega quando é colhida
    - **Ocupação por secador**, em **horas**. Kg de ervas diferentes não se somam.
    - **Cronograma dia × secador:**
      - o picão vai **primeiro** para o **SCB01**, por causa da **prioridade cadastrada** (política do PCP). Se sobrar volume, outro secador reforça no mesmo dia (o PCP confirmou que um lote pode ir para dois secadores em paralelo);
-     - a salsa prefere o SCB03 (maior capacidade), mas no dia em que ele está na campanha de camomila, vai para o SCB02.
+     - a salsa prefere o SCB03 (maior capacidade), mas no dia em que ele está na campanha de camomila, vai para o SCB02;
+     - **troca de erva no mesmo dia:** procure a célula do SCB01 com duas ervas (em geral **fibra ↳ camomila**). O lote de fibra é pequeno e único: ela termina, o secador é limpo e a camomila entra no tempo que sobra. Regra confirmada pelo PCP em 21/10. Em "Detalhe das alocações", o setup da camomila nesse dia é só o dela, porque a limpeza da fibra já foi cobrada quando a fibra encerrou.
    - **SCB02 com 24 h a menos de horas disponíveis** que os outros: a manutenção cadastrada tira um dia.
    - **Necessidade de erva fresca:** o cálculo reverso (moído → desidratado → fresco).
 
@@ -129,7 +130,7 @@ Rode `docker compose exec backend pytest -q` ao vivo. Os testes cobrem o motor, 
 
 Fale delas antes que perguntem:
 
-- **Troca de erva no mesmo secador no mesmo dia:** o PCP confirmou que acontece (21/10), mas o motor ainda supõe uma erva por secador por dia. Em dias de troca, o plano subestima a capacidade. É a próxima tarefa do motor.
+- **Guloso enxerga só o dia:** uma erva que começa no fim do dia e deixa a campanha aberta pode atrapalhar outra erva nos dias seguintes. Medimos o efeito em 2.000 cenários aleatórios (README do motor) e ele é raro; otimizar o horizonte inteiro fica como trabalho futuro.
 - **Cadastro de erva, secador e capacidade:** ainda não tem tela de edição. Hoje os dados entram direto no banco; os endpoints estão em definição com o Guilherme.
 - **Demandas com prazo logo depois do horizonte** não recebem crédito da secagem. Há proposta em `docs/propostas/demandas-alem-do-horizonte.md`.
 - **Importação S&OP em lote:** aguarda o formato oficial da planilha.

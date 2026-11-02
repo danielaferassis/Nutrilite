@@ -91,20 +91,29 @@ def horas_setup_dia(
     return horas
 
 
-def horas_uteis(erva: Erva, capacidade: Capacidade, horas_setup: float) -> float:
-    """Horas de secagem efetiva no dia.
+def horas_uteis(
+    erva: Erva, capacidade: Capacidade, horas_setup: float, horas_livres: float = HORAS_DIA
+) -> float:
+    """Horas de secagem efetiva da erva no secador, no que resta do dia.
 
-    - setup dentro do regime: max(0, regime − setup);
-    - setup fora do regime:   max(0, min(regime, 24 − setup)).
+    `horas_livres` é o que sobrou das 24 h depois das ervas que já passaram
+    pelo secador no dia (troca de erva no mesmo dia). O regime limita cada erva.
+
+    - setup dentro do regime: max(0, min(regime, livres) − setup);
+    - setup fora do regime:   max(0, min(regime, livres − setup)).
+
+    Com `horas_livres` = 24 (secador começando o dia) as fórmulas ficam
+    regime − setup e min(regime, 24 − setup).
     """
     if erva.regime_horas_dia is None:
         raise ParametroAusenteError(f"Regime de horas/dia ausente para {erva.codigo}", erva.codigo)
+    _validar_horas(horas_livres)
     regime = erva.regime_horas_dia
     dentro = _exigir(capacidade.setup_dentro_do_regime, "setup_dentro_do_regime", capacidade)
 
     if dentro:
-        return max(0.0, regime - horas_setup)
-    return max(0.0, min(regime, HORAS_DIA - horas_setup))
+        return max(0.0, min(regime, horas_livres) - horas_setup)
+    return max(0.0, min(regime, horas_livres - horas_setup))
 
 
 def cargas_no_dia(capacidade: Capacidade, horas: float) -> int:

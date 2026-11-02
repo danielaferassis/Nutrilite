@@ -126,7 +126,9 @@ def _alocar(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> None:
        - ela vai para o secador livre de menor `Capacidade.prioridade`; sem
          prioridade cadastrada (ou empate), para o de maior capacidade líquida
          no dia, já descontados os setups (continuar campanha sai mais barato
-         que trocar).
+         que trocar);
+       - se a erva encerra a campanha e sobram horas, o secador segue livre
+         com o restante do dia para outra erva (troca no mesmo dia).
     3. Os kg secos saem dos lotes que vencem primeiro e atendem as demandas
        de maior prioridade (e prazo mais próximo) que ainda estão no prazo.
     No fim: demanda não coberta até o prazo → ATRASO; necessidade maior que a
@@ -170,11 +172,12 @@ class _Alocador:
     # -- um dia --------------------------------------------------------------
 
     def _alocar_dia(self, dia: date) -> None:
-        livres = sorted(
-            s.codigo
+        # Horas que ainda sobram em cada secador disponível hoje
+        livres = {
+            s.codigo: float(HORAS_DIA)
             for s in self.entrada.secadores
             if secador_disponivel(s.codigo, dia, self.entrada.bloqueios, self.entrada.dias_operacao)
-        )
+        }
         secadores_por_erva: dict[str, int] = defaultdict(int)
 
         while livres:
@@ -182,12 +185,19 @@ class _Alocador:
             if escolha is None:
                 break
             secador, plano = escolha
-            livres.remove(secador)
             secadores_por_erva[plano.capacidade.erva] += 1
             self._registrar_plano(dia, secador, plano)
+            # Troca de erva no mesmo dia (PCP, 21/10): só depois que a erva encerra
+            # a campanha (secou o saldo e fez a limpeza). Campanha aberta segura o
+            # secador até o dia seguinte: continuar sai mais barato que trocar.
+            sobra = livres[secador] - plano.horas_setup - plano.horas_secagem
+            if plano.encerra_campanha and sobra > _EPS:
+                livres[secador] = sobra
+            else:
+                del livres[secador]
 
     def _escolher(
-        self, dia: date, livres: list[str], secadores_por_erva: dict[str, int]
+        self, dia: date, livres: dict[str, float], secadores_por_erva: dict[str, int]
     ) -> tuple[str, _Plano] | None:
         """Erva mais urgente com algum secador livre capaz; o secador que seca mais kg."""
         saldos: dict[str, float] = defaultdict(float)
@@ -210,19 +220,22 @@ class _Alocador:
         )
         for erva in ordem:
             candidatos = []
-            for secador in livres:
+            for secador in sorted(livres):
                 capacidade = self.capacidades.get((erva, secador))
                 if capacidade is None:
                     continue
-                plano = self._planejar(dia, capacidade, saldos[erva])
+                plano = self._planejar(dia, capacidade, saldos[erva], livres[secador])
                 if plano is not None:
                     candidatos.append((secador, plano))
             if candidatos:
                 return min(candidatos, key=_ordem_secador)
         return None
 
-    def _planejar(self, dia: date, capacidade: Capacidade, saldo: float) -> _Plano | None:
-        """Quanto `capacidade.secador` seca de `capacidade.erva` hoje (None = nada)."""
+    def _planejar(
+        self, dia: date, capacidade: Capacidade, saldo: float, horas_livres: float = HORAS_DIA
+    ) -> _Plano | None:
+        """Quanto `capacidade.secador` seca de `capacidade.erva` nas `horas_livres`
+        que restam hoje (None = nada)."""
         aberta = self.campanhas[capacidade.secador]
         continua = aberta is not None and aberta.erva == capacidade.erva
         anterior = None if aberta is None or continua else aberta
@@ -232,7 +245,8 @@ class _Alocador:
             setup = horas_setup_dia(
                 capacidade, primeiro_dia=not continua, encerra_campanha=encerra, anterior=anterior
             )
-            return setup, kg_no_dia(capacidade, horas_uteis(erva, capacidade, setup))
+            uteis = horas_uteis(erva, capacidade, setup, horas_livres)
+            return setup, kg_no_dia(capacidade, uteis)
 
         # Sem oferta futura da erva: se o saldo cabe hoje junto com a limpeza,
         # a campanha encerra hoje.

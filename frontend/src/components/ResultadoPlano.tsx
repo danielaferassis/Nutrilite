@@ -14,16 +14,25 @@ const COR_PENDENCIA: Record<TipoPendencia, EtiquetaCor> = {
 export function Cronograma({ alocacoes }: { alocacoes: Alocacao[] }) {
   const secadores = [...new Set(alocacoes.map((a) => a.secador))].sort();
   const dias = [...new Set(alocacoes.map((a) => a.dia))].sort();
-  // Num dia o secador tem uma erva só, mas pode ter várias linhas (lotes/demandas)
+  // Pode haver mais de uma erva no dia (troca no mesmo dia), cada uma com várias
+  // linhas (lotes/demandas). A ordem das linhas é a ordem em que entraram.
   const celula = (dia: string, secador: string) => {
     const doDia = alocacoes.filter((a) => a.dia === dia && a.secador === secador);
     if (doDia.length === 0) return <span className="text-gray-400">livre</span>;
-    const kg = doDia.reduce((soma, a) => soma + a.kg_fresco, 0);
-    const horas = doDia.reduce((soma, a) => soma + a.horas_secagem + a.horas_setup, 0);
+    const ervas = [...new Set(doDia.map((a) => a.erva))];
     return (
-      <div>
-        <div className="font-semibold text-[#006F44]">{doDia[0].erva}</div>
-        <div className="text-xs text-gray-600">{formatarKg(kg)} · {formatarHoras(horas)}</div>
+      <div className="space-y-1">
+        {ervas.map((erva, i) => {
+          const daErva = doDia.filter((a) => a.erva === erva);
+          const kg = daErva.reduce((soma, a) => soma + a.kg_fresco, 0);
+          const horas = daErva.reduce((soma, a) => soma + a.horas_secagem + a.horas_setup, 0);
+          return (
+            <div key={erva} className={i > 0 ? 'pt-1 border-t border-dashed border-[#C7C8CA]' : ''}>
+              <div className="font-semibold text-[#006F44]">{i > 0 && '↳ '}{erva}</div>
+              <div className="text-xs text-gray-600">{formatarKg(kg)} · {formatarHoras(horas)}</div>
+            </div>
+          );
+        })}
       </div>
     );
   };

@@ -72,6 +72,7 @@ Guloso, dia a dia, do `inicio` ao `fim` do horizonte:
 2. Enquanto houver secador disponível e erva com saldo disponível no dia:
    - escolhe primeiro a erva **mais urgente**: menos secadores já usados por ela no dia → vencimento mais próximo → maior prioridade de demanda → maior saldo;
    - ela vai para o secador livre com **menor `prioridade` cadastrada** na capacidade erva × secador. Sem prioridade (ou em empate), vai para o de **maior capacidade líquida no dia**: os kg que ele consegue secar, já descontados os setups, sem limitar ao saldo do lote. Continuar a campanha sai mais barato que trocar de erva.
+   - **Troca de erva no mesmo dia** (PCP, 21/10): se a erva **encerra a campanha** no secador (secou todo o saldo e fez a limpeza) e sobram horas, o secador continua livre no dia, com as horas restantes, e outra erva pode entrar pagando o próprio setup inicial. Campanha que fica aberta (a erva tem lote chegando depois) segura o secador até o dia seguinte.
 3. Os kg secos saem dos lotes que vencem primeiro e vão para as demandas ainda no prazo, por maior prioridade e prazo mais próximo. O que sobra fica na alocação sem demanda (`demanda_id=None`).
 4. No fim: demanda não coberta até o prazo → `ATRASO`; necessidade maior que a oferta prevista no horizonte → `SALDO_NAO_ALOCADO` (por erva).
 
@@ -97,7 +98,8 @@ KPIs (`resultado.kpis`):
 
 ### Premissas adotadas provisoriamente na alocação
 
-- **Uma erva por secador por dia.** ⚠️ **Contradiz o PCP (21/10):** a fábrica troca de erva no mesmo secador no mesmo dia (termina, limpa, coloca outra). Até o motor ser ajustado, o plano tende a subestimar a capacidade em dias de troca. Próxima tarefa do motor.
+- **Horas no dia com troca de erva:** cada erva no secador gasta setup + secagem das 24 h do dia. A erva que entra depois usa `min(regime, horas que sobram)`: a camomila (12 h) que entra depois de uma erva que usou 20 h só tem 4 h. A posição no relógio (dia ou noite) não é modelada.
+- **A erva que entra no fim do dia pode deixar a campanha aberta** e continuar no dia seguinte (ex.: 1 h de setup + 1 h de secagem no fim da segunda, termina na terça). Efeito colateral conhecido do guloso: essa campanha aberta pode impedir, nos dias seguintes, uma erva que só seca naquele secador e cujo regime não comporta a limpeza da anterior. Em 2.000 cenários aleatórios, a troca no mesmo dia reduziu a perda total em 2,0% (menos perda em 166, igual em 1.830, mais em 4). Testamos a variante "no fim do dia só entra erva que também termina": ela reduziu só 0,2% e ainda piorou 2 cenários, por isso não foi adotada.
 - **Campanha sem sucessora:** se não chega mais lote da erva e o saldo cabe no dia junto com a limpeza, a campanha encerra nesse dia e paga o setup final. Se não cabe, a campanha fica aberta e a limpeza só é cobrada se outra erva entrar depois (troca). Nesse caso, a limpeza não aparece nas horas ocupadas do horizonte.
 - **Pausa no meio da campanha** (dia sem trabalho, fora de `dias_operacao` ou com bloqueio): a campanha continua aberta e não paga setup inicial de novo nem setup diário nos dias parados.
 - **Demanda só recebe kg secos até o prazo.** O que é seco depois não reduz o `ATRASO`.
@@ -113,7 +115,7 @@ Só a regra; os valores da tabela oficial **não** entram no repositório (são 
 | --- | --- | --- |
 | Contínuo ou por carga? | Por carga, com tempo fixo; tabela erva × secador com kg e horas por carga | Modo `POR_CARGA` (`kg_por_carga`, `horas_por_carga`) |
 | Setup dentro do turno? | "Dentro da programação da campanha" | `setup_dentro_do_regime = True` |
-| Trocar de erva no mesmo dia? | Sim | **Ainda não suportado** (ver premissa acima) |
+| Trocar de erva no mesmo dia? | Sim | Suportado: depois que a erva encerra a campanha, outra entra no que sobra do dia |
 | Dividir um lote entre secadores? | Sim, em paralelo quando passa da capacidade de um | Já suportado (reforço no mesmo dia) |
 | Dias por semana? | Geralmente 6, depende da oferta | `dias_operacao` em cada simulação |
 

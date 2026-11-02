@@ -71,6 +71,14 @@ def test_dados_ficticios_simulam_e_mostram_pendencias(cliente, db):
     # de camomila, então a salsa vai para o SCB02
     assert secador_da_salsa == {"2026-12-03": "SCB02", "2026-12-09": "SCB03"}
 
+    # Troca no mesmo dia: o lote único de fibra termina e outra erva entra
+    ervas_no_dia = {}
+    for a in corpo["alocacoes"]:
+        do_dia = ervas_no_dia.setdefault((a["dia"], a["secador"]), [])
+        if a["erva"] not in do_dia:
+            do_dia.append(a["erva"])
+    assert ["FIBRA", "CAMOMILA"] in ervas_no_dia.values()
+
 
 def test_dados_ficticios_usam_a_data_da_fazenda(db, monkeypatch):
     class Relogio(datetime):
