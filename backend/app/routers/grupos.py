@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.acesso import requer_permissao
+from app.acesso import requer_alguma_permissao, requer_permissao
 from app.database import get_db
 from app.models import Funcionalidade, Grupo
 from app.schemas import GrupoCreate, GrupoRead, GrupoUpdate
@@ -41,7 +41,12 @@ def load_funcionalidades(ids: list[int], db: Session) -> list[Funcionalidade]:
     return list(funcionalidades)
 
 
-@router.get("", response_model=list[GrupoRead], dependencies=pode_gerenciar)
+# Quem gerencia usuários precisa ver os grupos para vinculá-los, mesmo sem poder alterá-los
+@router.get(
+    "",
+    response_model=list[GrupoRead],
+    dependencies=[Depends(requer_alguma_permissao("grupo.gerenciar", "usuario.gerenciar"))],
+)
 def list_grupos(db: Session = Depends(get_db)):
     grupos = db.scalars(
         select(Grupo).options(selectinload(Grupo.funcionalidades)).order_by(Grupo.nome)

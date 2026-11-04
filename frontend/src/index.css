@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/*
+ * Só estilos de base aqui. Regras soltas em elementos (form, input, main...)
+ * ficam fora das camadas do Tailwind v4 e passam por cima dos utilitários,
+ * desalinhando os componentes. O layout vai nas classes de cada componente.
+ */
 :root {
   font-family: system-ui, sans-serif;
   line-height: 1.5;
@@ -9,50 +14,4 @@
 
 body {
   margin: 0;
-}
-
-main {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-}
-
-form {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-input {
-  flex: 1;
-  padding: 0.5rem;
-}
-
-button {
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-}
-
-h2 {
-  font-size: 1rem;
-  color: #6b7780;
-  margin-bottom: 0;
-}
-
-ul {
-  padding: 0;
-  list-style: none;
-}
-
-li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #dde3e8;
-}
-
-li small {
-  display: block;
-  color: #6b7780;
 }

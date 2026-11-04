@@ -13,8 +13,40 @@ export interface UsuarioResumo {
 }
 
 export interface SessaoAtual {
-  usuario: UsuarioResumo & { email: string };
+  usuario: Usuario;
   permissoes: string[];
+}
+
+// --- Controle de acesso ---
+
+export interface Funcionalidade {
+  id: number;
+  codigo: string;
+  nome: string;
+  descricao: string | null;
+  modulo: string | null;
+  ativo: boolean;
+}
+
+export interface Grupo {
+  id: number;
+  nome: string;
+  descricao: string | null;
+  ativo: boolean;
+  criado_em: string;
+  atualizado_em: string;
+  funcionalidades: Funcionalidade[];
+}
+
+export interface Usuario {
+  id: number;
+  nome: string;
+  email: string;
+  ativo: boolean;
+  ultimo_login: string | null;
+  criado_em: string;
+  atualizado_em: string;
+  grupos: { id: number; nome: string }[];
 }
 
 export interface Erva {
