@@ -1,13 +1,16 @@
 import { SelectHTMLAttributes, forwardRef } from 'react';
 
+import { useValidacaoPt } from './validacao';
+
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
 }
 
 // Mesmo visual do Input
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, className = '', id, children, ...props }, ref) => {
+  ({ label, className = '', id, children, onInvalid, onInput, ...props }, ref) => {
     const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+    const validacao = useValidacaoPt(ref, props.value);
 
     return (
       <div className="w-full flex flex-col gap-1">
@@ -18,7 +21,6 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         )}
         <select
           id={selectId}
-          ref={ref}
           className={`
             w-full px-3 py-2 border rounded-md text-sm text-[#211E16] bg-[#FFFFFF] transition-colors
             border-[#C7C8CA] focus:outline-none focus:ring-2 focus:ring-[#84BD00] focus:border-transparent
@@ -26,6 +28,15 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             ${className}
           `}
           {...props}
+          ref={validacao.ref}
+          onInvalid={(e) => {
+            validacao.aoInvalidar(e);
+            onInvalid?.(e);
+          }}
+          onInput={(e) => {
+            validacao.aoDigitar(e);
+            onInput?.(e);
+          }}
         >
           {children}
         </select>

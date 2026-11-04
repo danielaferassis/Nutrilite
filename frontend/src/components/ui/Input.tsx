@@ -1,4 +1,6 @@
-import{ InputHTMLAttributes, forwardRef } from 'react';
+import { InputHTMLAttributes, forwardRef } from 'react';
+
+import { PADRAO_EMAIL, useValidacaoPt } from './validacao';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -7,8 +9,10 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 // Utilização do forwardRef para permitir a integração fluída com bibliotecas de formulários (ex: React Hook Form)
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, className = '', id, ...props }, ref) => {
+  ({ label, error, className = '', id, onInvalid, onInput, ...props }, ref) => {
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+    const validacao = useValidacaoPt(ref, props.value ?? props.checked);
+    const pattern = props.pattern ?? (props.type === 'email' ? PADRAO_EMAIL : undefined);
 
     return (
       <div className="w-full flex flex-col gap-1">
@@ -22,7 +26,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         <input
           id={inputId}
-          ref={ref}
           className={`
             w-full px-3 py-2 border rounded-md text-sm text-[#211E16] bg-[#FFFFFF] transition-colors
             focus:outline-none focus:ring-2 focus:border-transparent
@@ -36,6 +39,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           aria-invalid={!!error}
           aria-describedby={error ? `${inputId}-error` : undefined}
           {...props}
+          ref={validacao.ref}
+          pattern={pattern}
+          onInvalid={(e) => {
+            validacao.aoInvalidar(e);
+            onInvalid?.(e);
+          }}
+          onInput={(e) => {
+            validacao.aoDigitar(e);
+            onInput?.(e);
+          }}
         />
         {error && (
           <span id={`${inputId}-error`} className="text-xs text-red-600 mt-1">
