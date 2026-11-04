@@ -13,6 +13,7 @@ import GestaoUsuarios from './components/GestaoUsuarios';
 import GestaoGrupos from './components/GestaoGrupos';
 import PermissoesAcesso from './components/PermissoesAcesso';
 import { Alerta } from './components/ui';
+import { FeedbackProvider } from './feedback';
 import { SessaoProvider, useSessao } from './sessao';
 
 interface Rota {
@@ -96,27 +97,29 @@ export default function App() {
   // Layout restrito para o restante da aplicação
   return (
     <SessaoProvider>
-      <div className="min-h-screen bg-[#F9FAFB] flex flex-col md:flex-row">
-        <aside className="w-full md:w-64 bg-[#006F44] text-[#FFFFFF] flex flex-col">
-          <div className="p-6 text-xl font-bold border-b border-[#FFFFFF]/20">Nutrilite PCP</div>
-          <Navegacao atual={path} />
-          <div className="p-4 border-t border-[#FFFFFF]/20">
-            <UsuarioLogado />
-            <button
-              onClick={async () => {
-                await fetch('/api/auth/logout', { method: 'POST' }); // Invalida o cookie de sessão
-                window.location.href = '/login';
-              }}
-              className="w-full text-center py-2 bg-red-600 rounded hover:bg-red-700 transition-colors"
-            >
-              Sair
-            </button>
-          </div>
-        </aside>
-        <main className="flex-1 p-8 overflow-y-auto">
-          <Tela path={path} />
-        </main>
-      </div>
+      <FeedbackProvider>
+        <div className="min-h-screen bg-[#F9FAFB] flex flex-col md:flex-row">
+          <aside className="w-full md:w-64 bg-[#006F44] text-[#FFFFFF] flex flex-col">
+            <div className="p-6 text-xl font-bold border-b border-[#FFFFFF]/20">Nutrilite PCP</div>
+            <Navegacao atual={path} />
+            <div className="p-4 border-t border-[#FFFFFF]/20">
+              <UsuarioLogado />
+              <button
+                onClick={async () => {
+                  await fetch('/api/auth/logout', { method: 'POST' }); // Invalida o cookie de sessão
+                  window.location.href = '/login';
+                }}
+                className="w-full text-center py-2 bg-red-600 rounded hover:bg-red-700 transition-colors"
+              >
+                Sair
+              </button>
+            </div>
+          </aside>
+          <main className="flex-1 p-8 overflow-y-auto">
+            <Tela path={path} />
+          </main>
+        </div>
+      </FeedbackProvider>
     </SessaoProvider>
   );
 }

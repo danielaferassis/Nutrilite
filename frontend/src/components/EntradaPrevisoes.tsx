@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 
-import { apiFetch, query, textoDoErro } from '../api';
+import { apiFetch, query } from '../api';
+import { useFeedback } from '../feedback';
 import { ROTULO_ORIGEM, formatarData, formatarKg } from '../formatar';
 import { useApi } from '../hooks';
 import { logger } from '../logger';
@@ -21,8 +22,7 @@ export default function EntradaPrevisoes() {
   const ervas = useApi<Erva[]>('/ervas');
 
   const [form, setForm] = useState(FORM_VAZIO);
-  const [erro, setErro] = useState('');
-  const [sucesso, setSucesso] = useState('');
+  const feedback = useFeedback();
 
   const alterar = (campo: keyof typeof FORM_VAZIO) => (e: { target: { value: string } }) =>
     setForm({ ...form, [campo]: e.target.value });
@@ -39,23 +39,32 @@ export default function EntradaPrevisoes() {
         }),
       });
       logger.info('Previsão cadastrada');
+      const erva = ervas.dados?.find((x) => String(x.id) === form.erva_id)?.nome ?? 'erva';
       setForm(FORM_VAZIO);
-      setErro('');
-      setSucesso('Previsão guardada.');
       previsoes.recarregar();
+      feedback.sucesso(
+        'Previsão cadastrada',
+        `${formatarKg(form.kg_fresco)} de ${erva} com chegada em ${formatarData(form.data_chegada)}. Ela já entra nas próximas simulações.`
+      );
     } catch (err) {
-      setSucesso('');
-      setErro(textoDoErro(err));
+      feedback.erro('Não foi possível cadastrar a previsão', err);
     }
   };
 
   const excluir = async (previsao: Previsao) => {
-    if (!window.confirm(`Excluir a previsão #${previsao.id}?`)) return;
+    const ok = await feedback.confirmar({
+      titulo: 'Excluir previsão?',
+      mensagem: `Previsão #${previsao.id}: ${formatarKg(previsao.kg_fresco)} de ${previsao.erva.nome} em ${formatarData(previsao.data_chegada)}.`,
+      rotuloConfirmar: 'Excluir',
+      perigo: true,
+    });
+    if (!ok) return;
     try {
       await apiFetch(`/previsoes/${previsao.id}`, { method: 'DELETE' });
       previsoes.recarregar();
+      feedback.sucesso('Previsão excluída', `A previsão #${previsao.id} foi removida.`);
     } catch (err) {
-      setErro(textoDoErro(err));
+      feedback.erro('Não foi possível excluir a previsão', err);
     }
   };
 
@@ -81,9 +90,6 @@ export default function EntradaPrevisoes() {
           Lotes de erva fresca previstos. A data de chegada não é reagendável: o que não for secado a tempo é perda.
         </p>
       </div>
-
-      {erro && <Alerta>{erro}</Alerta>}
-      {sucesso && <Alerta tipo="sucesso">{sucesso}</Alerta>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>

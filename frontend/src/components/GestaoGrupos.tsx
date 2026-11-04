@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 
-import { apiFetch, textoDoErro } from '../api';
+import { apiFetch } from '../api';
+import { useFeedback } from '../feedback';
 import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { Grupo } from '../tipos';
@@ -21,53 +22,63 @@ export default function GestaoGrupos() {
   const [form, setForm] = useState<Formulario>(FORM_VAZIO);
   // null = cadastrando um novo grupo
   const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [erro, setErro] = useState('');
-  const [aviso, setAviso] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const feedback = useFeedback();
 
   const limpar = () => {
     setForm(FORM_VAZIO);
     setEditandoId(null);
-    setErro('');
   };
 
   const editar = (g: Grupo) => {
     setForm({ nome: g.nome, descricao: g.descricao ?? '', ativo: g.ativo });
     setEditandoId(g.id);
-    setErro('');
-    setAviso('');
   };
 
   const salvar = async (e: FormEvent) => {
     e.preventDefault();
     const corpo = { ...form, descricao: form.descricao.trim() || null };
+    const novo = editandoId === null;
+    setSalvando(true);
     try {
-      if (editandoId === null) {
+      if (novo) {
         // Nasce sem permissões: elas são marcadas na tela Permissões de Acesso
         await apiFetch('/grupos', { method: 'POST', body: JSON.stringify(corpo) });
         logger.info('Grupo cadastrado');
-        setAviso(`Grupo ${form.nome} cadastrado. Defina o que ele pode fazer em Permissões de Acesso.`);
+        feedback.sucesso(
+          'Grupo cadastrado',
+          `O grupo ${form.nome} foi criado sem permissões. Marque o que ele pode fazer na tela Permissões de Acesso.`
+        );
       } else {
         await apiFetch(`/grupos/${editandoId}`, { method: 'PATCH', body: JSON.stringify(corpo) });
         logger.info('Grupo atualizado', editandoId);
-        setAviso(`Grupo ${form.nome} atualizado.`);
+        feedback.sucesso('Alterações salvas', `O grupo ${form.nome} foi atualizado.`);
       }
       limpar();
       grupos.recarregar();
     } catch (err) {
-      setErro(textoDoErro(err));
-      setAviso('');
+      feedback.erro(novo ? 'Não foi possível cadastrar o grupo' : 'Não foi possível salvar as alterações', err);
+    } finally {
+      setSalvando(false);
     }
   };
 
   const excluir = async (g: Grupo) => {
-    if (!window.confirm(`Excluir o grupo ${g.nome}? Os usuários dele perdem as permissões que vinham do grupo.`)) return;
+    const ok = await feedback.confirmar({
+      titulo: 'Excluir grupo?',
+      mensagem: `Os usuários do grupo ${g.nome} perdem as permissões que vinham dele.`,
+      rotuloConfirmar: 'Excluir',
+      perigo: true,
+    });
+    if (!ok) return;
     try {
       await apiFetch(`/grupos/${g.id}`, { method: 'DELETE' });
       logger.info('Grupo removido', g.id);
       if (editandoId === g.id) limpar();
       grupos.recarregar();
+      feedback.sucesso('Grupo excluído', `O grupo ${g.nome} foi removido.`);
     } catch (err) {
-      setErro(textoDoErro(err));
+      feedback.erro('Não foi possível excluir o grupo', err);
     }
   };
 
@@ -79,9 +90,6 @@ export default function GestaoGrupos() {
           Perfis de acesso (ex.: PCP/Gestor, Fonte fornecedora). Grupo inativo não concede permissão a ninguém.
         </p>
       </div>
-
-      {erro && <Alerta>{erro}</Alerta>}
-      {aviso && <Alerta tipo="sucesso">{aviso}</Alerta>}
 
       <Card>
         <h2 className="text-lg font-semibold text-[#211E16] mb-4">
@@ -117,7 +125,9 @@ export default function GestaoGrupos() {
           </label>
 
           <div className="flex gap-2">
-            <Button type="submit">{editandoId === null ? 'Cadastrar' : 'Salvar alterações'}</Button>
+            <Button type="submit" disabled={salvando}>
+              {salvando ? 'Salvando…' : editandoId === null ? 'Cadastrar' : 'Salvar alterações'}
+            </Button>
             {editandoId !== null && (
               <Button type="button" variant="secondary" onClick={limpar}>Cancelar</Button>
             )}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { apiFetch, textoDoErro } from '../api';
+import { useFeedback } from '../feedback';
 import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { useSessao } from '../sessao';
@@ -26,8 +27,7 @@ export default function PermissoesAcesso() {
 
   const [marcadas, setMarcadas] = useState<Marcacoes>({});
   const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState('');
-  const [aviso, setAviso] = useState('');
+  const feedback = useFeedback();
 
   const originais = useMemo(() => marcacoesDe(grupos.dados ?? []), [grupos.dados]);
   useEffect(() => setMarcadas(originais), [originais]);
@@ -54,7 +54,6 @@ export default function PermissoesAcesso() {
         ? atuais.filter((id) => id !== funcionalidadeId)
         : [...atuais, funcionalidadeId],
     });
-    setAviso('');
   };
 
   /** Códigos de administração que o usuário logado ainda teria com as marcações. */
@@ -74,15 +73,18 @@ export default function PermissoesAcesso() {
     const perdidas = administracaoRestante(originais).filter(
       (c) => !administracaoRestante(marcadas).includes(c)
     );
-    if (
-      perdidas.length &&
-      !window.confirm(
-        `Com estas alterações você perde ${perdidas.join(' e ')} e pode ficar sem acesso a esta tela. Continuar?`
-      )
-    ) return;
+    if (perdidas.length) {
+      const ok = await feedback.confirmar({
+        titulo: 'Você vai perder acesso',
+        mensagem: `Com estas alterações você deixa de ter ${perdidas.join(' e ')} e pode ficar sem acesso a esta tela.`,
+        rotuloConfirmar: 'Salvar mesmo assim',
+        perigo: true,
+      });
+      if (!ok) return;
+    }
 
     setSalvando(true);
-    setErro('');
+    const salvos: string[] = [];
     try {
       for (const g of alterados) {
         await apiFetch(`/grupos/${g.id}`, {
@@ -90,10 +92,18 @@ export default function PermissoesAcesso() {
           body: JSON.stringify({ funcionalidade_ids: marcadas[g.id] ?? [] }),
         });
         logger.info('Permissões do grupo atualizadas', g.id);
+        salvos.push(g.nome);
       }
-      setAviso(`Permissões salvas (${alterados.map((g) => g.nome).join(', ')}).`);
+      feedback.sucesso(
+        'Permissões salvas',
+        `As permissões já valem para os usuários de: ${salvos.join(', ')}.`
+      );
     } catch (err) {
-      setErro(textoDoErro(err));
+      const falhou = alterados[salvos.length]?.nome;
+      feedback.erro(
+        `Não foi possível salvar as permissões de ${falhou}`,
+        `${textoDoErro(err)}${salvos.length ? `\n\nJá foram salvas: ${salvos.join(', ')}.` : ''}\nOs demais grupos não foram alterados.`
+      );
     } finally {
       setSalvando(false);
       // Recarrega também em caso de falha no meio, para a tela mostrar o que foi gravado
@@ -113,10 +123,8 @@ export default function PermissoesAcesso() {
         </p>
       </div>
 
-      {erro && <Alerta>{erro}</Alerta>}
       {grupos.erro && <Alerta>{grupos.erro}</Alerta>}
       {funcionalidades.erro && <Alerta>{funcionalidades.erro}</Alerta>}
-      {aviso && <Alerta tipo="sucesso">{aviso}</Alerta>}
 
       <Card>
         {carregando && !listaGrupos.length ? (

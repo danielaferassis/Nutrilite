@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 
-import { apiFetch, query, textoDoErro } from '../api';
+import { apiFetch, query } from '../api';
+import { useFeedback } from '../feedback';
 import {
   ROTULO_ORIGEM,
   ROTULO_SITUACAO,
@@ -81,7 +82,7 @@ export default function CronogramaRecebimentos() {
   const ervas = useApi<Erva[]>(podeRegistrar ? '/ervas' : null);
 
   const [form, setForm] = useState<FormRecebimento | null>(null);
-  const [erro, setErro] = useState('');
+  const feedback = useFeedback();
 
   const abrirForm = (previsao_id: number | null) =>
     setForm({
@@ -112,20 +113,30 @@ export default function CronogramaRecebimentos() {
       });
       logger.info('Recebimento registrado');
       setForm(null);
-      setErro('');
       cronograma.recarregar();
+      feedback.sucesso(
+        'Recebimento registrado',
+        `${formatarKg(form.kg_fresco)} recebidos em ${formatarData(form.data_recebimento)}. O recebido passa a valer no lugar do previsto nas próximas simulações.`
+      );
     } catch (err) {
-      setErro(textoDoErro(err));
+      feedback.erro('Não foi possível registrar o recebimento', err);
     }
   };
 
   const desfazer = async (recebimentoId: number) => {
-    if (!window.confirm('Remover este recebimento? A previsão volta a valer na simulação.')) return;
+    const ok = await feedback.confirmar({
+      titulo: 'Remover recebimento?',
+      mensagem: 'A previsão volta a valer na simulação no lugar do que foi registrado.',
+      rotuloConfirmar: 'Remover',
+      perigo: true,
+    });
+    if (!ok) return;
     try {
       await apiFetch(`/recebimentos/${recebimentoId}`, { method: 'DELETE' });
       cronograma.recarregar();
+      feedback.sucesso('Recebimento removido', 'A previsão original voltou a valer.');
     } catch (err) {
-      setErro(textoDoErro(err));
+      feedback.erro('Não foi possível remover o recebimento', err);
     }
   };
 
@@ -179,7 +190,6 @@ export default function CronogramaRecebimentos() {
         </div>
       </div>
 
-      {erro && <Alerta>{erro}</Alerta>}
       {cronograma.erro && <Alerta>{cronograma.erro}</Alerta>}
 
       {dados && (

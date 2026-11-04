@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 
-import { apiFetch, textoDoErro } from '../api';
+import { apiFetch } from '../api';
+import { useFeedback } from '../feedback';
 import { DIAS_SEMANA, ROTULO_STATUS, formatarData, formatarDataHora, hojeIso, sobrepostos } from '../formatar';
 import { useApi } from '../hooks';
 import { logger } from '../logger';
@@ -29,22 +30,20 @@ export default function PlanoSecagem() {
 
   const [simulacao, setSimulacao] = useState<ResultadoSimulacao | null>(null);
   const [plano, setPlano] = useState<PlanoDetalhe | null>(null);
-  const [erro, setErro] = useState('');
-  const [mensagem, setMensagem] = useState('');
   const [ocupado, setOcupado] = useState(false);
+  const feedback = useFeedback();
 
   const planos = useApi<PlanoResumo[]>('/planos');
 
   const pedido = () => ({ inicio, fim, dias_operacao: dias.length ? dias : null });
 
-  const executar = async (acao: () => Promise<void>) => {
+  /** Roda a ação e, se falhar, mostra a janela de erro com `tituloErro`. */
+  const executar = async (tituloErro: string, acao: () => Promise<void>) => {
     setOcupado(true);
-    setErro('');
-    setMensagem('');
     try {
       await acao();
     } catch (err) {
-      setErro(textoDoErro(err));
+      feedback.erro(tituloErro, err);
     } finally {
       setOcupado(false);
     }
@@ -52,7 +51,8 @@ export default function PlanoSecagem() {
 
   const simular = (e: FormEvent) => {
     e.preventDefault();
-    executar(async () => {
+    // Sucesso não abre janela: o resultado aparece logo abaixo
+    executar('Não foi possível simular', async () => {
       setPlano(null);
       setSimulacao(await apiFetch<ResultadoSimulacao>('/simulacoes', {
         method: 'POST',
@@ -62,7 +62,7 @@ export default function PlanoSecagem() {
   };
 
   const salvar = () =>
-    executar(async () => {
+    executar('Não foi possível salvar o plano', async () => {
       const salvo = await apiFetch<PlanoDetalhe>('/planos', {
         method: 'POST',
         body: JSON.stringify({ ...pedido(), observacao: observacao.trim() || null }),
@@ -70,41 +70,62 @@ export default function PlanoSecagem() {
       logger.info(`Plano ${salvo.id} salvo`);
       setSimulacao(null);
       setPlano(salvo);
-      setMensagem(`Plano v${salvo.versao} salvo como rascunho.`);
       planos.recarregar();
+      feedback.sucesso(
+        'Plano salvo',
+        `O plano v${salvo.versao} foi salvo como rascunho. Ele só passa a valer depois de aprovado.`
+      );
     });
 
   const abrir = (id: number) =>
-    executar(async () => {
+    executar('Não foi possível abrir o plano', async () => {
       setSimulacao(null);
       setPlano(await apiFetch<PlanoDetalhe>(`/planos/${id}`));
     });
 
-  const aprovar = (p: PlanoResumo) => {
+  const aprovar = async (p: PlanoResumo) => {
     // Mostra o que a aprovação tira de vigor antes de confirmar
     const hoje = hojeIso();
     const aprovados = (planos.dados ?? []).filter((x) => x.status === 'aprovado');
-    const impacto = sobrepostos(p, aprovados).map((x) => {
+    const substituidos = sobrepostos(p, aprovados);
+    const impacto = substituidos.map((x) => {
       const fase = x.fim < hoje ? 'já executado' : x.inicio <= hoje ? 'EM ANDAMENTO' : 'futuro';
       return `• v${x.versao} (${formatarData(x.inicio)} a ${formatarData(x.fim)}), ${fase}`;
     });
-    const aviso = impacto.length
-      ? `\n\nEle vai substituir por inteiro:\n${impacto.join('\n')}`
-      : '\n\nNenhum plano aprovado é afetado.';
-    if (!window.confirm(`Aprovar o plano v${p.versao} (${formatarData(p.inicio)} a ${formatarData(p.fim)})?${aviso}`)) return;
-    executar(async () => {
+    const ok = await feedback.confirmar({
+      titulo: `Aprovar o plano v${p.versao}?`,
+      mensagem:
+        `Horizonte: ${formatarData(p.inicio)} a ${formatarData(p.fim)}.\n\n` +
+        (impacto.length
+          ? `Ele vai substituir por inteiro:\n${impacto.join('\n')}`
+          : 'Nenhum plano aprovado é afetado.'),
+      rotuloConfirmar: 'Aprovar',
+    });
+    if (!ok) return;
+    executar('Não foi possível aprovar o plano', async () => {
       setPlano(await apiFetch<PlanoDetalhe>(`/planos/${p.id}/aprovar`, { method: 'POST' }));
-      setMensagem(`Plano v${p.versao} aprovado.`);
       planos.recarregar();
+      feedback.sucesso(
+        'Plano aprovado',
+        `O plano v${p.versao} está em vigor e já aparece no Cronograma.` +
+          (substituidos.length ? ` Substituído(s): ${substituidos.map((x) => `v${x.versao}`).join(', ')}.` : '')
+      );
     });
   };
 
-  const excluir = (p: PlanoResumo) => {
-    if (!window.confirm(`Excluir o rascunho v${p.versao}?`)) return;
-    executar(async () => {
+  const excluir = async (p: PlanoResumo) => {
+    const ok = await feedback.confirmar({
+      titulo: 'Excluir rascunho?',
+      mensagem: `O rascunho v${p.versao} (${formatarData(p.inicio)} a ${formatarData(p.fim)}) será apagado.`,
+      rotuloConfirmar: 'Excluir',
+      perigo: true,
+    });
+    if (!ok) return;
+    executar('Não foi possível excluir o rascunho', async () => {
       await apiFetch(`/planos/${p.id}`, { method: 'DELETE' });
       if (plano?.id === p.id) setPlano(null);
       planos.recarregar();
+      feedback.sucesso('Rascunho excluído', `O rascunho v${p.versao} foi removido.`);
     });
   };
 
@@ -137,9 +158,6 @@ export default function PlanoSecagem() {
           Cruza demandas, previsões e capacidade dos secadores e aponta conflitos antes de a erva chegar.
         </p>
       </div>
-
-      {erro && <Alerta>{erro}</Alerta>}
-      {mensagem && <Alerta tipo="sucesso">{mensagem}</Alerta>}
 
       {podeSimular && (
         <Card>

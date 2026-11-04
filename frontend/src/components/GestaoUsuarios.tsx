@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 
-import { apiFetch, textoDoErro } from '../api';
+import { apiFetch } from '../api';
+import { useFeedback } from '../feedback';
 import { formatarDataHora } from '../formatar';
 import { useApi } from '../hooks';
 import { logger } from '../logger';
@@ -27,8 +28,8 @@ export default function GestaoUsuarios() {
   const [form, setForm] = useState<Formulario>(FORM_VAZIO);
   // null = cadastrando um novo usuário
   const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [erro, setErro] = useState('');
-  const [aviso, setAviso] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const feedback = useFeedback();
 
   const editandoASiMesmo = editandoId !== null && editandoId === sessao?.usuario.id;
 
@@ -43,48 +44,59 @@ export default function GestaoUsuarios() {
   const limpar = () => {
     setForm(FORM_VAZIO);
     setEditandoId(null);
-    setErro('');
   };
 
   const editar = (u: Usuario) => {
     setForm({ nome: u.nome, email: u.email, senha: '', ativo: u.ativo, grupo_ids: u.grupos.map((g) => g.id) });
     setEditandoId(u.id);
-    setErro('');
-    setAviso('');
   };
 
   const salvar = async (e: FormEvent) => {
     e.preventDefault();
     const { senha, ...resto } = form;
+    const novo = editandoId === null;
+    setSalvando(true);
     try {
-      if (editandoId === null) {
+      if (novo) {
         await apiFetch('/usuarios', { method: 'POST', body: JSON.stringify(form) });
         logger.info('Usuário cadastrado');
-        setAviso(`Usuário ${form.nome} cadastrado.`);
+        feedback.sucesso('Usuário cadastrado', `${form.nome} já pode entrar no sistema com o e-mail ${form.email}.`);
       } else {
         // Senha em branco na edição mantém a atual
         const corpo = senha ? { ...resto, senha } : resto;
         await apiFetch(`/usuarios/${editandoId}`, { method: 'PATCH', body: JSON.stringify(corpo) });
         logger.info('Usuário atualizado', editandoId);
-        setAviso(`Usuário ${form.nome} atualizado.`);
+        feedback.sucesso(
+          'Alterações salvas',
+          `Os dados de ${form.nome} foram atualizados.${senha ? ' A nova senha já vale; quem estava conectado com a senha antiga precisa entrar de novo.' : ''}`
+        );
       }
       limpar();
       usuarios.recarregar();
     } catch (err) {
-      setErro(textoDoErro(err));
-      setAviso('');
+      // O formulário continua preenchido para corrigir e tentar de novo
+      feedback.erro(novo ? 'Não foi possível cadastrar o usuário' : 'Não foi possível salvar as alterações', err);
+    } finally {
+      setSalvando(false);
     }
   };
 
   const excluir = async (u: Usuario) => {
-    if (!window.confirm(`Excluir o usuário ${u.nome} (${u.email})? Prefira desativar para manter o histórico.`)) return;
+    const ok = await feedback.confirmar({
+      titulo: 'Excluir usuário?',
+      mensagem: `${u.nome} (${u.email}) perde o acesso e o cadastro é apagado. Para manter o histórico, prefira desativar.`,
+      rotuloConfirmar: 'Excluir',
+      perigo: true,
+    });
+    if (!ok) return;
     try {
       await apiFetch(`/usuarios/${u.id}`, { method: 'DELETE' });
       logger.info('Usuário removido', u.id);
       if (editandoId === u.id) limpar();
       usuarios.recarregar();
+      feedback.sucesso('Usuário excluído', `${u.nome} não tem mais acesso ao sistema.`);
     } catch (err) {
-      setErro(textoDoErro(err));
+      feedback.erro('Não foi possível excluir o usuário', err);
     }
   };
 
@@ -96,9 +108,6 @@ export default function GestaoUsuarios() {
           Cadastro de quem acessa o sistema. O que cada um pode fazer vem dos grupos a que pertence.
         </p>
       </div>
-
-      {erro && <Alerta>{erro}</Alerta>}
-      {aviso && <Alerta tipo="sucesso">{aviso}</Alerta>}
 
       <Card>
         <h2 className="text-lg font-semibold text-[#211E16] mb-4">
@@ -169,7 +178,9 @@ export default function GestaoUsuarios() {
           </label>
 
           <div className="flex gap-2">
-            <Button type="submit">{editandoId === null ? 'Cadastrar' : 'Salvar alterações'}</Button>
+            <Button type="submit" disabled={salvando}>
+              {salvando ? 'Salvando…' : editandoId === null ? 'Cadastrar' : 'Salvar alterações'}
+            </Button>
             {editandoId !== null && (
               <Button type="button" variant="secondary" onClick={limpar}>Cancelar</Button>
             )}

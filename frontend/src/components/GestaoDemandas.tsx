@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 
-import { apiFetch, query, textoDoErro } from '../api';
+import { apiFetch, query } from '../api';
+import { useFeedback } from '../feedback';
 import { ROTULO_ESTAGIO, formatarData, formatarKg } from '../formatar';
 import { useApi } from '../hooks';
 import { logger } from '../logger';
@@ -29,8 +30,8 @@ export default function GestaoDemandas() {
 
   const [form, setForm] = useState(FORM_VAZIO);
   const [mostrarForm, setMostrarForm] = useState(false);
-  const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
+  const feedback = useFeedback();
 
   const alterar = (campo: keyof typeof FORM_VAZIO) => (e: { target: { value: string } }) =>
     setForm({ ...form, [campo]: e.target.value });
@@ -49,24 +50,35 @@ export default function GestaoDemandas() {
         }),
       });
       logger.info('Demanda cadastrada');
+      const erva = ervas.dados?.find((x) => String(x.id) === form.erva_id)?.nome ?? 'erva';
       setForm(FORM_VAZIO);
       setMostrarForm(false);
-      setErro('');
       demandas.recarregar();
+      feedback.sucesso(
+        'Demanda cadastrada',
+        `${formatarKg(form.kg)} de ${erva} (${ROTULO_ESTAGIO[form.estagio].toLowerCase()}) até ${formatarData(form.prazo)}.`
+      );
     } catch (err) {
-      setErro(textoDoErro(err));
+      feedback.erro('Não foi possível cadastrar a demanda', err);
     } finally {
       setSalvando(false);
     }
   };
 
   const excluir = async (demanda: Demanda) => {
-    if (!window.confirm(`Excluir a demanda #${demanda.id} de ${demanda.erva.nome}?`)) return;
+    const ok = await feedback.confirmar({
+      titulo: 'Excluir demanda?',
+      mensagem: `Demanda #${demanda.id}: ${formatarKg(demanda.kg)} de ${demanda.erva.nome} até ${formatarData(demanda.prazo)}.`,
+      rotuloConfirmar: 'Excluir',
+      perigo: true,
+    });
+    if (!ok) return;
     try {
       await apiFetch(`/demandas/${demanda.id}`, { method: 'DELETE' });
       demandas.recarregar();
+      feedback.sucesso('Demanda excluída', `A demanda #${demanda.id} foi removida.`);
     } catch (err) {
-      setErro(textoDoErro(err));
+      feedback.erro('Não foi possível excluir a demanda', err);
     }
   };
 
@@ -98,8 +110,6 @@ export default function GestaoDemandas() {
           </Button>
         )}
       </div>
-
-      {erro && <Alerta>{erro}</Alerta>}
 
       {mostrarForm && (
         <Card>

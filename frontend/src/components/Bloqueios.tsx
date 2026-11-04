@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 
-import { apiFetch, textoDoErro } from '../api';
+import { apiFetch } from '../api';
+import { useFeedback } from '../feedback';
 import { formatarData } from '../formatar';
 import { useApi } from '../hooks';
 import { logger } from '../logger';
@@ -19,7 +20,7 @@ export default function Bloqueios() {
   const secadores = useApi<Secador[]>('/secadores?ativos=false');
 
   const [form, setForm] = useState(FORM_VAZIO);
-  const [erro, setErro] = useState('');
+  const feedback = useFeedback();
 
   const alterar = (campo: keyof typeof FORM_VAZIO) => (e: { target: { value: string } }) =>
     setForm({ ...form, [campo]: e.target.value });
@@ -32,21 +33,32 @@ export default function Bloqueios() {
         body: JSON.stringify({ ...form, secador_id: Number(form.secador_id) }),
       });
       logger.info('Bloqueio cadastrado');
+      const secador = secadores.dados?.find((s) => String(s.id) === form.secador_id)?.codigo ?? 'secador';
       setForm(FORM_VAZIO);
-      setErro('');
       bloqueios.recarregar();
+      feedback.sucesso(
+        'Bloqueio cadastrado',
+        `${secador} fica indisponível de ${formatarData(form.inicio)} a ${formatarData(form.fim)}. As próximas simulações já consideram o bloqueio.`
+      );
     } catch (err) {
-      setErro(textoDoErro(err));
+      feedback.erro('Não foi possível cadastrar o bloqueio', err);
     }
   };
 
   const excluir = async (b: Bloqueio) => {
-    if (!window.confirm(`Excluir o bloqueio do ${b.secador.codigo} (${b.motivo})?`)) return;
+    const ok = await feedback.confirmar({
+      titulo: 'Excluir bloqueio?',
+      mensagem: `${b.secador.codigo} de ${formatarData(b.inicio)} a ${formatarData(b.fim)} (${b.motivo}). O secador volta a contar como disponível nesses dias.`,
+      rotuloConfirmar: 'Excluir',
+      perigo: true,
+    });
+    if (!ok) return;
     try {
       await apiFetch(`/bloqueios/${b.id}`, { method: 'DELETE' });
       bloqueios.recarregar();
+      feedback.sucesso('Bloqueio excluído', `${b.secador.codigo} volta a ficar disponível nesse período.`);
     } catch (err) {
-      setErro(textoDoErro(err));
+      feedback.erro('Não foi possível excluir o bloqueio', err);
     }
   };
 
@@ -58,8 +70,6 @@ export default function Bloqueios() {
           Manutenções e feriados. Nesses dias o secador não recebe erva e não conta como hora disponível.
         </p>
       </div>
-
-      {erro && <Alerta>{erro}</Alerta>}
 
       {podeGerenciar && (
         <Card>
