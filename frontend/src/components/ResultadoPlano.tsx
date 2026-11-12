@@ -1,7 +1,8 @@
 import { ROTULO_ESTAGIO, ROTULO_PENDENCIA, formatarData, formatarHoras, formatarKg, formatarNumero } from '../formatar';
-import { Alocacao, ResultadoSimulacao, TipoPendencia } from '../tipos';
+import { baixarCsv, dataCsv, gerarCsv, numeroCsv } from '../exportar';
+import { Alocacao, Necessidade, ResultadoSimulacao, TipoPendencia } from '../tipos';
 import ItemList from './ItemList';
-import { Alerta, Card, Etiqueta, EtiquetaCor } from './ui';
+import { Alerta, Button, Card, Etiqueta, EtiquetaCor } from './ui';
 
 // Mesma folga do motor para comparar kg em ponto flutuante
 const FOLGA_KG = 1e-6;
@@ -52,7 +53,25 @@ export function Cronograma({ alocacoes }: { alocacoes: Alocacao[] }) {
   );
 }
 
-export default function ResultadoPlano({ resultado }: { resultado: ResultadoSimulacao }) {
+type Situacao = 'coberta' | 'atraso' | 'proximo_plano';
+
+const SITUACAO: Record<Situacao, { rotulo: string; cor: EtiquetaCor }> = {
+  coberta: { rotulo: 'Coberta', cor: 'verde' },
+  atraso: { rotulo: 'Atraso', cor: 'vermelho' },
+  // Prazo depois do fim: o próximo plano ainda pode cobrir, não é atraso
+  proximo_plano: { rotulo: 'Continua no próximo plano', cor: 'cinza' },
+};
+
+/**
+ * @param nomeArquivo base do nome dos CSV exportados (ex.: "plano-v3"); o período é acrescentado.
+ */
+export default function ResultadoPlano({
+  resultado,
+  nomeArquivo = 'simulacao',
+}: {
+  resultado: ResultadoSimulacao;
+  nomeArquivo?: string;
+}) {
   const { kpis } = resultado;
   const ocupacao = kpis.ocupacao_planejada_pct ?? {};
   const aCobrirDepois = Object.entries(kpis.a_cobrir_apos_horizonte_kg ?? {});
@@ -63,16 +82,45 @@ export default function ResultadoPlano({ resultado }: { resultado: ResultadoSimu
     if (a.demanda_id) coberto[a.demanda_id] = (coberto[a.demanda_id] ?? 0) + a.kg_fresco;
   });
   const falta = (demandaId: string, necessario: number) => Math.max(0, necessario - (coberto[demandaId] ?? 0));
-  const situacao = (demandaId: string, necessario: number, prazo: string) => {
-    if (falta(demandaId, necessario) < FOLGA_KG) return <Etiqueta cor="verde">Coberta</Etiqueta>;
-    // Prazo depois do fim: o próximo plano ainda pode cobrir, não é atraso
-    if (prazo > resultado.fim) return <Etiqueta cor="cinza">Continua no próximo plano</Etiqueta>;
-    return <Etiqueta cor="vermelho">Atraso</Etiqueta>;
+  const situacao = (n: Necessidade): Situacao => {
+    if (falta(n.demanda_id, n.kg_fresco) < FOLGA_KG) return 'coberta';
+    return n.prazo > resultado.fim ? 'proximo_plano' : 'atraso';
   };
+
+  const periodo = `${resultado.inicio}_a_${resultado.fim}`;
+  const exportarCronograma = () =>
+    baixarCsv(
+      `${nomeArquivo}_cronograma_${periodo}.csv`,
+      gerarCsv(resultado.alocacoes, [
+        { titulo: 'Dia', valor: (a) => dataCsv(a.dia) },
+        { titulo: 'Secador', valor: (a) => a.secador },
+        { titulo: 'Erva', valor: (a) => a.erva },
+        { titulo: 'Kg de fresco', valor: (a) => numeroCsv(a.kg_fresco) },
+        { titulo: 'Horas de secagem', valor: (a) => numeroCsv(a.horas_secagem) },
+        { titulo: 'Horas de setup', valor: (a) => numeroCsv(a.horas_setup) },
+        { titulo: 'Lote', valor: (a) => a.lote_id },
+        { titulo: 'Demanda', valor: (a) => a.demanda_id ?? 'sem demanda' },
+      ])
+    );
+  const exportarNecessidades = () =>
+    baixarCsv(
+      `${nomeArquivo}_necessidades_${periodo}.csv`,
+      gerarCsv(resultado.necessidades, [
+        { titulo: 'Demanda', valor: (n) => n.demanda_id },
+        { titulo: 'Erva', valor: (n) => n.erva },
+        { titulo: 'Meta (kg)', valor: (n) => numeroCsv(n.kg_meta) },
+        { titulo: 'Estágio da meta', valor: (n) => ROTULO_ESTAGIO[n.estagio_meta] },
+        { titulo: 'Fresco necessário (kg)', valor: (n) => numeroCsv(n.kg_fresco) },
+        { titulo: 'Prazo', valor: (n) => dataCsv(n.prazo) },
+        { titulo: 'Coberto no plano (kg)', valor: (n) => numeroCsv(coberto[n.demanda_id] ?? 0) },
+        { titulo: 'Falta (kg)', valor: (n) => numeroCsv(falta(n.demanda_id, n.kg_fresco)) },
+        { titulo: 'Situação', valor: (n) => SITUACAO[situacao(n)].rotulo },
+      ])
+    );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {resultado.viavel ? (
           <Etiqueta cor="verde">Viável</Etiqueta>
         ) : (
@@ -81,6 +129,14 @@ export default function ResultadoPlano({ resultado }: { resultado: ResultadoSimu
         <span className="text-sm text-gray-600">
           {formatarData(resultado.inicio)} a {formatarData(resultado.fim)}
         </span>
+        <div className="ml-auto flex flex-wrap gap-2">
+          {resultado.alocacoes.length > 0 && (
+            <Button variant="secondary" onClick={exportarCronograma}>Baixar cronograma (Excel)</Button>
+          )}
+          {resultado.necessidades.length > 0 && (
+            <Button variant="secondary" onClick={exportarNecessidades}>Baixar necessidades (Excel)</Button>
+          )}
+        </div>
       </div>
 
       {resultado.avisos.map((aviso) => <Alerta key={aviso} tipo="aviso">{aviso}</Alerta>)}
@@ -141,7 +197,7 @@ export default function ResultadoPlano({ resultado }: { resultado: ResultadoSimu
               prazo: formatarData(n.prazo),
               coberto: formatarKg(coberto[n.demanda_id] ?? 0),
               falta: falta(n.demanda_id, n.kg_fresco) < FOLGA_KG ? '—' : formatarKg(falta(n.demanda_id, n.kg_fresco)),
-              situacao: situacao(n.demanda_id, n.kg_fresco, n.prazo),
+              situacao: <Etiqueta cor={SITUACAO[situacao(n)].cor}>{SITUACAO[situacao(n)].rotulo}</Etiqueta>,
             }))}
           />
         </Card>

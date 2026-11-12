@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 
 import { apiFetch, query } from '../api';
 import { camposAlterados } from '../edicao';
+import { baixarCsv, dataCsv, gerarCsv, numeroCsv } from '../exportar';
 import { useFeedback } from '../feedback';
 import {
   ROTULO_ORIGEM,
@@ -220,6 +221,40 @@ export default function CronogramaRecebimentos() {
 
   const dados = cronograma.dados;
 
+  const exportarProgramacao = () =>
+    dados &&
+    baixarCsv(
+      `programacao_${dados.de}_a_${dados.ate}.csv`,
+      gerarCsv(dados.alocacoes, [
+        { titulo: 'Plano', valor: (a) => `v${a.versao}` },
+        { titulo: 'Dia', valor: (a) => dataCsv(a.dia) },
+        { titulo: 'Secador', valor: (a) => a.secador },
+        { titulo: 'Erva', valor: (a) => a.erva },
+        { titulo: 'Kg de fresco', valor: (a) => numeroCsv(a.kg_fresco) },
+        { titulo: 'Horas de secagem', valor: (a) => numeroCsv(a.horas_secagem) },
+        { titulo: 'Horas de setup', valor: (a) => numeroCsv(a.horas_setup) },
+        { titulo: 'Lote', valor: (a) => a.lote_id },
+        { titulo: 'Demanda', valor: (a) => a.demanda_id ?? 'sem demanda' },
+      ])
+    );
+
+  const exportarChegadas = () =>
+    dados &&
+    baixarCsv(
+      `chegadas_${dados.de}_a_${dados.ate}.csv`,
+      gerarCsv(dados.chegadas, [
+        { titulo: 'Previsão', valor: (c) => c.previsao_id ?? 'não prevista' },
+        { titulo: 'Erva', valor: (c) => c.erva.nome },
+        { titulo: 'Origem', valor: (c) => ROTULO_ORIGEM[c.origem] },
+        { titulo: 'Prevista para', valor: (c) => dataCsv(c.data_prevista) },
+        { titulo: 'Previsto (kg)', valor: (c) => numeroCsv(c.kg_previsto) },
+        { titulo: 'Recebido em', valor: (c) => c.recebimentos.map((r) => dataCsv(r.data_recebimento)).join(', ') },
+        { titulo: 'Recebido (kg)', valor: (c) => numeroCsv(c.kg_recebido) },
+        { titulo: 'Desvio (kg)', valor: (c) => numeroCsv(c.desvio_kg) },
+        { titulo: 'Situação', valor: (c) => ROTULO_SITUACAO[c.situacao] },
+      ])
+    );
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-end flex-wrap gap-4">
@@ -246,16 +281,26 @@ export default function CronogramaRecebimentos() {
           </Card>
 
           <Card>
-            <h2 className="font-semibold mb-3">Programação de secagem (planos aprovados)</h2>
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="font-semibold">Programação de secagem (planos aprovados)</h2>
+              {dados.alocacoes.length > 0 && (
+                <Button variant="secondary" onClick={exportarProgramacao}>Baixar (Excel)</Button>
+              )}
+            </div>
             <Cronograma alocacoes={dados.alocacoes} />
           </Card>
 
           <Card>
             <div className="flex justify-between items-center mb-3">
               <h2 className="font-semibold">Chegadas de erva fresca</h2>
-              {podeRegistrar && (
-                <Button variant="secondary" onClick={() => abrirForm(null)}>+ Chegada não prevista</Button>
-              )}
+              <div className="flex gap-2">
+                {dados.chegadas.length > 0 && (
+                  <Button variant="secondary" onClick={exportarChegadas}>Baixar (Excel)</Button>
+                )}
+                {podeRegistrar && (
+                  <Button variant="secondary" onClick={() => abrirForm(null)}>+ Chegada não prevista</Button>
+                )}
+              </div>
             </div>
 
             {form && (

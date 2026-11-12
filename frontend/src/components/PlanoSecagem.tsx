@@ -213,7 +213,7 @@ export default function PlanoSecagem() {
             {plano.parametros.dias_operacao?.map((d) => DIAS_SEMANA[d]).join(', ') ?? 'não informados'}
             {plano.observacao && ` · ${plano.observacao}`}
           </p>
-          <ResultadoPlano resultado={plano} />
+          <ResultadoPlano resultado={plano} nomeArquivo={`plano-v${plano.versao}`} />
         </div>
       )}
 

@@ -1,8 +1,9 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { escritas, renderizarTela } from '../test/apiFalsa';
+import { capturarDownloads, linhasCsv } from '../test/download';
 import CronogramaRecebimentos from './CronogramaRecebimentos';
 
 // Dados fictícios
@@ -74,5 +75,23 @@ describe('CronogramaRecebimentos', () => {
     await screen.findByText('Chegadas de erva fresca');
     expect(screen.queryByText('corrigir')).not.toBeInTheDocument();
     expect(screen.queryByText('remover')).not.toBeInTheDocument();
+  });
+
+  describe('exportação', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('baixa as chegadas com previsto, recebido e desvio', async () => {
+      const usuario = userEvent.setup();
+      const arquivos = capturarDownloads();
+      renderizarTela(<CronogramaRecebimentos />, rotas(), ['cronograma.consultar']);
+
+      // Só a seção de chegadas tem dados neste cenário (sem plano aprovado)
+      await usuario.click(await screen.findByText('Baixar (Excel)'));
+
+      expect(arquivos[0].nome).toBe('chegadas_2026-12-01_a_2026-12-07.csv');
+      const linhas = await linhasCsv(arquivos[0].blob);
+      expect(linhas[0]).toBe('Previsão;Erva;Origem;Prevista para;Previsto (kg);Recebido em;Recebido (kg);Desvio (kg);Situação');
+      expect(linhas[1]).toBe('1;Erva A;Procompete;01/12/2026;800;02/12/2026;500;-300;Recebida');
+    });
   });
 });
