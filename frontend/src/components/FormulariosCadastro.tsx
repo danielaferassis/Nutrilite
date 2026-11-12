@@ -18,7 +18,11 @@ const AVISO_VAZIO = 'Campo vazio fica como "não informado": a simulação apont
 function Moldura({ titulo, children }: { titulo: string; children: ReactNode }) {
   // O formulário abre acima da matriz: rola até ele quando o "editar" foi clicado lá embaixo
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), []);
+  // Com chaves: no Chromium recente scrollIntoView devolve uma Promise, e o React
+  // trataria esse retorno como função de limpeza (erro "destroy is not a function")
+  useEffect(() => {
+    ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, []);
   return (
     <div ref={ref}>
       <Card>

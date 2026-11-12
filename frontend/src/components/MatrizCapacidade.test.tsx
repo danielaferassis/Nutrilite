@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Resposta, escritas, renderizarTela } from '../test/apiFalsa';
 import MatrizCapacidade from './MatrizCapacidade';
@@ -41,6 +41,10 @@ const celula = (erva: string, coluna: number) =>
   screen.getByText(erva).closest('tr')!.querySelectorAll('td')[coluna];
 
 describe('MatrizCapacidade', () => {
+  afterEach(() => {
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
   it('sem cadastro.gerenciar só consulta', async () => {
     renderizarTela(<MatrizCapacidade />, rotas(), []);
 
@@ -219,5 +223,18 @@ describe('MatrizCapacidade', () => {
     await screen.findByText('Erva A');
     const buscas = chamadas.filter((c) => c.metodo === 'GET' && c.busca === '?ativos=false').map((c) => c.caminho);
     expect(buscas).toEqual(expect.arrayContaining(['/ervas', '/secadores']));
+  });
+
+  it('abre e fecha o formulário quando scrollIntoView devolve Promise (Chromium recente)', async () => {
+    // No jsdom scrollIntoView não existe; no Brave/Chrome atual ele devolve uma Promise
+    Element.prototype.scrollIntoView = vi.fn(() => Promise.resolve()) as never;
+    const usuario = userEvent.setup();
+    renderizarTela(<MatrizCapacidade />, rotas(), GERENCIAR);
+
+    await screen.findByText('Erva A');
+    await usuario.click(screen.getByText('+ Nova erva'));
+    expect(screen.getByRole('heading', { name: 'Nova erva' })).toBeInTheDocument();
+    await usuario.click(screen.getByText('Cancelar'));
+    expect(screen.queryByRole('heading', { name: 'Nova erva' })).not.toBeInTheDocument();
   });
 });
