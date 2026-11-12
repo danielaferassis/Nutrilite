@@ -44,6 +44,7 @@ FONTE_B = 3
 CONSULTA = 4
 SEM_PERMISSAO = 5
 GESTOR = 6
+ADMIN_CADASTRO = 7
 TODOS_OS_DIAS = [0, 1, 2, 3, 4, 5, 6]
 PERMISSOES = {
     PCP: [
@@ -58,6 +59,7 @@ PERMISSOES = {
     ],
     SEM_PERMISSAO: [],
     GESTOR: ["plano.aprovar"],
+    ADMIN_CADASTRO: ["cadastro.gerenciar"],
 }
 
 

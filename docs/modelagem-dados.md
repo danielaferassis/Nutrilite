@@ -182,10 +182,10 @@ Os testes de cadastro sobem um SQLite em memória. Eles não substituem a aplica
 
 ## Próxima integração
 
-1. Endpoints de cadastro destas quatro entidades, reutilizando os schemas.
-2. Seed das permissões, no padrão já usado por `usuario.gerenciar`.
-3. Tabelas de demanda e lote previsto: feitas (veja abaixo). Falta bloqueio.
-4. Serviço que filtre registros ativos, chame `app.cadastro` e então `simular()`.
+1. Endpoints de cadastro destas quatro entidades, reutilizando os schemas: feitos em `app/routers/cadastros.py` (escrita exige `cadastro.gerenciar`; tela Matriz de Capacidade). Erva e secador não são removidos, só inativados; capacidade pode ser removida.
+2. Seed das permissões, no padrão já usado por `usuario.gerenciar`: feito (migration `e7a4c2d9b315`).
+3. Tabelas de demanda e lote previsto: feitas (veja abaixo). Bloqueio também.
+4. Serviço que filtre registros ativos, chame `app.cadastro` e então `simular()`: feito (`app/simulacao.py`).
 5. Só depois, com o formato definido pela empresa, importar planilha. Infinity e OEE continuam fora.
 
 ## Demanda e previsão de oferta

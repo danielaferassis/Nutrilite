@@ -35,6 +35,7 @@ Hoje o PCP planeja a secagem em planilhas. A erva fresca chega quando é colhida
 - **Apontar o agrião:** "não informado" em amarelo.
 - **Regra:** parâmetro ausente **nunca** vira valor padrão. Se o agrião entrasse numa simulação, ela pararia com a pendência `PARAM_AUSENTE`, em vez de inventar um número.
 - **Contexto:** a estrutura (secagem por carga, setup dentro da campanha) veio das respostas do PCP em 21/10. Os números aqui são fictícios.
+- **Editar ao vivo** (perfil com `cadastro.gerenciar`): clicar em "editar" numa célula, apagar o setup diário e salvar. A célula passa a mostrar "não informado" e a próxima simulação acusa `PARAM_AUSENTE`. Campo vazio vai para o banco como nulo, nunca como zero.
 
 ### 3. Gestão de Demandas
 
@@ -124,13 +125,12 @@ Sempre no backend. Cada rota exige uma funcionalidade (`requer_permissao`, `requ
 Não usa. O planejamento é determinístico: a mesma entrada gera sempre o mesmo plano.
 
 **Quantos testes há?**
-Rode `docker compose exec backend pytest -q` ao vivo. Os testes cobrem o motor, as regras de permissão, a fotografia do plano, os recebimentos e os dados fictícios.
+Rode `docker compose exec backend pytest -q` e `docker compose exec frontend npm test` ao vivo. Os do backend cobrem o motor, as regras de permissão, a fotografia do plano, os recebimentos, o cadastro e os dados fictícios. Os do front conferem o que cada tela manda para a API (por exemplo, que campo vazio vai como nulo).
 
 ## Limitações conhecidas
 
 Fale delas antes que perguntem:
 
 - **Guloso enxerga só o dia:** uma erva que começa no fim do dia e deixa a campanha aberta pode atrapalhar outra erva nos dias seguintes. Medimos o efeito em 2.000 cenários aleatórios (README do motor) e ele é raro; otimizar o horizonte inteiro fica como trabalho futuro.
-- **Cadastro de erva, secador e capacidade:** ainda não tem tela de edição. Hoje os dados entram direto no banco; os endpoints estão em definição com o Guilherme.
 - **Demandas com prazo logo depois do horizonte** não recebem crédito da secagem. Há proposta em `docs/propostas/demandas-alem-do-horizonte.md`.
 - **Importação S&OP em lote:** aguarda o formato oficial da planilha.

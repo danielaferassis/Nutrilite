@@ -133,7 +133,7 @@ Só a regra; os valores da tabela oficial **não** entram no repositório (são 
 
 - Validar com o PCP as premissas provisórias acima, principalmente a campanha sem sucessora e a pausa no meio da campanha.
 - **Pergunta ao PCP:** a ocupação planejada deve usar 24 h de calendário (como hoje) ou o regime da erva como denominador? Se for o regime, qual valor usar nos dias em que o secador fica sem erva?
-- Cadastrar os valores oficiais da tabela de capacidade (recebida em 21/10) quando houver endpoints de cadastro. Matriz de trocas (custo de limpeza entre pares de ervas) ainda não recebida.
+- Cadastrar os valores oficiais da tabela de capacidade (recebida em 21/10) pela tela Matriz de Capacidade, em produção (permissão `cadastro.gerenciar`). Matriz de trocas (custo de limpeza entre pares de ervas) ainda não recebida.
 
 ## Uso pela API (`POST /api/simulacoes`)
 

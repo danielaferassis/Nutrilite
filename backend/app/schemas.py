@@ -228,12 +228,40 @@ def _nome_limpo(value: str) -> str:
     return nome
 
 
+# Mesma precisão das colunas do cadastro (models.HORAS, KG, RAZAO): evita o banco arredondar calado
+HorasCad = Annotated[Decimal, Field(max_digits=6, decimal_places=2)]
+KgCad = Annotated[Decimal, Field(max_digits=12, decimal_places=3)]
+RazaoCad = Annotated[Decimal, Field(max_digits=10, decimal_places=4)]
+
+
 class ErvaCreate(BaseModel):
     codigo: str = Field(min_length=1, max_length=50)
     nome: str = Field(min_length=1, max_length=150)
     ativo: bool = True
-    regime_horas_dia: Decimal | None = Field(default=None, gt=0, le=24)
+    regime_horas_dia: HorasCad | None = Field(default=None, gt=0, le=24)
     espera_maxima_dias: int | None = Field(default=None, ge=0)
+
+    @field_validator("codigo")
+    @classmethod
+    def normaliza_codigo(cls, value: str) -> str:
+        return _codigo_canonico(value)
+
+    @field_validator("nome")
+    @classmethod
+    def normaliza_nome(cls, value: str) -> str:
+        return _nome_limpo(value)
+
+
+class ErvaUpdate(BaseModel):
+    """Atualização parcial. Parâmetro enviado como null volta a ser "não informado"."""
+
+    codigo: str | None = Field(default=None, min_length=1, max_length=50)
+    nome: str | None = Field(default=None, min_length=1, max_length=150)
+    ativo: bool | None = None
+    regime_horas_dia: HorasCad | None = Field(default=None, gt=0, le=24)
+    espera_maxima_dias: int | None = Field(default=None, ge=0)
+
+    _valida_nao_nulos = field_validator("codigo", "nome", "ativo")(_nao_nulo)
 
     @field_validator("codigo")
     @classmethod
@@ -270,6 +298,26 @@ class SecadorCreate(BaseModel):
         return _nome_limpo(value)
 
 
+class SecadorUpdate(BaseModel):
+    """Atualização parcial: só os campos enviados são alterados."""
+
+    codigo: str | None = Field(default=None, min_length=1, max_length=50)
+    nome: str | None = Field(default=None, min_length=1, max_length=150)
+    ativo: bool | None = None
+
+    _valida_nao_nulos = field_validator("codigo", "nome", "ativo")(_nao_nulo)
+
+    @field_validator("codigo")
+    @classmethod
+    def normaliza_codigo(cls, value: str) -> str:
+        return _codigo_canonico(value)
+
+    @field_validator("nome")
+    @classmethod
+    def normaliza_nome(cls, value: str) -> str:
+        return _nome_limpo(value)
+
+
 class SecadorRead(SecadorCreate):
     model_config = ConfigDict(from_attributes=True)
 
@@ -282,12 +330,30 @@ class CapacidadeCreate(BaseModel):
     erva_id: int = Field(gt=0)
     secador_id: int = Field(gt=0)
     modo: ModoCapacidade | None = None
-    kg_fresco_por_hora: Decimal | None = Field(default=None, gt=0)
-    kg_por_carga: Decimal | None = Field(default=None, gt=0)
-    horas_por_carga: Decimal | None = Field(default=None, gt=0)
-    setup_inicial_h: Decimal | None = Field(default=None, ge=0)
-    setup_final_h: Decimal | None = Field(default=None, ge=0)
-    setup_diario_h: Decimal | None = Field(default=None, ge=0)
+    kg_fresco_por_hora: KgCad | None = Field(default=None, gt=0)
+    kg_por_carga: KgCad | None = Field(default=None, gt=0)
+    horas_por_carga: HorasCad | None = Field(default=None, gt=0)
+    setup_inicial_h: HorasCad | None = Field(default=None, ge=0)
+    setup_final_h: HorasCad | None = Field(default=None, ge=0)
+    setup_diario_h: HorasCad | None = Field(default=None, ge=0)
+    setup_dentro_do_regime: bool | None = None
+    prioridade: int | None = Field(default=None, ge=0)
+
+
+class CapacidadeUpdate(BaseModel):
+    """Atualização parcial dos parâmetros. O par erva × secador não muda.
+
+    Todo parâmetro aceita null: volta a ser "não informado" e a simulação
+    acusa PARAM_AUSENTE, nunca assume um valor.
+    """
+
+    modo: ModoCapacidade | None = None
+    kg_fresco_por_hora: KgCad | None = Field(default=None, gt=0)
+    kg_por_carga: KgCad | None = Field(default=None, gt=0)
+    horas_por_carga: HorasCad | None = Field(default=None, gt=0)
+    setup_inicial_h: HorasCad | None = Field(default=None, ge=0)
+    setup_final_h: HorasCad | None = Field(default=None, ge=0)
+    setup_diario_h: HorasCad | None = Field(default=None, ge=0)
     setup_dentro_do_regime: bool | None = None
     prioridade: int | None = Field(default=None, ge=0)
 
@@ -302,8 +368,15 @@ class CapacidadeRead(CapacidadeCreate):
 
 class RendimentoCreate(BaseModel):
     erva_id: int = Field(gt=0)
-    fresco_por_desidratado: Decimal | None = Field(default=None, gt=0)
-    desidratado_por_moido: Decimal | None = Field(default=None, gt=0)
+    fresco_por_desidratado: RazaoCad | None = Field(default=None, gt=0)
+    desidratado_por_moido: RazaoCad | None = Field(default=None, gt=0)
+
+
+class RendimentoUpdate(BaseModel):
+    """Atualização parcial. Null volta a ser "não informado". A erva não muda."""
+
+    fresco_por_desidratado: RazaoCad | None = Field(default=None, gt=0)
+    desidratado_por_moido: RazaoCad | None = Field(default=None, gt=0)
 
 
 class RendimentoRead(RendimentoCreate):

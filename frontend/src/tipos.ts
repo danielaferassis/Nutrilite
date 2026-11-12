@@ -80,6 +80,15 @@ export interface Capacidade {
   prioridade: number | null;
 }
 
+export interface Rendimento {
+  id: number;
+  erva_id: number;
+  /** Kg de fresco para 1 kg desidratado. */
+  fresco_por_desidratado: string | null;
+  /** Kg desidratado para 1 kg moído. */
+  desidratado_por_moido: string | null;
+}
+
 type Resumo = Pick<Erva, 'id' | 'codigo' | 'nome'>;
 
 export interface Demanda {
