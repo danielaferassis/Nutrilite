@@ -288,6 +288,7 @@ docker compose down -v        # para tudo e APAGA os dados do banco
 docker compose up --build -V  # rebuild (após mudar requirements*.txt ou package.json)
 docker compose exec db mysql -uapp -papp app                                        # console do MySQL
 docker compose exec backend pytest                                                 # testes (o pytest já vem na imagem de dev)
+docker compose exec frontend npm test                                              # testes do front (Vitest)
 ```
 
 ---
