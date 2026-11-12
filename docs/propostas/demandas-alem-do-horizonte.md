@@ -1,6 +1,6 @@
 # Proposta: demandas com prazo depois do horizonte
 
-**Status:** aguardando decisão do grupo e do PCP · **Autor:** Gabriel · **Data:** 01/11/2026
+**Status:** aguardando decisão do grupo e do PCP (pergunta 2 respondida) · **Autor:** Gabriel · **Data:** 01/11/2026
 
 ## Resumo
 
@@ -83,3 +83,9 @@ Igual à B, mas só para demandas com prazo até `fim + N dias`.
 1. Ao olhar um plano semanal, o PCP quer ver a produção creditada a demandas da semana seguinte?
 2. Existe um limite prático de antecedência? Por exemplo, não faz sentido secar hoje para uma demanda de daqui a 3 meses por causa da validade do produto seco. Se existir, ele é um parâmetro novo a cadastrar (opção C), não um valor no código.
 3. O kg da demanda é sempre atualizado com o estoque (líquido) antes de cada simulação?
+
+### Respostas (Eva, novembro/2026)
+
+1. Pediu para explicar "produção creditada". Reenviamos: se uma semana tiver excedente, ele deve aparecer para a semana seguinte, ou cada semana começa do zero? **Aguardando.**
+2. **Não há limite prático**: o desidratado tem validade de 1 ano. A opção C perde o motivo; a B continua sendo a recomendação.
+3. Pediu para detalhar. A pergunta reenviada falou em retirar de um estoque a cada secagem, o que é outra coisa. O que precisamos saber é se o kg da demanda cadastrada já desconta o que existe em estoque e o que já foi produzido. **Aguardando.**

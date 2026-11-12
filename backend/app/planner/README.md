@@ -119,9 +119,15 @@ Só a regra; os valores da tabela oficial **não** entram no repositório (são 
 | Dividir um lote entre secadores? | Sim, em paralelo quando passa da capacidade de um | Já suportado (reforço no mesmo dia) |
 | Dias por semana? | Geralmente 6, depende da oferta | `dias_operacao` em cada simulação |
 
-Dúvidas que a tabela levantou:
-- A coluna **"Interv"** é parada diária (`setup_diario_h`) ou intervalo entre cargas (a cada carga)?
-- A fibra tem dois SKUs com os mesmos parâmetros. A capacidade pode variar por SKU da mesma matéria-prima? Se sim, o cadastro precisa ser por SKU, não por erva.
+### Respostas do PCP (Eva, novembro/2026)
+
+| Pergunta | Resposta | No sistema |
+| --- | --- | --- |
+| A coluna **"Interv"** é parada diária ou intervalo entre cargas? | Uma vez por dia, independente do número de cargas | `setup_diario_h` (já descontado uma vez por dia; o motor não muda) |
+| Capacidade pode variar por SKU da mesma matéria-prima? | Os dois SKUs da fibra da tabela são iguais, mas existe outro código da mesma matéria-prima com tempos diferentes (fora da tabela; a Eva vai enviar) | **Em aberto**: hoje a capacidade é por erva. Ver abaixo |
+| Limite de antecedência para secar antes da demanda? | Não há: o desidratado tem validade de 1 ano | Reforça a opção B de `docs/propostas/demandas-alem-do-horizonte.md` (sem janela `N`) |
+
+**Capacidade por SKU (aguarda a tabela da Eva).** Se o mesmo fresco pode virar produtos com tempos de secagem diferentes, a capacidade deixa de ser só erva × secador. Antes de mexer no modelo, falta saber: a oferta chega como matéria-prima e o PCP decide o SKU na secagem, ou cada lote já chega destinado a um SKU? No segundo caso, basta cadastrar o código diferente como uma "erva" própria, sem mudar `types.py`.
 
 ### Pendentes de definição
 
