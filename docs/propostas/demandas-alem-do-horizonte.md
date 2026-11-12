@@ -1,6 +1,6 @@
 # Proposta: demandas com prazo depois do horizonte
 
-**Status:** aguardando decisão do grupo e do PCP (pergunta 2 respondida) · **Autor:** Gabriel · **Data:** 01/11/2026
+**Status:** implementada (opção B) em 12/11/2026, para mostrar na demonstração ao PCP; perguntas 1 e 3 ainda aguardam a Eva · **Autor:** Gabriel · **Data:** 01/11/2026
 
 ## Resumo
 

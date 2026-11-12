@@ -403,3 +403,92 @@ def test_campanha_aberta_segura_o_secador_ate_o_dia_seguinte():
     no_dia = {(a.dia, a.erva) for a in resultado.alocacoes}
     assert (SEG, "AGRIAO") in no_dia
     assert (SEG, "CAMOMILA") not in no_dia
+
+
+# ---------------------------------------------------------------------------
+# Demandas com prazo depois do horizonte (docs/propostas/demandas-alem-do-horizonte.md)
+# ---------------------------------------------------------------------------
+
+SEG_SEGUINTE = date(2026, 11, 9)
+
+
+def test_demanda_depois_do_fim_recebe_kg_sem_gerar_atraso():
+    resultado = simular(
+        entrada(
+            lotes=[lote("L1", "CAMOMILA", SEG, 800)],
+            demandas=[Demanda("D-depois", "CAMOMILA", 100, Estagio.DESIDRATADO, prazo=SEG_SEGUINTE)],
+        )
+    )
+
+    destino = {}
+    for a in resultado.alocacoes:
+        destino[a.demanda_id] = destino.get(a.demanda_id, 0) + a.kg_fresco
+    # 100 kg desidratado × 6 = 600 kg de fresco para a demanda; o resto fica sem demanda
+    assert destino == {"D-depois": 600, None: 200}
+    assert resultado.viavel
+    assert resultado.kpis["a_cobrir_apos_horizonte_kg"] == {}
+
+
+def test_o_que_falta_da_demanda_depois_do_fim_e_informativo():
+    resultado = simular(
+        entrada(
+            lotes=[lote("L1", "CAMOMILA", SEG, 800)],
+            demandas=[Demanda("D-depois", "CAMOMILA", 200, Estagio.DESIDRATADO, prazo=SEG_SEGUINTE)],
+        )
+    )
+
+    # Precisa de 1.200 kg de fresco, recebe os 800 do lote: faltam 400 depois do fim
+    assert resultado.viavel
+    assert pendencias(resultado, TipoPendencia.ATRASO) == []
+    assert resultado.kpis["a_cobrir_apos_horizonte_kg"] == {"CAMOMILA": 400}
+    assert resultado.kpis["saldo_nao_alocado_kg"] == {}
+
+
+def test_demanda_depois_do_fim_sem_oferta_nao_gera_saldo_nao_alocado():
+    resultado = simular(
+        entrada(demandas=[Demanda("D-depois", "AGRIAO", 50, Estagio.DESIDRATADO, prazo=SEG_SEGUINTE)])
+    )
+
+    # A oferta para ela ainda pode chegar depois do horizonte
+    assert resultado.pendencias == []
+    assert resultado.kpis["a_cobrir_apos_horizonte_kg"] == {"AGRIAO": 500}
+
+
+def test_demanda_do_horizonte_continua_igual_ao_lado_de_uma_futura():
+    resultado = simular(
+        entrada(
+            lotes=[lote("L1", "CAMOMILA", SEG, 800)],
+            demandas=[
+                Demanda("D-depois", "CAMOMILA", 100, Estagio.DESIDRATADO, prazo=SEG_SEGUINTE),
+                Demanda("D-agora", "CAMOMILA", 100, Estagio.DESIDRATADO, prazo=SEX),
+            ],
+        )
+    )
+
+    destino = {}
+    for a in resultado.alocacoes:
+        destino[a.demanda_id] = destino.get(a.demanda_id, 0) + a.kg_fresco
+    # Mesma prioridade: o prazo mais próximo é atendido primeiro
+    assert destino == {"D-agora": 600, "D-depois": 200}
+    assert resultado.kpis["saldo_nao_alocado_kg"] == {"CAMOMILA": 0}
+    assert resultado.kpis["a_cobrir_apos_horizonte_kg"] == {"CAMOMILA": 400}
+
+
+def test_demanda_futura_mais_prioritaria_e_atendida_primeiro():
+    resultado = simular(
+        entrada(
+            lotes=[lote("L1", "CAMOMILA", SEG, 800)],
+            demandas=[
+                Demanda("D-depois", "CAMOMILA", 100, Estagio.DESIDRATADO, prazo=SEG_SEGUINTE, prioridade=5),
+                Demanda("D-agora", "CAMOMILA", 100, Estagio.DESIDRATADO, prazo=SEX),
+            ],
+        )
+    )
+
+    destino = {}
+    for a in resultado.alocacoes:
+        destino[a.demanda_id] = destino.get(a.demanda_id, 0) + a.kg_fresco
+    assert destino == {"D-depois": 600, "D-agora": 200}
+    # Só a demanda do horizonte vira atraso
+    [atraso] = pendencias(resultado, TipoPendencia.ATRASO)
+    assert (atraso.demanda_id, atraso.kg) == ("D-agora", 400)

@@ -132,5 +132,4 @@ Rode `docker compose exec backend pytest -q` e `docker compose exec frontend npm
 Fale delas antes que perguntem:
 
 - **Guloso enxerga só o dia:** uma erva que começa no fim do dia e deixa a campanha aberta pode atrapalhar outra erva nos dias seguintes. Medimos o efeito em 2.000 cenários aleatórios (README do motor) e ele é raro; otimizar o horizonte inteiro fica como trabalho futuro.
-- **Demandas com prazo logo depois do horizonte** não recebem crédito da secagem. Há proposta em `docs/propostas/demandas-alem-do-horizonte.md`.
 - **Importação S&OP em lote:** aguarda o formato oficial da planilha.

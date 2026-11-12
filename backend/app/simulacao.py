@@ -3,8 +3,10 @@
 Regras de recorte do horizonte [inicio, fim]:
 - Ervas e secadores: só os ativos. Capacidade entra só se a erva e o secador
   estão ativos (secador inativo não pode receber erva).
-- Demandas: só as com prazo dentro do horizonte. Prazo depois do `fim` não é
-  atraso deste plano; prazo antes do `inicio` já passou.
+- Demandas: prazo a partir do `inicio` (antes disso já passou). As que vencem
+  depois do `fim` também entram: recebem a secagem do horizonte, mas não geram
+  ATRASO neste plano (o motor separa o que falta delas no KPI
+  `a_cobrir_apos_horizonte_kg`).
 - Lotes: chegada até o `fim` e que ainda podem estar esperando no `inicio`
   (chegada a partir de `inicio - maior espera cadastrada`). O motor descarta o
   que já tiver vencido.
@@ -73,7 +75,7 @@ def montar_entrada(
     demandas = db.scalars(
         select(Demanda)
         .options(joinedload(Demanda.erva))
-        .where(Demanda.prazo >= inicio, Demanda.prazo <= fim)
+        .where(Demanda.prazo >= inicio)
         .order_by(Demanda.id)
     ).all()
 

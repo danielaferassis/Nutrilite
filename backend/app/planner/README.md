@@ -74,7 +74,7 @@ Guloso, dia a dia, do `inicio` ao `fim` do horizonte:
    - ela vai para o secador livre com **menor `prioridade` cadastrada** na capacidade erva × secador. Sem prioridade (ou em empate), vai para o de **maior capacidade líquida no dia**: os kg que ele consegue secar, já descontados os setups, sem limitar ao saldo do lote. Continuar a campanha sai mais barato que trocar de erva.
    - **Troca de erva no mesmo dia** (PCP, 21/10): se a erva **encerra a campanha** no secador (secou todo o saldo e fez a limpeza) e sobram horas, o secador continua livre no dia, com as horas restantes, e outra erva pode entrar pagando o próprio setup inicial. Campanha que fica aberta (a erva tem lote chegando depois) segura o secador até o dia seguinte.
 3. Os kg secos saem dos lotes que vencem primeiro e vão para as demandas ainda no prazo, por maior prioridade e prazo mais próximo. O que sobra fica na alocação sem demanda (`demanda_id=None`).
-4. No fim: demanda não coberta até o prazo → `ATRASO`; necessidade maior que a oferta prevista no horizonte → `SALDO_NAO_ALOCADO` (por erva).
+4. No fim: demanda não coberta até o prazo → `ATRASO`; necessidade maior que a oferta prevista no horizonte → `SALDO_NAO_ALOCADO` (por erva). As duas só valem para demandas com prazo **até o `fim`**. A demanda que vence depois também recebe kg secos (mesma ordem: prioridade, depois prazo), e o que falta para ela vai para o KPI `a_cobrir_apos_horizonte_kg`, sem pendência: a oferta para ela ainda pode chegar depois do horizonte.
 
 A regra do PCP por código de secador (SCB03 maiores volumes, SCB01 picão, SCB02 menores volumes) **não** está fixa no código. Ela é cadastrada na tabela de capacidade (veja "Prioridade entre secadores" abaixo).
 
@@ -85,7 +85,8 @@ KPIs (`resultado.kpis`):
 | `horas_ocupadas` | por secador: horas de secagem + setup planejadas |
 | `horas_disponiveis` | por secador: 24 h × dias disponíveis (operação sem bloqueio) |
 | `ocupacao_planejada_pct` | por secador: ocupadas ÷ disponíveis × 100; `None` se não há dia disponível |
-| `saldo_nao_alocado_kg` | por erva: kg de fresco das demandas não cobertos até o prazo |
+| `saldo_nao_alocado_kg` | por erva: kg de fresco das demandas com prazo até o `fim` não cobertos até o prazo |
+| `a_cobrir_apos_horizonte_kg` | por erva: o que ainda falta para as demandas que vencem depois do `fim` (informativo; o próximo plano cobre) |
 
 ### Prioridade entre secadores (`Capacidade.prioridade`)
 
@@ -103,7 +104,7 @@ KPIs (`resultado.kpis`):
 - **Campanha sem sucessora:** se não chega mais lote da erva e o saldo cabe no dia junto com a limpeza, a campanha encerra nesse dia e paga o setup final. Se não cabe, a campanha fica aberta e a limpeza só é cobrada se outra erva entrar depois (troca). Nesse caso, a limpeza não aparece nas horas ocupadas do horizonte.
 - **Pausa no meio da campanha** (dia sem trabalho, fora de `dias_operacao` ou com bloqueio): a campanha continua aberta e não paga setup inicial de novo nem setup diário nos dias parados.
 - **Demanda só recebe kg secos até o prazo.** O que é seco depois não reduz o `ATRASO`.
-- **Horizonte:** lotes que chegam depois do `fim` ou vencem antes do `inicio` são ignorados. Lote que ainda tem prazo depois do `fim` não é perda.
+- **Horizonte:** lotes que chegam depois do `fim` ou vencem antes do `inicio` são ignorados. Lote que ainda tem prazo depois do `fim` não é perda. Demandas que vencem depois do `fim` entram (sem limite de antecedência: o desidratado vale 1 ano, segundo o PCP).
 - Carga parcial (por carga) ocupa o tempo de uma carga cheia.
 - **Denominador da ocupação:** 24 h de calendário × dias disponíveis do secador. A alternativa seria usar o regime da erva processada (por exemplo, 12 h/dia na camomila). Com 24 h, um secador que só seca camomila chega no máximo a 50% de ocupação, mesmo trabalhando o turno inteiro. Com o regime da erva, ele chegaria a 100%, mas o denominador mudaria conforme a erva, e dias sem erva alocada ficariam sem regime definido.
 
@@ -145,7 +146,7 @@ Só a regra; os valores da tabela oficial **não** entram no repositório (são 
 
 - `dias_operacao` omitido → `PARAM_AUSENTE` (o dado ainda não tem cadastro; vai no pedido).
 - Entram só ervas e secadores ativos, e capacidades em que os dois estão ativos.
-- Demandas: só as com prazo dentro do horizonte. Lotes: chegada até o `fim` e a partir de `inicio − maior espera cadastrada` (o motor descarta os vencidos).
+- Demandas: as com prazo a partir do `inicio`, inclusive as que vencem depois do `fim` (veja a regra 4 da alocação). Lotes: chegada até o `fim` e a partir de `inicio − maior espera cadastrada` (o motor descarta os vencidos).
 - Demanda ou lote de erva inativa não some: vira `PARAM_AUSENTE`.
 - Bloqueios (`/api/bloqueios`, tabela `bloqueio_secador`): entram os que tocam o horizonte, de secadores ativos. Datas inclusivas e motivo obrigatório.
 - `avisos`: limitações que não viram pendência do motor. Hoje vem vazio.

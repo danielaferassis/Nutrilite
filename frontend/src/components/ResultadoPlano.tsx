@@ -3,6 +3,9 @@ import { Alocacao, ResultadoSimulacao, TipoPendencia } from '../tipos';
 import ItemList from './ItemList';
 import { Alerta, Card, Etiqueta, EtiquetaCor } from './ui';
 
+// Mesma folga do motor para comparar kg em ponto flutuante
+const FOLGA_KG = 1e-6;
+
 const COR_PENDENCIA: Record<TipoPendencia, EtiquetaCor> = {
   param_ausente: 'amarelo',
   capacidade_excedida: 'vermelho',
@@ -52,7 +55,20 @@ export function Cronograma({ alocacoes }: { alocacoes: Alocacao[] }) {
 export default function ResultadoPlano({ resultado }: { resultado: ResultadoSimulacao }) {
   const { kpis } = resultado;
   const ocupacao = kpis.ocupacao_planejada_pct ?? {};
-  const saldo = kpis.saldo_nao_alocado_kg ?? {};
+  const aCobrirDepois = Object.entries(kpis.a_cobrir_apos_horizonte_kg ?? {});
+
+  // Kg secos destinados a cada demanda no plano
+  const coberto: Record<string, number> = {};
+  resultado.alocacoes.forEach((a) => {
+    if (a.demanda_id) coberto[a.demanda_id] = (coberto[a.demanda_id] ?? 0) + a.kg_fresco;
+  });
+  const falta = (demandaId: string, necessario: number) => Math.max(0, necessario - (coberto[demandaId] ?? 0));
+  const situacao = (demandaId: string, necessario: number, prazo: string) => {
+    if (falta(demandaId, necessario) < FOLGA_KG) return <Etiqueta cor="verde">Coberta</Etiqueta>;
+    // Prazo depois do fim: o próximo plano ainda pode cobrir, não é atraso
+    if (prazo > resultado.fim) return <Etiqueta cor="cinza">Continua no próximo plano</Etiqueta>;
+    return <Etiqueta cor="vermelho">Atraso</Etiqueta>;
+  };
 
   return (
     <div className="space-y-6">
@@ -83,6 +99,14 @@ export default function ResultadoPlano({ resultado }: { resultado: ResultadoSimu
         </Card>
       )}
 
+      {aCobrirDepois.length > 0 && (
+        <Alerta tipo="aviso">
+          Demandas que vencem depois de {formatarData(resultado.fim)} já recebem a secagem deste plano. Ainda faltam{' '}
+          {aCobrirDepois.map(([erva, kg]) => `${formatarKg(kg)} de ${erva}`).join(', ')} (erva fresca) para elas, a
+          cobrir no próximo plano.
+        </Alerta>
+      )}
+
       {Object.keys(ocupacao).length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {Object.entries(ocupacao).map(([secador, pct]) => (
@@ -108,14 +132,16 @@ export default function ResultadoPlano({ resultado }: { resultado: ResultadoSimu
         <Card>
           <h3 className="font-semibold mb-3">Necessidade de erva fresca (cálculo reverso)</h3>
           <ItemList
-            colunas={['Demanda', 'Erva', 'Meta', 'Fresco necessário', 'Prazo', 'Saldo da erva']}
+            colunas={['Demanda', 'Erva', 'Meta', 'Fresco necessário', 'Prazo', 'Coberto no plano', 'Falta', 'Situação']}
             dados={resultado.necessidades.map((n) => ({
               demanda: `#${n.demanda_id}`,
               erva: n.erva,
               meta: `${formatarKg(n.kg_meta)} (${ROTULO_ESTAGIO[n.estagio_meta].toLowerCase()})`,
               fresco: formatarKg(n.kg_fresco),
               prazo: formatarData(n.prazo),
-              saldo: saldo[n.erva] ? formatarKg(saldo[n.erva]) : '—',
+              coberto: formatarKg(coberto[n.demanda_id] ?? 0),
+              falta: falta(n.demanda_id, n.kg_fresco) < FOLGA_KG ? '—' : formatarKg(falta(n.demanda_id, n.kg_fresco)),
+              situacao: situacao(n.demanda_id, n.kg_fresco, n.prazo),
             }))}
           />
         </Card>

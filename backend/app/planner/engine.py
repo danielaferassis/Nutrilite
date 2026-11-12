@@ -132,7 +132,10 @@ def _alocar(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> None:
     3. Os kg secos saem dos lotes que vencem primeiro e atendem as demandas
        de maior prioridade (e prazo mais próximo) que ainda estão no prazo.
     No fim: demanda não coberta até o prazo → ATRASO; necessidade maior que a
-    oferta do horizonte → SALDO_NAO_ALOCADO.
+    oferta do horizonte → SALDO_NAO_ALOCADO. As duas só valem para demandas com
+    prazo até o `fim`: a que vence depois também recebe kg secos, mas o que
+    falta para ela ainda pode vir de oferta posterior ao horizonte (KPI
+    `a_cobrir_apos_horizonte_kg`, sem pendência).
     """
     _Alocador(entrada, resultado).executar()
 
@@ -352,9 +355,13 @@ class _Alocador:
                 )
                 lote.saldo = 0.0
 
+    def _vence_no_horizonte(self, n: _NecessidadeEmAberto) -> bool:
+        return n.necessidade.prazo <= self.entrada.fim
+
     def _registrar_atrasos(self) -> None:
+        # Prazo depois do fim não é atraso deste plano: o próximo horizonte ainda pode cobrir
         for n in self.necessidades:
-            if n.restante > _EPS:
+            if n.restante > _EPS and self._vence_no_horizonte(n):
                 self.resultado.pendencias.append(
                     Pendencia(
                         tipo=TipoPendencia.ATRASO,
@@ -373,7 +380,8 @@ class _Alocador:
         necessidade: dict[str, float] = defaultdict(float)
         oferta: dict[str, float] = defaultdict(float)
         for n in self.necessidades:
-            necessidade[n.necessidade.erva] += n.necessidade.kg_fresco
+            if self._vence_no_horizonte(n):
+                necessidade[n.necessidade.erva] += n.necessidade.kg_fresco
         for lote in self.lotes:
             oferta[lote.lote.erva] += lote.lote.kg_fresco
 
@@ -438,8 +446,10 @@ def _calcular_kpis(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> d
 
     Ocupação = (horas de secagem + setup) / (24 h × dias disponíveis). Secador
     sem nenhum dia disponível → None ("não aplicável"), nunca 0.
-    Saldo não alocado = necessidade de fresco não coberta até o prazo. Fica
-    separado por erva: kg de ervas diferentes não se somam.
+    Saldo não alocado = necessidade de fresco não coberta até o prazo, das
+    demandas que vencem até o `fim`. A cobrir após o horizonte = o mesmo para
+    as demandas que vencem depois do `fim` (informativo, não é pendência).
+    Os dois ficam separados por erva: kg de ervas diferentes não se somam.
     """
     horas_disponiveis = {
         s.codigo: HORAS_DIA
@@ -458,8 +468,13 @@ def _calcular_kpis(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> d
             atendido[a.demanda_id] += a.kg_fresco
 
     saldo: dict[str, float] = defaultdict(float)
+    a_cobrir_depois: dict[str, float] = defaultdict(float)
     for n in resultado.necessidades:
-        saldo[n.erva] += max(0.0, n.kg_fresco - atendido[n.demanda_id])
+        falta = max(0.0, n.kg_fresco - atendido[n.demanda_id])
+        if n.prazo <= entrada.fim:
+            saldo[n.erva] += falta
+        elif falta > _EPS:
+            a_cobrir_depois[n.erva] += falta
 
     return {
         "horas_ocupadas": {s: round(h, 3) for s, h in horas_ocupadas.items()},
@@ -469,4 +484,5 @@ def _calcular_kpis(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> d
             for s, h in horas_disponiveis.items()
         },
         "saldo_nao_alocado_kg": {e: round(kg, 3) for e, kg in sorted(saldo.items())},
+        "a_cobrir_apos_horizonte_kg": {e: round(kg, 3) for e, kg in sorted(a_cobrir_depois.items())},
     }

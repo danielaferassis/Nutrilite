@@ -98,14 +98,16 @@ def test_demanda_sem_oferta_gera_atraso_e_saldo(cliente, cadastro):
     assert resposta.json()["kpis"]["saldo_nao_alocado_kg"]["ERVA-A"] == pytest.approx(625)
 
 
-def test_demanda_fora_do_horizonte_nao_entra(cliente, cadastro):
-    demanda(cadastro, prazo=date(2026, 12, 20))
-    demanda(cadastro, prazo=date(2026, 11, 20))
+def test_demanda_vencida_nao_entra_e_futura_entra_sem_atraso(cliente, cadastro):
+    demanda(cadastro, prazo=date(2026, 11, 20))  # já passou
+    demanda(cadastro, prazo=date(2026, 12, 20))  # vence depois do fim
 
-    resposta = simular(cliente)
+    corpo = simular(cliente).json()
 
-    assert resposta.json()["necessidades"] == []
-    assert resposta.json()["viavel"] is True
+    assert [n["prazo"] for n in corpo["necessidades"]] == ["2026-12-20"]
+    # Sem oferta no horizonte, mas não é atraso nem saldo deste plano
+    assert corpo["viavel"] is True
+    assert corpo["kpis"]["a_cobrir_apos_horizonte_kg"] == {"ERVA-A": 625}
 
 
 def test_secador_inativo_nao_recebe_erva(cliente, cadastro):
