@@ -1,6 +1,9 @@
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        REQUIREMENTS: requirements-dev.txt  # inclui o pytest
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
@@ -19,7 +22,10 @@ services:
 
   # Processa a fila de importações. Reinicia sozinho quando um .py muda
   worker:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        REQUIREMENTS: requirements-dev.txt
     command: watchfiles --filter python --target-type command "python -m app.worker" app
     environment:
       WATCHFILES_FORCE_POLLING: "true"

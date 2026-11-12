@@ -5,8 +5,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Dev passa REQUIREMENTS=requirements-dev.txt (pytest); produção fica só com o necessário
+ARG REQUIREMENTS=requirements.txt
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install --no-cache-dir -r ${REQUIREMENTS}
 
 COPY . .
 
