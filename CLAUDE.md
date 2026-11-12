@@ -15,6 +15,7 @@ docker compose exec backend pytest tests/planner -v    # só o motor
 docker compose exec backend alembic upgrade head       # aplica migrations
 docker compose exec -u $(id -u):$(id -g) backend alembic revision --autogenerate -m "descricao"
 cd frontend && npm run typecheck                       # checagem de tipos do front
+docker compose exec frontend npm test                  # testes do front (Vitest)
 ```
 
 ## Convenções

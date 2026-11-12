@@ -2,7 +2,8 @@ const isDev = import.meta.env.DEV;
 const logLevel = import.meta.env.VITE_LOG_LEVEL || (isDev ? 'DEBUG' : 'INFO');
 const appName = import.meta.env.VITE_APP_NAME || 'nutrilite-frontend';
 
-const levels: Record<string, number> = { DEBUG: 1, INFO: 2, WARN: 3, ERROR: 4 };
+// SILENT desliga tudo (usado nos testes)
+const levels: Record<string, number> = { DEBUG: 1, INFO: 2, WARN: 3, ERROR: 4, SILENT: 5 };
 const currentLevel = levels[logLevel] || 2;
 
 export const logger = {
