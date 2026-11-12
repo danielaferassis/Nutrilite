@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 
 import { apiFetch, query } from '../api';
+import { camposAlterados } from '../edicao';
 import { useFeedback } from '../feedback';
 import { ROTULO_ESTAGIO, formatarData, formatarKg } from '../formatar';
 import { useApi } from '../hooks';
@@ -19,6 +20,24 @@ const FORM_VAZIO = {
   prioridade: '0',
   observacao: '',
 };
+type FormDemanda = typeof FORM_VAZIO;
+
+const paraApi = (form: FormDemanda) => ({
+  ...form,
+  erva_id: Number(form.erva_id),
+  prioridade: Number(form.prioridade),
+  observacao: form.observacao.trim() || null,
+});
+
+const paraForm = (d: Demanda): FormDemanda => ({
+  erva_id: String(d.erva.id),
+  kg: d.kg,
+  estagio: d.estagio,
+  prazo: d.prazo,
+  reserva_kg: d.reserva_kg,
+  prioridade: String(d.prioridade),
+  observacao: d.observacao ?? '',
+});
 
 export default function GestaoDemandas() {
   const { pode } = useSessao();
@@ -30,36 +49,48 @@ export default function GestaoDemandas() {
 
   const [form, setForm] = useState(FORM_VAZIO);
   const [mostrarForm, setMostrarForm] = useState(false);
+  // Demanda em edição; null = formulário de nova demanda
+  const [editando, setEditando] = useState<Demanda | null>(null);
   const [salvando, setSalvando] = useState(false);
   const feedback = useFeedback();
 
-  const alterar = (campo: keyof typeof FORM_VAZIO) => (e: { target: { value: string } }) =>
+  const alterar = (campo: keyof FormDemanda) => (e: { target: { value: string } }) =>
     setForm({ ...form, [campo]: e.target.value });
+
+  const fecharForm = () => {
+    setForm(FORM_VAZIO);
+    setEditando(null);
+    setMostrarForm(false);
+  };
+
+  const editar = (d: Demanda) => {
+    setForm(paraForm(d));
+    setEditando(d);
+    setMostrarForm(true);
+  };
 
   const salvar = async (e: FormEvent) => {
     e.preventDefault();
     setSalvando(true);
     try {
-      await apiFetch('/demandas', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...form,
-          erva_id: Number(form.erva_id),
-          prioridade: Number(form.prioridade),
-          observacao: form.observacao.trim() || null,
-        }),
-      });
-      logger.info('Demanda cadastrada');
+      if (editando === null) {
+        await apiFetch('/demandas', { method: 'POST', body: JSON.stringify(paraApi(form)) });
+      } else {
+        const corpo = camposAlterados(paraApi(form), paraApi(paraForm(editando)));
+        await apiFetch(`/demandas/${editando.id}`, { method: 'PATCH', body: JSON.stringify(corpo) });
+      }
+      logger.info(editando === null ? 'Demanda cadastrada' : `Demanda ${editando.id} atualizada`);
       const erva = ervas.dados?.find((x) => String(x.id) === form.erva_id)?.nome ?? 'erva';
-      setForm(FORM_VAZIO);
-      setMostrarForm(false);
+      const descricao = `${formatarKg(form.kg)} de ${erva} (${ROTULO_ESTAGIO[form.estagio].toLowerCase()}) até ${formatarData(form.prazo)}.`;
+      const titulo = editando === null ? 'Demanda cadastrada' : `Demanda #${editando.id} atualizada`;
+      fecharForm();
       demandas.recarregar();
-      feedback.sucesso(
-        'Demanda cadastrada',
-        `${formatarKg(form.kg)} de ${erva} (${ROTULO_ESTAGIO[form.estagio].toLowerCase()}) até ${formatarData(form.prazo)}.`
-      );
+      feedback.sucesso(titulo, descricao);
     } catch (err) {
-      feedback.erro('Não foi possível cadastrar a demanda', err);
+      feedback.erro(
+        editando === null ? 'Não foi possível cadastrar a demanda' : 'Não foi possível atualizar a demanda',
+        err
+      );
     } finally {
       setSalvando(false);
     }
@@ -91,7 +122,10 @@ export default function GestaoDemandas() {
     prioridade: d.prioridade,
     criado: d.criado_por.nome,
     acoes: podeGerenciar ? (
-      <Button variant="secondary" onClick={() => excluir(d)}>Excluir</Button>
+      <div className="flex gap-2">
+        <Button variant="secondary" onClick={() => editar(d)}>Editar</Button>
+        <Button variant="secondary" onClick={() => excluir(d)}>Excluir</Button>
+      </div>
     ) : null,
   }));
 
@@ -105,7 +139,7 @@ export default function GestaoDemandas() {
           </p>
         </div>
         {podeGerenciar && (
-          <Button variant="primary" onClick={() => setMostrarForm(!mostrarForm)}>
+          <Button variant="primary" onClick={() => (mostrarForm ? fecharForm() : setMostrarForm(true))}>
             {mostrarForm ? 'Cancelar' : '+ Nova Demanda'}
           </Button>
         )}
@@ -113,13 +147,19 @@ export default function GestaoDemandas() {
 
       {mostrarForm && (
         <Card>
-          <h2 className="text-lg font-semibold mb-4">Nova demanda</h2>
+          <h2 className="text-lg font-semibold mb-4">
+            {editando === null ? 'Nova demanda' : `Editar demanda #${editando.id}`}
+          </h2>
           <form onSubmit={salvar} className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select label="Erva" value={form.erva_id} onChange={alterar('erva_id')} required>
               <option value="">Selecione…</option>
               {(ervas.dados ?? []).map((erva) => (
                 <option key={erva.id} value={erva.id}>{erva.nome}</option>
               ))}
+              {/* A lista só traz ervas ativas; a da demanda em edição pode ter sido desativada */}
+              {editando && !ervas.dados?.some((x) => x.id === editando.erva.id) && (
+                <option value={editando.erva.id}>{editando.erva.nome} (inativa)</option>
+              )}
             </Select>
             <Input label="Quantidade líquida (kg)" type="number" min="0.001" step="0.001"
               value={form.kg} onChange={alterar('kg')} required />
@@ -137,7 +177,9 @@ export default function GestaoDemandas() {
               <Input label="Observação" maxLength={500} value={form.observacao} onChange={alterar('observacao')} />
             </div>
             <div className="md:col-span-3 flex justify-end">
-              <Button type="submit" disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar demanda'}</Button>
+              <Button type="submit" disabled={salvando}>
+                {salvando ? 'Salvando…' : editando === null ? 'Salvar demanda' : 'Salvar alterações'}
+              </Button>
             </div>
           </form>
         </Card>

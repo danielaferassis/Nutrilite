@@ -89,14 +89,19 @@ def test_corrige_recebimento_mas_nao_para_o_futuro(cliente, previsto):
 
 
 def test_previsao_recebida_fica_travada(cliente, previsto):
+    cliente.logar(PCP)
+    assert cliente.get("/api/previsoes/1").json()["recebida"] is False
     recebimento_id = receber(cliente).json()["id"]
 
+    assert cliente.get("/api/previsoes").json()[0]["recebida"] is True
     assert cliente.patch("/api/previsoes/1", json={"kg_fresco": "1"}).status_code == 409
     assert cliente.delete("/api/previsoes/1").status_code == 409
 
     # Desfeito o recebimento, a previsão volta a ser editável
     cliente.delete(f"/api/recebimentos/{recebimento_id}")
-    assert cliente.patch("/api/previsoes/1", json={"kg_fresco": "700"}).status_code == 200
+    resposta = cliente.patch("/api/previsoes/1", json={"kg_fresco": "700"})
+    assert resposta.status_code == 200
+    assert resposta.json()["recebida"] is False
 
 
 # --- Efeito na simulação ---

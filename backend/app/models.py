@@ -523,6 +523,11 @@ class PrevisaoOferta(Base):
         back_populates="previsao", order_by="Recebimento.data_recebimento"
     )
 
+    @property
+    def recebida(self) -> bool:
+        """Já tem recebimento: não pode mais ser alterada nem removida."""
+        return bool(self.recebimentos)
+
 
 # ---------------------------------------------------------------------------
 # Plano de secagem salvo

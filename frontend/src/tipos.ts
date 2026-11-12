@@ -101,6 +101,8 @@ export interface Previsao {
   data_chegada: string;
   kg_fresco: string;
   observacao: string | null;
+  /** Já tem recebimento: não pode mais ser alterada nem removida. */
+  recebida: boolean;
   criado_por: UsuarioResumo;
 }
 

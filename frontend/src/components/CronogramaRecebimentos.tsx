@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 
 import { apiFetch, query } from '../api';
+import { camposAlterados } from '../edicao';
 import { useFeedback } from '../feedback';
 import {
   ROTULO_ORIGEM,
@@ -13,7 +14,7 @@ import {
 import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { useSessao } from '../sessao';
-import { Chegada, Cronograma as CronogramaT, Erva, PlanoResumo, SituacaoChegada } from '../tipos';
+import { Chegada, Cronograma as CronogramaT, Erva, PlanoResumo, Recebimento, SituacaoChegada } from '../tipos';
 import ItemList from './ItemList';
 import { Cronograma } from './ResultadoPlano';
 import { Alerta, Button, Card, Etiqueta, EtiquetaCor, Input, Select } from './ui';
@@ -65,6 +66,8 @@ function LinhaDoTempo({ planos, de, ate }: { planos: PlanoResumo[]; de: string; 
 }
 
 interface FormRecebimento {
+  /** Recebimento em correção; null = registro de chegada nova. */
+  corrigindo: Recebimento | null;
   previsao_id: number | null;
   erva_id: string;
   origem: string;
@@ -86,6 +89,7 @@ export default function CronogramaRecebimentos() {
 
   const abrirForm = (previsao_id: number | null) =>
     setForm({
+      corrigindo: null,
       previsao_id,
       erva_id: '',
       origem: '',
@@ -95,9 +99,46 @@ export default function CronogramaRecebimentos() {
       observacao: '',
     });
 
+  // Só data, kg e observação: vínculo, erva e origem do recebimento não mudam
+  const corrigir = (r: Recebimento) =>
+    setForm({
+      corrigindo: r,
+      previsao_id: r.previsao_id,
+      erva_id: String(r.erva.id),
+      origem: r.origem,
+      data_recebimento: r.data_recebimento,
+      kg_fresco: r.kg_fresco,
+      observacao: r.observacao ?? '',
+    });
+
+  const salvarCorrecao = async (form: FormRecebimento, r: Recebimento) => {
+    const corrigido = {
+      data_recebimento: form.data_recebimento,
+      kg_fresco: form.kg_fresco,
+      observacao: form.observacao.trim() || null,
+    };
+    const original = { data_recebimento: r.data_recebimento, kg_fresco: r.kg_fresco, observacao: r.observacao };
+    try {
+      await apiFetch(`/recebimentos/${r.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(camposAlterados(corrigido, original)),
+      });
+      logger.info(`Recebimento ${r.id} corrigido`);
+      setForm(null);
+      cronograma.recarregar();
+      feedback.sucesso(
+        'Recebimento corrigido',
+        `${formatarKg(form.kg_fresco)} de ${r.erva.nome} recebidos em ${formatarData(form.data_recebimento)}.`
+      );
+    } catch (err) {
+      feedback.erro('Não foi possível corrigir o recebimento', err);
+    }
+  };
+
   const registrar = async (e: FormEvent) => {
     e.preventDefault();
     if (!form) return;
+    if (form.corrigindo) return salvarCorrecao(form, form.corrigindo);
     const naoPrevista = form.previsao_id === null;
     try {
       await apiFetch('/recebimentos', {
@@ -154,9 +195,14 @@ export default function CronogramaRecebimentos() {
           <div key={r.id} className="flex items-center gap-2">
             {formatarData(r.data_recebimento)}: {formatarKg(r.kg_fresco)}
             {podeRegistrar && (
-              <button className="text-xs text-red-600 hover:underline" onClick={() => desfazer(r.id)}>
-                remover
-              </button>
+              <>
+                <button className="text-xs text-[#006F44] hover:underline" onClick={() => corrigir(r)}>
+                  corrigir
+                </button>
+                <button className="text-xs text-red-600 hover:underline" onClick={() => desfazer(r.id)}>
+                  remover
+                </button>
+              </>
             )}
           </div>
         ))
@@ -215,9 +261,13 @@ export default function CronogramaRecebimentos() {
             {form && (
               <form onSubmit={registrar} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end mb-6 p-4 bg-gray-50 rounded">
                 <p className="md:col-span-5 text-sm font-semibold">
-                  {form.previsao_id ? `Chegada da previsão #${form.previsao_id}` : 'Chegada não prevista'}
+                  {form.corrigindo
+                    ? `Corrigir recebimento de ${form.corrigindo.erva.nome} (${ROTULO_ORIGEM[form.corrigindo.origem]})`
+                    : form.previsao_id
+                      ? `Chegada da previsão #${form.previsao_id}`
+                      : 'Chegada não prevista'}
                 </p>
-                {form.previsao_id === null && (
+                {form.previsao_id === null && !form.corrigindo && (
                   <>
                     <Select label="Erva" value={form.erva_id} onChange={alterar('erva_id')} required>
                       <option value="">Selecione…</option>
@@ -238,7 +288,7 @@ export default function CronogramaRecebimentos() {
                 <Input label="Observação" maxLength={500} value={form.observacao} onChange={alterar('observacao')} />
                 <div className="md:col-span-5 flex gap-3 justify-end">
                   <Button type="button" variant="secondary" onClick={() => setForm(null)}>Cancelar</Button>
-                  <Button type="submit">Registrar</Button>
+                  <Button type="submit">{form.corrigindo ? 'Salvar correção' : 'Registrar'}</Button>
                 </div>
               </form>
             )}

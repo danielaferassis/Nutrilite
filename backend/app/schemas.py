@@ -402,6 +402,8 @@ class PrevisaoRead(BaseModel):
     data_chegada: date
     kg_fresco: Decimal
     observacao: str | None
+    # Com recebimento, a previsão fica travada (a tela esconde editar/excluir)
+    recebida: bool
     criado_por: UsuarioResumo
     criado_em: UtcDatetime
     atualizado_em: UtcDatetime

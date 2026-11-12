@@ -11,7 +11,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.acesso import Permissoes, requer_alguma_permissao
 from app.database import get_db
@@ -82,7 +82,9 @@ def list_previsoes(
     db: Session = Depends(get_db),
 ):
     query = select(PrevisaoOferta).options(
-        joinedload(PrevisaoOferta.erva), joinedload(PrevisaoOferta.criado_por)
+        joinedload(PrevisaoOferta.erva),
+        joinedload(PrevisaoOferta.criado_por),
+        selectinload(PrevisaoOferta.recebimentos),  # para `recebida`, sem uma consulta por linha
     )
     if not ve_todas(permissoes):
         query = query.where(PrevisaoOferta.criado_por_id == permissoes.usuario.id)

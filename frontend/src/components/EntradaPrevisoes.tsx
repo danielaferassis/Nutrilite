@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 
 import { apiFetch, query } from '../api';
+import { camposAlterados } from '../edicao';
 import { useFeedback } from '../feedback';
 import { ROTULO_ORIGEM, formatarData, formatarKg } from '../formatar';
 import { useApi } from '../hooks';
@@ -8,9 +9,24 @@ import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { Erva, Origem, Previsao } from '../tipos';
 import ItemList from './ItemList';
-import { Alerta, Button, Card, Input, Select } from './ui';
+import { Alerta, Button, Card, Etiqueta, Input, Select } from './ui';
 
 const FORM_VAZIO = { erva_id: '', origem: '' as Origem | '', kg_fresco: '', data_chegada: '', observacao: '' };
+type FormPrevisao = typeof FORM_VAZIO;
+
+const paraApi = (form: FormPrevisao) => ({
+  ...form,
+  erva_id: Number(form.erva_id),
+  observacao: form.observacao.trim() || null,
+});
+
+const paraForm = (p: Previsao): FormPrevisao => ({
+  erva_id: String(p.erva.id),
+  origem: p.origem,
+  kg_fresco: p.kg_fresco,
+  data_chegada: p.data_chegada,
+  observacao: p.observacao ?? '',
+});
 
 export default function EntradaPrevisoes() {
   const { sessao, pode } = useSessao();
@@ -22,32 +38,46 @@ export default function EntradaPrevisoes() {
   const ervas = useApi<Erva[]>('/ervas');
 
   const [form, setForm] = useState(FORM_VAZIO);
+  // Previsão em edição; null = formulário de nova previsão
+  const [editando, setEditando] = useState<Previsao | null>(null);
   const feedback = useFeedback();
 
-  const alterar = (campo: keyof typeof FORM_VAZIO) => (e: { target: { value: string } }) =>
+  const alterar = (campo: keyof FormPrevisao) => (e: { target: { value: string } }) =>
     setForm({ ...form, [campo]: e.target.value });
+
+  const cancelarEdicao = () => {
+    setForm(FORM_VAZIO);
+    setEditando(null);
+  };
+
+  const editar = (p: Previsao) => {
+    setForm(paraForm(p));
+    setEditando(p);
+  };
 
   const salvar = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      await apiFetch('/previsoes', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...form,
-          erva_id: Number(form.erva_id),
-          observacao: form.observacao.trim() || null,
-        }),
-      });
-      logger.info('Previsão cadastrada');
-      const erva = ervas.dados?.find((x) => String(x.id) === form.erva_id)?.nome ?? 'erva';
-      setForm(FORM_VAZIO);
+      if (editando === null) {
+        await apiFetch('/previsoes', { method: 'POST', body: JSON.stringify(paraApi(form)) });
+      } else {
+        const corpo = camposAlterados(paraApi(form), paraApi(paraForm(editando)));
+        await apiFetch(`/previsoes/${editando.id}`, { method: 'PATCH', body: JSON.stringify(corpo) });
+      }
+      logger.info(editando === null ? 'Previsão cadastrada' : `Previsão ${editando.id} atualizada`);
+      const erva = ervas.dados?.find((x) => String(x.id) === form.erva_id)?.nome ?? editando?.erva.nome ?? 'erva';
+      const titulo = editando === null ? 'Previsão cadastrada' : `Previsão #${editando.id} atualizada`;
+      cancelarEdicao();
       previsoes.recarregar();
       feedback.sucesso(
-        'Previsão cadastrada',
+        titulo,
         `${formatarKg(form.kg_fresco)} de ${erva} com chegada em ${formatarData(form.data_chegada)}. Ela já entra nas próximas simulações.`
       );
     } catch (err) {
-      feedback.erro('Não foi possível cadastrar a previsão', err);
+      feedback.erro(
+        editando === null ? 'Não foi possível cadastrar a previsão' : 'Não foi possível atualizar a previsão',
+        err
+      );
     }
   };
 
@@ -69,8 +99,20 @@ export default function EntradaPrevisoes() {
   };
 
   // A Fonte fornecedora só altera as próprias; o backend confere de novo
-  const podeExcluir = (p: Previsao) =>
+  const podeAlterar = (p: Previsao) =>
     podeGerenciarTodas || (pode('previsao.propria') && p.criado_por.id === sessao?.usuario.id);
+
+  const acoes = (p: Previsao) => {
+    if (!podeAlterar(p)) return null;
+    // Recebida fica travada: o recebimento aponta para ela (corrige-se o recebimento, no Cronograma)
+    if (p.recebida) return <Etiqueta cor="verde">Recebida</Etiqueta>;
+    return (
+      <div className="flex gap-2">
+        <Button variant="secondary" onClick={() => editar(p)}>Editar</Button>
+        <Button variant="secondary" onClick={() => excluir(p)}>Excluir</Button>
+      </div>
+    );
+  };
 
   const linhas = (previsoes.dados ?? []).map((p) => ({
     id: `#${p.id}`,
@@ -79,7 +121,7 @@ export default function EntradaPrevisoes() {
     chegada: formatarData(p.data_chegada),
     qtde: formatarKg(p.kg_fresco),
     fonte: p.criado_por.nome,
-    acoes: podeExcluir(p) ? <Button variant="secondary" onClick={() => excluir(p)}>Excluir</Button> : null,
+    acoes: acoes(p),
   }));
 
   return (
@@ -93,7 +135,9 @@ export default function EntradaPrevisoes() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
-          <h2 className="text-lg font-semibold mb-4">Registo Manual</h2>
+          <h2 className="text-lg font-semibold mb-4">
+            {editando === null ? 'Registo Manual' : `Editar previsão #${editando.id}`}
+          </h2>
           {podeCadastrar ? (
             <form onSubmit={salvar} className="space-y-4">
               <Select label="Matéria Prima" value={form.erva_id} onChange={alterar('erva_id')} required>
@@ -101,6 +145,10 @@ export default function EntradaPrevisoes() {
                 {(ervas.dados ?? []).map((erva) => (
                   <option key={erva.id} value={erva.id}>{erva.nome}</option>
                 ))}
+                {/* A lista só traz ervas ativas; a da previsão em edição pode ter sido desativada */}
+                {editando && !ervas.dados?.some((x) => x.id === editando.erva.id) && (
+                  <option value={editando.erva.id}>{editando.erva.nome} (inativa)</option>
+                )}
               </Select>
               <Select label="Origem" value={form.origem} onChange={alterar('origem')} required>
                 <option value="">Selecione…</option>
@@ -113,7 +161,14 @@ export default function EntradaPrevisoes() {
               <Input label="Data prevista de chegada" type="date" value={form.data_chegada}
                 onChange={alterar('data_chegada')} required />
               <Input label="Observação" maxLength={500} value={form.observacao} onChange={alterar('observacao')} />
-              <Button type="submit" variant="primary" className="w-full">Guardar Previsão</Button>
+              {editando === null ? (
+                <Button type="submit" variant="primary" className="w-full">Guardar Previsão</Button>
+              ) : (
+                <div className="flex gap-3">
+                  <Button type="button" variant="secondary" className="w-full" onClick={cancelarEdicao}>Cancelar</Button>
+                  <Button type="submit" variant="primary" className="w-full">Salvar alterações</Button>
+                </div>
+              )}
             </form>
           ) : (
             <p className="text-sm text-gray-500">Seu perfil só consulta as previsões.</p>
