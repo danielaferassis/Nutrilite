@@ -25,6 +25,7 @@ const CRONOGRAMA = {
   ate: '2026-12-07',
   hoje: '2026-12-05',
   planos: [],
+  vigencia: [],
   alocacoes: [],
   chegadas: [
     {
@@ -93,5 +94,32 @@ describe('CronogramaRecebimentos', () => {
       expect(linhas[0]).toBe('Previsão;Erva;Origem;Prevista para;Previsto (kg);Recebido em;Recebido (kg);Desvio (kg);Situação');
       expect(linhas[1]).toBe('1;Erva A;Procompete;01/12/2026;800;02/12/2026;500;-300;Recebida');
     });
+  });
+
+  it('mostra na linha do tempo os dias em que cada aprovado vale', async () => {
+    const plano = (id: number, versao: number, inicio: string, fim: string) => ({
+      id, versao, status: 'aprovado', inicio, fim, viavel: true, observacao: null,
+      criado_por: { id: 1, nome: 'Usuária Teste' }, criado_em: '2026-11-20T10:00:00Z',
+      aprovado_por: { id: 1, nome: 'Usuária Teste' }, aprovado_em: '2026-11-20T11:00:00Z',
+    });
+    renderizarTela(
+      <CronogramaRecebimentos />,
+      rotas({
+        'GET /cronograma': {
+          ...CRONOGRAMA,
+          planos: [plano(10, 1, '2026-12-01', '2026-12-05'), plano(11, 2, '2026-12-04', '2026-12-07')],
+          // v2 assumiu os dias 4 e 5: v1 continua valendo só de 1 a 3
+          vigencia: [
+            { plano_id: 10, versao: 1, inicio: '2026-12-01', fim: '2026-12-03' },
+            { plano_id: 11, versao: 2, inicio: '2026-12-04', fim: '2026-12-07' },
+          ],
+        },
+      }),
+      ['plano.consultar']
+    );
+
+    expect(await screen.findByText('Aprovado (em parte)')).toBeInTheDocument();
+    expect(screen.getByTestId('vigente-v1')).toHaveTextContent('01/12/2026 a 03/12/2026');
+    expect(screen.getByTestId('vigente-v2')).toHaveTextContent('04/12/2026 a 07/12/2026');
   });
 });

@@ -1,8 +1,9 @@
 """Cronograma: o que os planos aprovados mandam secar e o que de fato chegou.
 
 Junta, para um período:
-- a linha do tempo dos planos aprovados e substituídos;
-- as alocações dos planos aprovados (vigentes);
+- a linha do tempo dos planos aprovados e substituídos, e os trechos em que cada
+  aprovado vale (em cada dia, o aprovado mais recente que cobre o dia);
+- as alocações do plano que vale em cada dia;
 - as chegadas previstas com a situação de cada uma e o desvio do recebido.
 """
 
@@ -23,7 +24,9 @@ from app.schemas import (
     AlocacaoCronograma,
     ChegadaCronograma,
     CronogramaRead,
+    TrechoVigente,
 )
+from app.vigencia import trechos_vigentes, vigente_por_dia
 
 log = logging.getLogger(__name__)
 
@@ -102,6 +105,8 @@ def get_cronograma(de: date, ate: date, db: Session = Depends(get_db)):
         .order_by(Plano.aprovado_em, Plano.id)
     ).all()
     versoes = {p.id: p.versao for p in planos}
+    # Em cada dia, só valem as alocações do aprovado mais recente que cobre o dia
+    vigentes = vigente_por_dia(planos, de, ate)
 
     alocacoes = db.scalars(
         select(PlanoAlocacao)
@@ -153,7 +158,15 @@ def get_cronograma(de: date, ate: date, db: Session = Depends(get_db)):
         ate=ate,
         hoje=hoje,
         planos=planos,
-        alocacoes=[_alocacao(a, versoes[a.plano_id]) for a in alocacoes],
+        vigencia=[
+            TrechoVigente(plano_id=t.plano.id, versao=t.plano.versao, inicio=t.inicio, fim=t.fim)
+            for t in trechos_vigentes(planos, de, ate)
+        ],
+        alocacoes=[
+            _alocacao(a, versoes[a.plano_id])
+            for a in alocacoes
+            if vigentes.get(a.dia) is not None and vigentes[a.dia].id == a.plano_id
+        ],
         chegadas=[_chegada_prevista(p, hoje) for p in previsoes]
         + [_chegada_nao_prevista(r) for r in nao_previstas],
     )

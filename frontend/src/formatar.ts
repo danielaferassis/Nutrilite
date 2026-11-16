@@ -59,6 +59,21 @@ export const ROTULO_SITUACAO: Record<SituacaoChegada, string> = {
   nao_prevista: 'Não prevista',
 };
 
-/** Planos aprovados que um novo aprovado vai substituir (horizontes que se cruzam). */
+/** Planos aprovados que um novo aprovado vai substituir, ao menos em parte (horizontes que se cruzam). */
 export const sobrepostos = <T extends { inicio: string; fim: string }>(novo: T, aprovados: T[]) =>
   aprovados.filter((p) => p !== novo && p.inicio <= novo.fim && p.fim >= novo.inicio);
+
+/**
+ * Dias de `anterior` que o `novo` tira de vigor: o novo só vale nos dias que cobre.
+ * `null` = o anterior inteiro fica dentro do novo (substituição completa).
+ */
+export const diasSubstituidos = (
+  novo: { inicio: string; fim: string },
+  anterior: { inicio: string; fim: string }
+): { de: string; ate: string } | null => {
+  if (novo.inicio <= anterior.inicio && novo.fim >= anterior.fim) return null;
+  return {
+    de: novo.inicio > anterior.inicio ? novo.inicio : anterior.inicio,
+    ate: novo.fim < anterior.fim ? novo.fim : anterior.fim,
+  };
+};

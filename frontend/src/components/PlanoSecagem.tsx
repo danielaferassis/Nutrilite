@@ -2,7 +2,15 @@ import { FormEvent, useState } from 'react';
 
 import { apiFetch } from '../api';
 import { useFeedback } from '../feedback';
-import { DIAS_SEMANA, ROTULO_STATUS, formatarData, formatarDataHora, hojeIso, sobrepostos } from '../formatar';
+import {
+  DIAS_SEMANA,
+  ROTULO_STATUS,
+  diasSubstituidos,
+  formatarData,
+  formatarDataHora,
+  hojeIso,
+  sobrepostos,
+} from '../formatar';
 import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { useSessao } from '../sessao';
@@ -90,14 +98,18 @@ export default function PlanoSecagem() {
     const substituidos = sobrepostos(p, aprovados);
     const impacto = substituidos.map((x) => {
       const fase = x.fim < hoje ? 'já executado' : x.inicio <= hoje ? 'EM ANDAMENTO' : 'futuro';
-      return `• v${x.versao} (${formatarData(x.inicio)} a ${formatarData(x.fim)}), ${fase}`;
+      const dias = diasSubstituidos(p, x);
+      const alcance = dias
+        ? `só de ${formatarData(dias.de)} a ${formatarData(dias.ate)}; os outros dias continuam valendo`
+        : 'por inteiro';
+      return `• v${x.versao} (${formatarData(x.inicio)} a ${formatarData(x.fim)}), ${fase}: ${alcance}`;
     });
     const ok = await feedback.confirmar({
       titulo: `Aprovar o plano v${p.versao}?`,
       mensagem:
         `Horizonte: ${formatarData(p.inicio)} a ${formatarData(p.fim)}.\n\n` +
         (impacto.length
-          ? `Ele vai substituir por inteiro:\n${impacto.join('\n')}`
+          ? `Nos dias que ele cobre, substitui:\n${impacto.join('\n')}`
           : 'Nenhum plano aprovado é afetado.'),
       rotuloConfirmar: 'Aprovar',
     });
@@ -108,7 +120,9 @@ export default function PlanoSecagem() {
       feedback.sucesso(
         'Plano aprovado',
         `O plano v${p.versao} está em vigor e já aparece no Cronograma.` +
-          (substituidos.length ? ` Substituído(s): ${substituidos.map((x) => `v${x.versao}`).join(', ')}.` : '')
+          (substituidos.length
+            ? ` Nos dias que ele cobre, substitui: ${substituidos.map((x) => `v${x.versao}`).join(', ')}.`
+            : '')
       );
     });
   };

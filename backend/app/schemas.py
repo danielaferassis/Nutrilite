@@ -713,12 +713,23 @@ class ChegadaCronograma(BaseModel):
     situacao: str
 
 
+class TrechoVigente(BaseModel):
+    """Dias seguidos (inclusivos) em que um plano aprovado vale."""
+
+    plano_id: int
+    versao: int
+    inicio: date
+    fim: date
+
+
 class CronogramaRead(BaseModel):
     de: date
     ate: date
     hoje: date
     # Aprovados e substituídos que tocam o período (linha do tempo)
     planos: list[PlanoResumo]
-    # Só dos planos aprovados (vigentes)
+    # Em cada dia vale o aprovado mais recente que o cobre; trechos dentro do período
+    vigencia: list[TrechoVigente]
+    # Só do plano que vale em cada dia
     alocacoes: list[AlocacaoCronograma]
     chegadas: list[ChegadaCronograma]

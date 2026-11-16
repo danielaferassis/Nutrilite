@@ -15,7 +15,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, joinedload
 
 from app.acesso import Permissoes, agora_utc, requer_alguma_permissao, requer_permissao
@@ -24,6 +24,7 @@ from app.models import Plano, PlanoAlocacao, PlanoPendencia, StatusPlano, Usuari
 from app.planner.types import ResultadoPlano, TipoPendencia
 from app.schemas import PlanoCreate, PlanoRead, PlanoResumo
 from app.simulacao import executar, para_json
+from app.vigencia import vigente_por_dia
 
 log = logging.getLogger(__name__)
 
@@ -145,6 +146,9 @@ def list_planos(
         query = query.where(Plano.status == status)
     if dia is not None:
         query = query.where(Plano.inicio <= dia, Plano.fim >= dia)
+        # O primeiro aprovado da lista é o que vale no dia: o aprovado mais recente
+        # (rascunhos, sem aprovado_em, ficam no fim tanto no MySQL quanto no SQLite)
+        query = query.order_by(Plano.aprovado_em.desc())
     planos = db.scalars(query.order_by(Plano.criado_em.desc(), Plano.id.desc())).all()
     log.debug("Listando %s planos", len(planos))
     return planos
@@ -165,10 +169,41 @@ def aprovar_plano(
     usuario: Usuario = Depends(pode_aprovar),
     db: Session = Depends(get_db),
 ):
-    # Trava a linha: duas aprovações simultâneas do mesmo plano não passam juntas
-    plano = db.scalar(select(Plano).where(Plano.id == plano_id).with_for_update())
+    try:
+        plano = _aprovar(plano_id, usuario, db)
+        db.commit()
+    except OperationalError as erro:
+        # Deadlock ou espera longa pela trava (MySQL): nada foi gravado
+        db.rollback()
+        log.warning("Aprovação do plano %s não concluída: %s", plano_id, erro.orig)
+        raise HTTPException(
+            status_code=409, detail="Outro plano foi aprovado ao mesmo tempo. Tente de novo."
+        )
+    db.refresh(plano)
+    log.info("Plano %s aprovado por %s", plano.id, usuario.id)
+    return plano
+
+
+def _travar(db: Session, *condicoes) -> list[Plano]:
+    """SELECT ... FOR UPDATE em ordem de id. A leitura com trava enxerga o que outra
+    transação acabou de gravar (uma leitura comum no MySQL veria a fotografia antiga)."""
+    return db.scalars(
+        select(Plano)
+        .where(*condicoes)
+        .order_by(Plano.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).all()
+
+
+def _aprovar(plano_id: int, usuario: Usuario, db: Session) -> Plano:
+    plano = db.get(Plano, plano_id)
     if plano is None:
         raise HTTPException(status_code=404, detail="Plano não encontrado")
+
+    # Trava o plano e todos os que se sobrepõem a ele (qualquer status). Duas aprovações
+    # de planos sobrepostos esperam uma pela outra, e a segunda enxerga a primeira.
+    sobrepostos = _travar(db, Plano.inicio <= plano.fim, Plano.fim >= plano.inicio)
     if plano.status != StatusPlano.RASCUNHO:
         raise HTTPException(status_code=409, detail=f"Plano já está {plano.status.value}")
     if any(p.tipo == TipoPendencia.PARAM_AUSENTE.value for p in plano.pendencias):
@@ -180,24 +215,27 @@ def aprovar_plano(
             ),
         )
 
-    # O aprovado mais recente vale para o horizonte: os anteriores sobrepostos saem de vigor
-    anteriores = db.scalars(
-        select(Plano).where(
-            Plano.status == StatusPlano.APROVADO,
-            Plano.inicio <= plano.fim,
-            Plano.fim >= plano.inicio,
+    # Em cada dia vale o aprovado mais recente (app/vigencia.py). Um anterior sobreposto
+    # só sai de vigor quando não sobra nenhum dia em que ele valha.
+    anteriores = [p for p in sobrepostos if p.status == StatusPlano.APROVADO]
+    if anteriores:
+        de = min(p.inicio for p in anteriores)
+        ate = max(p.fim for p in anteriores)
+        # Outros aprovados que disputam dias dos anteriores fora deste horizonte
+        concorrentes = _travar(
+            db, Plano.status == StatusPlano.APROVADO, Plano.inicio <= ate, Plano.fim >= de
         )
-    ).all()
-    for anterior in anteriores:
-        anterior.status = StatusPlano.SUBSTITUIDO
-        log.info("Plano %s substituído pelo plano %s", anterior.id, plano.id)
+        ainda_valem = {p.id for p in vigente_por_dia(concorrentes, de, ate, mais_recente=plano).values()}
+        for anterior in anteriores:
+            if anterior.id in ainda_valem:
+                log.info("Plano %s substituído em parte pelo plano %s", anterior.id, plano.id)
+            else:
+                anterior.status = StatusPlano.SUBSTITUIDO
+                log.info("Plano %s substituído pelo plano %s", anterior.id, plano.id)
 
     plano.status = StatusPlano.APROVADO
     plano.aprovado_por_id = usuario.id
     plano.aprovado_em = agora_utc()
-    db.commit()
-    db.refresh(plano)
-    log.info("Plano %s aprovado por %s", plano.id, usuario.id)
     return plano
 
 

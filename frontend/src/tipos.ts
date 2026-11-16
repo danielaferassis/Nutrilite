@@ -218,11 +218,21 @@ export interface Chegada {
   situacao: SituacaoChegada;
 }
 
+/** Dias seguidos (inclusivos) em que um plano aprovado vale. */
+export interface TrechoVigente {
+  plano_id: number;
+  versao: number;
+  inicio: string;
+  fim: string;
+}
+
 export interface Cronograma {
   de: string;
   ate: string;
   hoje: string;
   planos: PlanoResumo[];
+  /** Em cada dia vale o aprovado mais recente que o cobre. */
+  vigencia: TrechoVigente[];
   alocacoes: (Alocacao & { plano_id: number; versao: number })[];
   chegadas: Chegada[];
 }

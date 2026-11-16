@@ -161,15 +161,16 @@ Só a regra; os valores da tabela oficial **não** entram no repositório (são 
 - **Rastreabilidade:** `parametros` guarda a `EntradaPlanejamento` inteira em JSON (cadastro, demandas, lotes, dias de operação). Junto ficam `criado_por`, `aprovado_por` e `aprovado_em`.
 - **Fotografia:** alocações e pendências guardam códigos e ids como texto, sem FK. Alterar o cadastro depois não muda um plano salvo.
 - **Versão:** conta os planos do mesmo horizonte (`inicio`, `fim`): v1, v2, v3…
-- **Status:** `rascunho` → `aprovado` (`POST /api/planos/{id}/aprovar`). Ao aprovar, os aprovados anteriores com horizonte sobreposto viram `substituido`. Só rascunho pode ser removido.
+- **Status:** `rascunho` → `aprovado` (`POST /api/planos/{id}/aprovar`) → `substituido`. Só rascunho pode ser removido.
+- **Vigência dia a dia** (`app/vigencia.py`): em cada dia vale o aprovado **mais recente** que cobre aquele dia. Um plano novo só tira de vigor os dias que ele cobre; nos outros dias o anterior continua valendo (ex.: aprovado de 01 a 14 e novo de 08 a 21 → o antigo vale de 01 a 07). O anterior só vira `substituido` quando não sobra nenhum dia em que ele valha, mesmo que isso aconteça pela soma de vários planos novos.
+- **Concorrência:** a aprovação trava (`SELECT … FOR UPDATE`) o plano e todos os que se sobrepõem a ele. Duas aprovações sobrepostas ao mesmo tempo acontecem uma depois da outra; deadlock ou espera longa responde 409 ("tente de novo") sem gravar nada.
 - Plano com `PARAM_AUSENTE` não pode ser aprovado. Com `ATRASO` ou `SALDO_NAO_ALOCADO` pode: o PCP aprova ciente, e as pendências ficam gravadas.
 - `plano.consultar` (Produção) só vê aprovados e substituídos.
-
-Premissa a validar com o PCP: o aprovado mais recente substitui **inteiro** qualquer aprovado que se sobreponha, mesmo que só em parte do horizonte.
+- `GET /api/planos?dia=` lista primeiro o aprovado mais recente: é o que vale no dia (o Dashboard usa).
 
 ## Cronograma (`GET /api/cronograma?de=&ate=`)
 
-Para o período: linha do tempo dos planos aprovados e substituídos, alocações só dos aprovados e as chegadas com situação (`recebida`, `aguardando`, `atrasada` = passou a data sem chegar, `nao_prevista`) e desvio (recebido − previsto). Na tela, aprovar um plano mostra antes quais aprovados ele vai substituir e se estão em andamento.
+Para o período: linha do tempo dos planos aprovados e substituídos, `vigencia` (trechos de dias seguidos em que cada aprovado vale), as alocações do plano que vale em cada dia e as chegadas com situação (`recebida`, `aguardando`, `atrasada` = passou a data sem chegar, `nao_prevista`) e desvio (recebido − previsto). Na tela, aprovar um plano mostra antes quais aprovados ele substitui, se por inteiro ou só em parte dos dias, e se estão em andamento; a linha do tempo destaca os trechos vigentes.
 
 ## Testes
 

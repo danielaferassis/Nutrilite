@@ -15,7 +15,15 @@ import {
 import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { useSessao } from '../sessao';
-import { Chegada, Cronograma as CronogramaT, Erva, PlanoResumo, Recebimento, SituacaoChegada } from '../tipos';
+import {
+  Chegada,
+  Cronograma as CronogramaT,
+  Erva,
+  PlanoResumo,
+  Recebimento,
+  SituacaoChegada,
+  TrechoVigente,
+} from '../tipos';
 import ItemList from './ItemList';
 import { Cronograma } from './ResultadoPlano';
 import { Alerta, Button, Card, Etiqueta, EtiquetaCor, Input, Select } from './ui';
@@ -32,33 +40,80 @@ const diasEntre = (de: string, ate: string) =>
   (Date.UTC(+ate.slice(0, 4), +ate.slice(5, 7) - 1, +ate.slice(8, 10)) -
     Date.UTC(+de.slice(0, 4), +de.slice(5, 7) - 1, +de.slice(8, 10))) / 86_400_000;
 
-/** Barras dos planos aprovados e substituídos dentro do período. */
-function LinhaDoTempo({ planos, de, ate }: { planos: PlanoResumo[]; de: string; ate: string }) {
+/**
+ * Barras dos planos aprovados e substituídos dentro do período. Num aprovado, os
+ * trechos em que ele vale ficam cheios; os dias que um aprovado mais novo assumiu
+ * ficam só contornados.
+ */
+function LinhaDoTempo({
+  planos,
+  vigencia,
+  de,
+  ate,
+}: {
+  planos: PlanoResumo[];
+  vigencia: TrechoVigente[];
+  de: string;
+  ate: string;
+}) {
   const total = diasEntre(de, ate) + 1;
+  // Um intervalo recortado ao período
+  const recorte = (inicio: string, fim: string) => ({ i: inicio < de ? de : inicio, f: fim > ate ? ate : fim });
+  // Posição e largura (%) de um intervalo na barra
+  const posicao = (inicio: string, fim: string) => {
+    const { i, f } = recorte(inicio, fim);
+    return { left: `${(diasEntre(de, i) / total) * 100}%`, width: `${((diasEntre(i, f) + 1) / total) * 100}%` };
+  };
+  const dias = (inicio: string, fim: string) => {
+    const { i, f } = recorte(inicio, fim);
+    return diasEntre(i, f) + 1;
+  };
   if (planos.length === 0) return <p className="text-sm text-gray-500">Nenhum plano aprovado no período.</p>;
   return (
     <div className="space-y-2">
       {planos.map((p) => {
-        const inicio = p.inicio < de ? de : p.inicio;
-        const fim = p.fim > ate ? ate : p.fim;
-        const esquerda = (diasEntre(de, inicio) / total) * 100;
-        const largura = ((diasEntre(inicio, fim) + 1) / total) * 100;
         const aprovado = p.status === 'aprovado';
+        const trechos = vigencia.filter((t) => t.plano_id === p.id);
+        // Aprovado que um mais novo já assumiu em parte dos dias (dentro do período)
+        const diasVigentes = trechos.reduce((soma, t) => soma + dias(t.inicio, t.fim), 0);
+        const emParte = aprovado && diasVigentes < dias(p.inicio, p.fim);
+        const rotulo = `${formatarData(p.inicio)} a ${formatarData(p.fim)}`;
         return (
           <div key={p.id} className="flex items-center gap-3 text-xs">
             <span className="w-10 font-semibold">v{p.versao}</span>
             <div className="relative flex-1 h-6 bg-gray-100 rounded">
-              <div
-                className={`absolute h-6 rounded px-2 flex items-center whitespace-nowrap overflow-hidden ${
-                  aprovado ? 'bg-[#006F44] text-white' : 'bg-amber-200 text-amber-900 line-through'
-                }`}
-                style={{ left: `${esquerda}%`, width: `${largura}%` }}
-                title={`${ROTULO_STATUS[p.status]}: ${formatarData(p.inicio)} a ${formatarData(p.fim)}`}
-              >
-                {formatarData(p.inicio)} a {formatarData(p.fim)}
-              </div>
+              {aprovado ? (
+                <>
+                  <div
+                    className="absolute h-6 rounded border border-[#006F44] px-2 flex items-center whitespace-nowrap overflow-hidden text-[#006F44]"
+                    style={posicao(p.inicio, p.fim)}
+                    title={`${ROTULO_STATUS[p.status]}: ${rotulo}`}
+                  >
+                    {rotulo}
+                  </div>
+                  {trechos.map((t) => (
+                    <div
+                      key={t.inicio}
+                      data-testid={`vigente-v${p.versao}`}
+                      className="absolute h-6 rounded bg-[#006F44] text-white px-2 flex items-center whitespace-nowrap overflow-hidden"
+                      style={posicao(t.inicio, t.fim)}
+                      title={`Vale de ${formatarData(t.inicio)} a ${formatarData(t.fim)}`}
+                    >
+                      {formatarData(t.inicio)} a {formatarData(t.fim)}
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div
+                  className="absolute h-6 rounded px-2 flex items-center whitespace-nowrap overflow-hidden bg-amber-200 text-amber-900 line-through"
+                  style={posicao(p.inicio, p.fim)}
+                  title={`${ROTULO_STATUS[p.status]}: ${rotulo}`}
+                >
+                  {rotulo}
+                </div>
+              )}
             </div>
-            <span className="w-24">{ROTULO_STATUS[p.status]}</span>
+            <span className="w-28">{emParte ? 'Aprovado (em parte)' : ROTULO_STATUS[p.status]}</span>
           </div>
         );
       })}
@@ -277,7 +332,7 @@ export default function CronogramaRecebimentos() {
         <>
           <Card>
             <h2 className="font-semibold mb-3">Planos no período</h2>
-            <LinhaDoTempo planos={dados.planos} de={dados.de} ate={dados.ate} />
+            <LinhaDoTempo planos={dados.planos} vigencia={dados.vigencia} de={dados.de} ate={dados.ate} />
           </Card>
 
           <Card>
