@@ -52,6 +52,14 @@ class ContextoImportacao:
         self.erros: list[ErroLinha] = []
         self.total_erros = 0
         self._linhas_com_erro: set[int] = set()
+        self.linhas_ignoradas = 0
+
+    def ignorar_linha(self) -> None:
+        """Conta uma linha válida que não será gravada de propósito (ex.: duplicada).
+
+        Não é erro: a importação segue e termina como concluída.
+        """
+        self.linhas_ignoradas += 1
 
     def erro_linha(self, linha: int | None, mensagem: str, coluna: str | None = None) -> None:
         """Registra um problema e segue lendo, para o usuário ver todos de uma vez.

@@ -68,10 +68,11 @@ def carregar(db: Session, usuario: Usuario, hoje: date | None = None) -> None:
         # Espera ausente de propósito: a matriz mostra "não informado"
         "AGRIAO": erva("AGRIAO", "Agrião", 24, None),
     }
+    # codigo_infinity fictício: é o texto que o export de demonstração usa na coluna Processo
     secadores = {
-        "SCB01": Secador(codigo="SCB01", nome="Secador elétrico"),
-        "SCB02": Secador(codigo="SCB02", nome="Secador a vapor"),
-        "SCB03": Secador(codigo="SCB03", nome="Secador a GLP"),
+        "SCB01": Secador(codigo="SCB01", nome="Secador elétrico", codigo_infinity="SEC-01-Secador Exemplo"),
+        "SCB02": Secador(codigo="SCB02", nome="Secador a vapor", codigo_infinity="SEC-02-Secador Exemplo"),
+        "SCB03": Secador(codigo="SCB03", nome="Secador a GLP", codigo_infinity="SEC-03-Secador Exemplo"),
     }
     db.add_all([*ervas.values(), *secadores.values()])
     db.flush()

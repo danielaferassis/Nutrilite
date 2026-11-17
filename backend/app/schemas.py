@@ -194,6 +194,8 @@ class ImportacaoRead(BaseModel):
     tentativas: int
     linhas_total: int | None
     linhas_com_erro: int | None
+    # Válidas mas não gravadas (ex.: duplicadas no arquivo ou já importadas)
+    linhas_ignoradas: int | None
     mensagem_erro: str | None
     # False depois que a retenção apaga o arquivo (aí não dá mais para reprocessar)
     arquivo_disponivel: bool
@@ -282,10 +284,21 @@ class ErvaRead(ErvaCreate):
     atualizado_em: UtcDatetime
 
 
+def _texto_ou_nulo(value: str | None) -> str | None:
+    """Tira os espaços das pontas; texto vazio vira None (não informado)."""
+    if value is None:
+        return None
+    return value.strip() or None
+
+
 class SecadorCreate(BaseModel):
     codigo: str = Field(min_length=1, max_length=50)
     nome: str = Field(min_length=1, max_length=150)
+    # Texto da coluna "Processo" do Infinity para este secador (importação dos apontamentos)
+    codigo_infinity: str | None = Field(default=None, max_length=150)
     ativo: bool = True
+
+    _limpa_codigo_infinity = field_validator("codigo_infinity")(_texto_ou_nulo)
 
     @field_validator("codigo")
     @classmethod
@@ -303,9 +316,12 @@ class SecadorUpdate(BaseModel):
 
     codigo: str | None = Field(default=None, min_length=1, max_length=50)
     nome: str | None = Field(default=None, min_length=1, max_length=150)
+    # null limpa o vínculo com o Infinity
+    codigo_infinity: str | None = Field(default=None, max_length=150)
     ativo: bool | None = None
 
     _valida_nao_nulos = field_validator("codigo", "nome", "ativo")(_nao_nulo)
+    _limpa_codigo_infinity = field_validator("codigo_infinity")(_texto_ou_nulo)
 
     @field_validator("codigo")
     @classmethod

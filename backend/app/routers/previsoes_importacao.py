@@ -24,9 +24,10 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.acesso import requer_permissao
 from app.database import get_db
-from app.importacao.programacao_ervas import AbaLida, ErroPlanilha, ler_aba, listar_abas, normalizar
+from app.importacao.programacao_ervas import AbaLida, ErroPlanilha, ler_aba, listar_abas
 from app.models import Erva, Origem, PrevisaoOferta, Usuario
 from app.schemas import ImportacaoErroRead, ImportacaoPrevisoesRead, LinhaImportacaoPrevisao
+from app.texto import normalizar
 
 log = logging.getLogger(__name__)
 

@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.acesso import get_usuario_atual, requer_permissao
 from app.database import get_db
+from app.texto import normalizar
 from app.models import Capacidade, Erva, Rendimento, Secador, Usuario
 from app.schemas import (
     CapacidadeCreate,
@@ -64,6 +65,18 @@ def _ensure_codigo_livre(modelo, codigo: str, registro_id: int | None, nome: str
     existente = db.scalar(select(modelo).where(modelo.codigo == codigo))
     if existente is not None and existente.id != registro_id:
         raise HTTPException(status_code=409, detail=f"Já existe {nome} com o código {codigo}")
+
+
+def _ensure_codigo_infinity_livre(codigo: str | None, secador_id: int | None, db: Session) -> None:
+    # A importação compara sem acento e sem caixa: dois secadores não podem colidir assim
+    if codigo is None:
+        return
+    for outro in db.scalars(select(Secador).where(Secador.codigo_infinity.is_not(None))):
+        if outro.id != secador_id and normalizar(outro.codigo_infinity) == normalizar(codigo):
+            raise HTTPException(
+                status_code=409,
+                detail=f"O código do Infinity {codigo!r} já está no secador {outro.codigo}",
+            )
 
 
 def _aplicar(registro, campos: dict) -> None:
@@ -129,6 +142,7 @@ def create_secador(
     data: SecadorCreate, usuario: Usuario = Depends(pode_gerenciar), db: Session = Depends(get_db)
 ):
     _ensure_codigo_livre(Secador, data.codigo, None, "secador", db)
+    _ensure_codigo_infinity_livre(data.codigo_infinity, None, db)
     secador = Secador(**data.model_dump())
     db.add(secador)
     db.commit()
@@ -148,6 +162,8 @@ def update_secador(
     campos = data.model_dump(exclude_unset=True)
     if "codigo" in campos:
         _ensure_codigo_livre(Secador, campos["codigo"], secador.id, "secador", db)
+    if "codigo_infinity" in campos:
+        _ensure_codigo_infinity_livre(campos["codigo_infinity"], secador.id, db)
     _aplicar(secador, campos)
     db.commit()
     db.refresh(secador)

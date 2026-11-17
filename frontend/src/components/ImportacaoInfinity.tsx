@@ -1,213 +1,194 @@
-import { ChangeEvent, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { Button, Card } from './ui';
+import { ErroApi, apiFetch, query } from '../api';
+import { useFeedback } from '../feedback';
+import { formatarDataHora } from '../formatar';
+import { useApi } from '../hooks';
+import { logger } from '../logger';
+import { useSessao } from '../sessao';
+import { ErroImportacao, Importacao, StatusImportacao } from '../tipos';
+import ItemList from './ItemList';
+import { Alerta, Button, Card, Etiqueta, EtiquetaCor } from './ui';
 
-const COLUNAS_PADRAO = [
-  'Processo',
-  'Turno',
-  'Data',
-  'Hora',
-  'Funcionário',
-  'Produto',
-  'Produto (Lote)',
-  'Batch-SB',
-  'Quantidade',
-  'Temperatura',
-  'Hora Inicial',
-  'Hora Final',
-  'Duração',
-  'Observações',
-];
+const TIPO = 'infinity_csv';
+// Enquanto alguma importação estiver na fila, a lista se atualiza sozinha
+const INTERVALO_ATUALIZACAO_MS = 2000;
 
-// Dados fictícios (CLAUDE.md: nada de nomes, lotes ou números reais da empresa no repositório)
-const PREVIEW_DE_EXEMPLO = [
-  ['SEC-03-Secador Exemplo', 'Turno A', '01/12/2026', '10:00:00', 'Operador A', 'Erva A', 'LOTE-0001', '1', '50', '60', '07:00', '09:30', '150', 'Sem ocorrências'],
-  ['SEC-03-Secador Exemplo', 'Turno A', '01/12/2026', '13:00:00', 'Operador A', 'Erva A', 'LOTE-0001', '2', '50', '60', '10:00', '12:30', '150', 'Sem ocorrências'],
-  ['SEC-03-Secador Exemplo', 'Turno B', '01/12/2026', '16:00:00', 'Operador B', 'Erva A', 'LOTE-0001', '3', '45', '58', '13:00', '15:40', '160', 'Carga menor'],
-];
+const ROTULO_STATUS: Record<StatusImportacao, string> = {
+  pendente: 'Na fila',
+  processando: 'Processando',
+  concluido: 'Concluída',
+  erro: 'Com erro',
+  cancelado: 'Cancelada',
+};
+const COR_STATUS: Record<StatusImportacao, EtiquetaCor> = {
+  pendente: 'cinza',
+  processando: 'azul',
+  concluido: 'verde',
+  erro: 'vermelho',
+  cancelado: 'amarelo',
+};
 
-const parseCsvPreview = (texto: string) => {
-  const linhas = texto
-    .split(/\r?\n/)
-    .map((linha) => linha.trim())
-    .filter(Boolean)
-    .slice(0, 6);
-
-  if (linhas.length === 0) {
-    return [] as string[][];
+const resultado = (i: Importacao) => {
+  if (i.status === 'concluido') {
+    const ignoradas = i.linhas_ignoradas ?? 0;
+    const gravadas = (i.linhas_total ?? 0) - ignoradas;
+    return `${gravadas} apontamento(s) gravado(s)` + (ignoradas ? `, ${ignoradas} duplicado(s) ignorado(s)` : '');
   }
-
-  const separador = linhas[0].includes(';') ? ';' : ',';
-  return linhas.map((linha) => linha.split(separador).map((coluna) => coluna.trim()));
+  return i.mensagem_erro ?? '—';
 };
 
 export default function ImportacaoInfinity() {
+  const { pode } = useSessao();
+  const podeImportar = pode('relatorio.importacao');
+  const feedback = useFeedback();
+
+  const importacoes = useApi<Importacao[]>(podeImportar ? `/importacoes${query({ tipo: TIPO, limite: 20 })}` : null);
   const [arquivo, setArquivo] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string[][]>([]);
+  const [enviando, setEnviando] = useState(false);
+  // Erros da importação aberta (id → lista)
+  const [erros, setErros] = useState<{ id: number; lista: ErroImportacao[] } | null>(null);
 
-  const resumo = useMemo(
-    () => ({
-      linhas: 142,
-      duplicadas: 3,
-      validas: 139,
-      oee: 76.5,
-      disponibilidade: 91.1,
-      performance: 88.4,
-      qualidade: 95.0,
-    }),
-    []
-  );
+  const emAndamento = (importacoes.dados ?? []).some((i) => i.status === 'pendente' || i.status === 'processando');
+  useEffect(() => {
+    if (!emAndamento) return;
+    const timer = setInterval(importacoes.recarregar, INTERVALO_ATUALIZACAO_MS);
+    return () => clearInterval(timer);
+  }, [emAndamento, importacoes.recarregar]);
 
-  const handleArquivo = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setArquivo(file);
-
-    if (file.name.toLowerCase().endsWith('.csv')) {
-      const texto = await file.text();
-      setPreview(parseCsvPreview(texto));
-      return;
+  const enviar = async (forcar = false) => {
+    if (!arquivo) return;
+    const dados = new FormData();
+    dados.append('arquivo', arquivo);
+    dados.append('tipo', TIPO);
+    if (forcar) dados.append('forcar', 'true');
+    setEnviando(true);
+    try {
+      const nova = await apiFetch<Importacao>('/importacoes', { method: 'POST', body: dados });
+      logger.info(`Importação ${nova.id} do Infinity enviada`);
+      setArquivo(null);
+      importacoes.recarregar();
+      feedback.sucesso('Arquivo enviado', `A importação #${nova.id} entrou na fila. O resultado aparece na lista abaixo.`);
+    } catch (err) {
+      // Mesmo arquivo de antes: pergunta se é para enviar de novo (as linhas repetidas são ignoradas)
+      if (err instanceof ErroApi && err.status === 409 && !forcar) {
+        const ok = await feedback.confirmar({
+          titulo: 'Arquivo já enviado',
+          mensagem: `${err.message}\n\nEnviar de novo? Os apontamentos que já existem são ignorados, nada é duplicado.`,
+          rotuloConfirmar: 'Enviar de novo',
+        });
+        if (ok) await enviar(true);
+      } else {
+        feedback.erro('Não foi possível enviar o arquivo', err);
+      }
+    } finally {
+      setEnviando(false);
     }
-
-    setPreview(PREVIEW_DE_EXEMPLO);
   };
 
-  const cabecalho = preview[0] || COLUNAS_PADRAO;
-  const linhasPreview = preview.slice(1, 4);
+  const verErros = async (i: Importacao) => {
+    try {
+      setErros({ id: i.id, lista: await apiFetch<ErroImportacao[]>(`/importacoes/${i.id}/erros`) });
+    } catch (err) {
+      feedback.erro('Não foi possível carregar os erros', err);
+    }
+  };
+
+  const acao = async (i: Importacao, caminho: 'reprocessar' | 'cancelar') => {
+    try {
+      await apiFetch(`/importacoes/${i.id}/${caminho}`, { method: 'POST' });
+      importacoes.recarregar();
+    } catch (err) {
+      feedback.erro(caminho === 'reprocessar' ? 'Não foi possível reprocessar' : 'Não foi possível cancelar', err);
+    }
+  };
+
+  if (!podeImportar) {
+    return <Alerta>Seu perfil não tem acesso à importação do Infinity.</Alerta>;
+  }
+
+  const linhas = (importacoes.dados ?? []).map((i) => ({
+    id: `#${i.id}`,
+    arquivo: i.nome_arquivo,
+    enviado: `${formatarDataHora(i.criado_em)}${i.usuario ? ` · ${i.usuario.nome}` : ''}`,
+    status: <Etiqueta cor={COR_STATUS[i.status]}>{ROTULO_STATUS[i.status]}</Etiqueta>,
+    resultado: resultado(i),
+    acoes: (
+      <div className="flex gap-2">
+        {i.status === 'erro' && <Button variant="secondary" onClick={() => verErros(i)}>Ver erros</Button>}
+        {(i.status === 'erro' || i.status === 'cancelado') && i.arquivo_disponivel && (
+          <Button variant="secondary" onClick={() => acao(i, 'reprocessar')}>Reprocessar</Button>
+        )}
+        {i.status === 'pendente' && <Button variant="secondary" onClick={() => acao(i, 'cancelar')}>Cancelar</Button>}
+      </div>
+    ),
+  }));
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#211E16]">Importação do Infinity</h1>
+        <h1 className="text-2xl font-bold text-[#211E16]">Importação Infinity</h1>
         <p className="text-sm text-gray-500">
-          Validar planilha operacional, remover duplicidades e identificar OEE e pendências.
+          Apontamentos de secagem exportados do Infinity: cada linha é uma carga de um secador. Eles alimentam os
+          indicadores de OEE e a aderência ao plano.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <p className="text-sm font-semibold text-[#211E16] mb-1">Linhas da planilha</p>
-          <p className="text-2xl font-bold text-[#006F44]">{resumo.linhas}</p>
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-[#211E16] mb-1">Duplicadas</p>
-          <p className="text-2xl font-bold text-[#211E16]">{resumo.duplicadas}</p>
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-[#211E16] mb-1">Linhas válidas</p>
-          <p className="text-2xl font-bold text-[#211E16]">{resumo.validas}</p>
-        </Card>
-        <Card className="border-[#84BD00]/40 bg-[#F7FAF3]">
-          <p className="text-sm font-semibold text-[#211E16] mb-1">OEE estimado</p>
-          <p className="text-2xl font-bold text-[#006F44]">{resumo.oee.toFixed(1)}%</p>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <h2 className="text-lg font-semibold text-[#211E16] mb-4">Arquivo de origem</h2>
-
-          <div className="space-y-4">
-            <label htmlFor="infinity-upload" className="inline-block cursor-pointer">
-              <Button variant="primary" type="button">Selecionar arquivo</Button>
-            </label>
-            <input
-              id="infinity-upload"
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              className="hidden"
-              onChange={handleArquivo}
-            />
-
-            <div className="rounded-md border border-dashed border-[#C7C8CA] bg-[#F9FAFB] p-4 text-sm text-gray-600">
-              {arquivo ? (
-                <div>
-                  <p className="font-medium text-[#211E16]">{arquivo.name}</p>
-                  <p>{(arquivo.size / 1024 / 1024).toFixed(2)} MB</p>
-                </div>
-              ) : (
-                <p>Nenhum arquivo carregado. Use a planilha do Infinity exportada em Excel ou CSV.</p>
-              )}
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <h2 className="text-lg font-semibold text-[#211E16] mb-4">Indicadores de OEE</h2>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Disponibilidade</span>
-              <strong className="text-[#211E16]">{resumo.disponibilidade.toFixed(1)}%</strong>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Performance</span>
-              <strong className="text-[#211E16]">{resumo.performance.toFixed(1)}%</strong>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Qualidade</span>
-              <strong className="text-[#211E16]">{resumo.qualidade.toFixed(1)}%</strong>
-            </div>
-            <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              Observação: os campos de tempo planejado, ativo e ciclo precisam estar presentes para o cálculo final do OEE. Se faltarem, o sistema mantém o valor como <strong>não aplicável</strong>.
-            </div>
-          </div>
-        </Card>
-      </div>
-
       <Card>
-        <h2 className="text-lg font-semibold text-[#211E16] mb-4">Colunas detectadas</h2>
-        <div className="flex flex-wrap gap-2">
-          {(cabecalho || COLUNAS_PADRAO).map((coluna) => (
-            <span
-              key={coluna}
-              className="rounded-full bg-[#F3F4F6] border border-[#C7C8CA] px-3 py-1 text-xs font-medium text-[#211E16]"
-            >
-              {coluna}
-            </span>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
+          <label className="block text-sm">
+            <span className="font-medium text-[#211E16]">Export do Infinity (.csv ou .xlsx)</span>
+            <input
+              type="file"
+              accept=".csv,.xlsx"
+              aria-label="Export do Infinity"
+              className="mt-1 block w-full text-sm"
+              onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <Button variant="primary" onClick={() => enviar()} disabled={!arquivo || enviando}>
+            {enviando ? 'Enviando…' : 'Enviar'}
+          </Button>
         </div>
+        <p className="text-xs text-gray-500 mt-3">
+          Cada secador precisa ter o <strong>código no Infinity</strong> (texto da coluna Processo) informado no
+          cadastro, em Matriz de Capacidade. Linhas repetidas, no arquivo ou já importadas, são ignoradas. Com
+          qualquer erro de linha, nada do arquivo é gravado.
+        </p>
       </Card>
 
       <Card>
-        <h2 className="text-lg font-semibold text-[#211E16] mb-4">Pré-visualização da planilha</h2>
+        <h2 className="font-semibold mb-3">Importações</h2>
+        {importacoes.erro && <Alerta>{importacoes.erro}</Alerta>}
+        <ItemList
+          colunas={['ID', 'Arquivo', 'Enviado', 'Situação', 'Resultado', '']}
+          dados={linhas}
+          vazio={importacoes.carregando ? 'Carregando…' : 'Nenhum arquivo do Infinity enviado ainda.'}
+        />
+        {erros && (
+          <div className="mt-4">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="font-medium">Erros da importação #{erros.id}</h3>
+              <Button variant="secondary" onClick={() => setErros(null)}>Fechar</Button>
+            </div>
+            <ul className="text-sm list-disc pl-5 max-h-64 overflow-auto">
+              {erros.lista.map((e, k) => (
+                <li key={k}>
+                  {e.linha !== null && <>Linha {e.linha}{e.coluna ? ` (${e.coluna})` : ''}: </>}
+                  {e.mensagem}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Card>
 
-        <div className="overflow-x-auto rounded-md border border-[#C7C8CA]">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-[#F9FAFB] text-[#211E16]">
-              <tr>
-                {(cabecalho || COLUNAS_PADRAO).map((coluna) => (
-                  <th key={coluna} className="border-b border-[#C7C8CA] px-3 py-2 font-semibold whitespace-nowrap">
-                    {coluna}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {linhasPreview.length > 0 ? (
-                linhasPreview.map((linha, index) => (
-                  <tr key={`${linha.join('-')}-${index}`} className="even:bg-[#F9FAFB]">
-                    {linha.map((valor, idx) => (
-                      <td key={`${valor}-${idx}`} className="border-b border-[#E5E7EB] px-3 py-2 align-top text-gray-700">
-                        {valor}
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : (
-                PREVIEW_DE_EXEMPLO.map((linha, index) => (
-                  <tr key={`${linha.join('-')}-${index}`} className="even:bg-[#F9FAFB]">
-                    {linha.map((valor, idx) => (
-                      <td key={`${valor}-${idx}`} className="border-b border-[#E5E7EB] px-3 py-2 align-top text-gray-700">
-                        {valor}
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      <Card className="bg-gray-50 border-dashed">
+        <h2 className="font-semibold mb-1">Indicadores de OEE e aderência ao plano</h2>
+        <p className="text-sm text-gray-500">
+          Em construção: disponibilidade, performance e aderência ao plano aprovado, calculados com os apontamentos
+          importados. A qualidade aparece como "não informada", porque o Infinity não traz refugo.
+        </p>
       </Card>
     </div>
   );

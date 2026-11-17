@@ -62,7 +62,36 @@ export interface Secador {
   id: number;
   codigo: string;
   nome: string;
+  /** Texto da coluna "Processo" do Infinity para este secador; null = sem vínculo. */
+  codigo_infinity: string | null;
   ativo: boolean;
+}
+
+export type StatusImportacao = 'pendente' | 'processando' | 'concluido' | 'erro' | 'cancelado';
+
+/** Arquivo enviado para importação (processado em segundo plano pelo worker). */
+export interface Importacao {
+  id: number;
+  tipo: string;
+  nome_arquivo: string;
+  tamanho_bytes: number;
+  status: StatusImportacao;
+  tentativas: number;
+  linhas_total: number | null;
+  linhas_com_erro: number | null;
+  /** Válidas mas não gravadas (ex.: duplicadas). */
+  linhas_ignoradas: number | null;
+  mensagem_erro: string | null;
+  arquivo_disponivel: boolean;
+  usuario: UsuarioResumo | null;
+  criado_em: string;
+  finalizado_em: string | null;
+}
+
+export interface ErroImportacao {
+  linha: number | null;
+  coluna: string | null;
+  mensagem: string;
 }
 
 export interface Capacidade {

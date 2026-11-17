@@ -183,6 +183,18 @@ A fazenda mantém a planilha "Programação Produção Ervas" (.xlsx): uma aba p
 
 Para o período: linha do tempo dos planos aprovados e substituídos, `vigencia` (trechos de dias seguidos em que cada aprovado vale), as alocações do plano que vale em cada dia e as chegadas com situação (`recebida`, `aguardando`, `atrasada` = passou a data sem chegar, `nao_prevista`) e desvio (recebido − previsto). Na tela, aprovar um plano mostra antes quais aprovados ele substitui, se por inteiro ou só em parte dos dias, e se estão em andamento; a linha do tempo destaca os trechos vigentes.
 
+## Apontamentos do Infinity (`/api/importacoes`, tipo `infinity_csv`)
+
+O export do Infinity (CSV ou .xlsx) traz uma linha por **carga** de secador: Processo, Turno, Data, Produto, Produto (Lote), Batch-SB, Quantidade, Temperatura, Hora Inicial, Hora Final, Duração, Observações. A importação passa pela fila do worker (tudo ou nada) e grava em `apontamento_secagem`, base dos indicadores de OEE e da aderência ao plano.
+
+- **Colunas:** os nomes aceitos estão em `COLUNAS`, em `app/importacao/parsers/infinity.py`. Se o export mudar, o ajuste é só ali.
+- **Processo → secador:** pelo campo `codigo_infinity` do cadastro do secador (Matriz de Capacidade → editar secador). Sem vínculo, a linha dá erro: nada é deduzido pelo nome.
+- **Produto → erva:** pelo nome ou código cadastrado.
+- **Horário:** início e fim = Data + Hora Inicial/Final; fim antes do início = carga que passou da meia-noite. Sem Duração, ela é calculada pelo horário.
+- **Duplicidade:** o mesmo secador começando uma carga no mesmo horário, repetida no arquivo ou já importada. A linha é **ignorada** (não é erro) e contada em `importacao.linhas_ignoradas`.
+- **Dado pessoal:** "Funcionário" não é lido nem gravado (não entra nos indicadores).
+- **A confirmar com a fazenda:** unidade da Quantidade (assumido: kg de erva fresca da carga) e se existe registro de refugo (sem ele, a qualidade do OEE fica "não informada").
+
 ## Testes
 
 ```bash

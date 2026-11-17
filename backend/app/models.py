@@ -186,6 +186,8 @@ class Importacao(Base):
     tentativas: Mapped[int] = mapped_column(TINYINT(unsigned=True), server_default=text("0"))
     linhas_total: Mapped[int | None] = mapped_column(INTEGER(unsigned=True))
     linhas_com_erro: Mapped[int | None] = mapped_column(INTEGER(unsigned=True))
+    # Linhas válidas que não foram gravadas de propósito (ex.: duplicadas)
+    linhas_ignoradas: Mapped[int | None] = mapped_column(INTEGER(unsigned=True))
     mensagem_erro: Mapped[str | None] = mapped_column(Text)
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     # Gravados pela aplicação em UTC
@@ -285,6 +287,7 @@ class Secador(Base):
     __tablename__ = "secador"
     __table_args__ = (
         UniqueConstraint("codigo", name="uk_secador_codigo"),
+        UniqueConstraint("codigo_infinity", name="uk_secador_codigo_infinity"),
         CheckConstraint("LENGTH(TRIM(codigo)) > 0", name="ck_secador_codigo"),
         CheckConstraint("LENGTH(TRIM(nome)) > 0", name="ck_secador_nome"),
     )
@@ -292,6 +295,9 @@ class Secador(Base):
     id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
     codigo: Mapped[str] = mapped_column(String(50))
     nome: Mapped[str] = mapped_column(String(150))
+    # Como o secador aparece na coluna "Processo" do Infinity (ex.: "SB-03-Secador
+    # Bandejas"). NULL = os apontamentos dele não são importados (erro na linha).
+    codigo_infinity: Mapped[str | None] = mapped_column(String(150))
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     atualizado_em: Mapped[datetime] = mapped_column(
@@ -722,3 +728,53 @@ class Recebimento(Base):
     previsao: Mapped["PrevisaoOferta | None"] = relationship(back_populates="recebimentos")
     erva: Mapped["Erva"] = relationship()
     registrado_por: Mapped["Usuario"] = relationship()
+
+
+class ApontamentoSecagem(Base):
+    """Uma carga apontada no Infinity: o que o secador de fato secou.
+
+    Vem da importação do export do Infinity e é a base dos indicadores (OEE e
+    aderência ao plano). O nome do operador não é guardado: não entra no
+    cálculo e é dado pessoal.
+    """
+
+    __tablename__ = "apontamento_secagem"
+    __table_args__ = (
+        # Um secador não começa duas cargas no mesmo minuto: chave das duplicidades
+        UniqueConstraint("secador_id", "inicio", name="uk_apontamento_secador_inicio"),
+        Index("idx_apontamento_data", "data"),
+        Index("idx_apontamento_importacao", "importacao_id"),
+        CheckConstraint("duracao_min >= 0", name="ck_apontamento_duracao"),
+        CheckConstraint("quantidade_kg >= 0", name="ck_apontamento_quantidade"),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True)
+    # Apagar a importação apaga o que ela trouxe
+    importacao_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("importacao.id", name="fk_apontamento_importacao", ondelete="CASCADE"),
+    )
+    secador_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("secador.id", name="fk_apontamento_secador", ondelete="RESTRICT"),
+    )
+    erva_id: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True),
+        ForeignKey("erva.id", name="fk_apontamento_erva", ondelete="RESTRICT"),
+    )
+    data: Mapped[date] = mapped_column(Date)  # coluna Data do Infinity
+    inicio: Mapped[datetime] = mapped_column(DateTime)  # Data + Hora Inicial (horário da fazenda)
+    fim: Mapped[datetime] = mapped_column(DateTime)  # pode passar da meia-noite
+    duracao_min: Mapped[Decimal] = mapped_column(Numeric(8, 2))
+    # Unidade a confirmar com a fazenda (assumido: kg de erva fresca da carga)
+    quantidade_kg: Mapped[Decimal] = mapped_column(KG)
+    temperatura: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    turno: Mapped[str | None] = mapped_column(String(30))
+    lote: Mapped[str | None] = mapped_column(String(50))
+    batch: Mapped[str | None] = mapped_column(String(50))
+    observacao: Mapped[str | None] = mapped_column(String(500))
+    linha: Mapped[int] = mapped_column(INTEGER(unsigned=True))  # linha no arquivo, para rastrear
+    criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    secador: Mapped["Secador"] = relationship()
+    erva: Mapped["Erva"] = relationship()

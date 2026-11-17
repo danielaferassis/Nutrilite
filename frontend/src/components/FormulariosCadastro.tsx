@@ -158,9 +158,20 @@ export function FormularioErva({
 
 // --- Secador ---
 
-const formSecador = (s: Secador | null) => ({ codigo: s?.codigo ?? '', nome: s?.nome ?? '', ativo: String(s?.ativo ?? true) });
+const formSecador = (s: Secador | null) => ({
+  codigo: s?.codigo ?? '',
+  nome: s?.nome ?? '',
+  codigo_infinity: s?.codigo_infinity ?? '',
+  ativo: String(s?.ativo ?? true),
+});
 type FormSecador = ReturnType<typeof formSecador>;
-const secadorParaApi = (f: FormSecador) => ({ codigo: f.codigo, nome: f.nome, ativo: f.ativo === 'true' });
+const secadorParaApi = (f: FormSecador) => ({
+  codigo: f.codigo,
+  nome: f.nome,
+  // Vazio = sem vínculo com o Infinity
+  codigo_infinity: f.codigo_infinity.trim() || null,
+  ativo: f.ativo === 'true',
+});
 
 export function FormularioSecador({ secador, aoSalvar, aoCancelar }: PropsFormulario & { secador: Secador | null }) {
   const original = formSecador(secador);
@@ -200,6 +211,18 @@ export function FormularioSecador({ secador, aoSalvar, aoCancelar }: PropsFormul
           <option value="true">Ativo</option>
           <option value="false">Inativo (fora do planejamento)</option>
         </Select>
+        <div className="md:col-span-3">
+          <Input
+            label="Código no Infinity"
+            maxLength={150}
+            placeholder="Como aparece na coluna Processo, ex.: SB-03-Secador Bandejas"
+            value={form.codigo_infinity}
+            onChange={alterar('codigo_infinity')}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Liga os apontamentos importados do Infinity a este secador. Vazio: os apontamentos dele não são importados.
+          </p>
+        </div>
         <Botoes salvando={salvando} aoCancelar={aoCancelar} />
       </form>
     </Moldura>

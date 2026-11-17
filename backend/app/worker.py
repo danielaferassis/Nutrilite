@@ -128,9 +128,13 @@ def processar(importacao_id: int) -> None:
             importacao.status = StatusImportacao.CONCLUIDO
             importacao.linhas_total = linhas
             importacao.linhas_com_erro = 0
+            importacao.linhas_ignoradas = ctx.linhas_ignoradas
             importacao.finalizado_em = agora_utc()
             db.commit()  # dados importados e status no mesmo commit
-            log.info("Importação %s concluída: %s linhas", importacao_id, linhas)
+            log.info(
+                "Importação %s concluída: %s linhas, %s ignoradas",
+                importacao_id, linhas, ctx.linhas_ignoradas,
+            )
             return
 
         try:

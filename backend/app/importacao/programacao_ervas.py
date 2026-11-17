@@ -17,7 +17,6 @@ Só lê; quem decide o que criar, alterar ou remover é a sincronização.
 """
 
 import re
-import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -25,6 +24,8 @@ from io import BytesIO
 
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
+
+from app.texto import normalizar
 
 # Até onde procurar o cabeçalho ("Mês") no topo da aba
 LINHAS_CABECALHO = 30
@@ -59,12 +60,6 @@ class AbaLida:
     ate: date | None
     previsoes: list[PrevisaoLida] = field(default_factory=list)
     erros: list[ErroCelula] = field(default_factory=list)
-
-
-def normalizar(texto: object) -> str:
-    """Sem acento, minúsculo e sem espaços nas pontas: 'Mês ' → 'mes'."""
-    sem_acento = unicodedata.normalize("NFKD", str(texto)).encode("ascii", "ignore").decode()
-    return sem_acento.strip().lower()
 
 
 def abrir(conteudo: bytes):
