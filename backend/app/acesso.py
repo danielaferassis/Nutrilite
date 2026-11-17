@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import get_db
-from app.models import Sessao, Usuario
+from app.models import Grupo, Sessao, Usuario
 from app.security import gerar_token, hash_token
 
 log = logging.getLogger(__name__)
@@ -280,3 +280,53 @@ class LimiteTentativas:
     def limpar(self, chave: str) -> None:
         with self._lock:
             self._falhas.pop(chave, None)
+
+
+# --- Proteções da gestão de acesso ---
+
+# Quem tem as duas consegue recuperar qualquer acesso pela tela. Sem nenhum
+# usuário ativo com elas, só a CLI no servidor resolve.
+PERMISSOES_DE_ADMINISTRADOR = frozenset({"usuario.gerenciar", "grupo.gerenciar"})
+
+
+def codigos_dos_grupos(grupos: list[Grupo]) -> set[str]:
+    """Funcionalidades ativas que os grupos ativos dão (mesmo filtro da view)."""
+    return {f.codigo for g in grupos if g.ativo for f in g.funcionalidades if f.ativo}
+
+
+def ensure_sem_escalada(atual: Usuario, codigos_concedidos: set[str], db: Session) -> None:
+    """Ninguém concede uma permissão que não tem (403).
+
+    Vale ao vincular grupos a um usuário (inclusive a si mesmo) e ao dar
+    funcionalidades a um grupo: sem isso, quem só gerencia usuários se põe
+    no grupo Administrador.
+    """
+    faltando = codigos_concedidos - set(listar_permissoes(atual.id, db))
+    if faltando:
+        log.warning("Usuário %s tentou conceder %s sem ter", atual.id, sorted(faltando))
+        raise HTTPException(
+            status_code=403,
+            detail="Você não pode conceder permissões que não tem: " + ", ".join(sorted(faltando)),
+        )
+
+
+def ensure_administrador_restante(db: Session) -> None:
+    """Depois de alterar usuários ou grupos (antes do commit), exige que reste
+    ao menos um usuário ativo com gestão de usuários e de grupos (409)."""
+    db.flush()
+    usuarios = db.scalars(
+        select(Usuario)
+        .where(Usuario.ativo.is_(True))
+        .options(joinedload(Usuario.grupos).joinedload(Grupo.funcionalidades))
+    ).unique()
+    if any(PERMISSOES_DE_ADMINISTRADOR <= codigos_dos_grupos(u.grupos) for u in usuarios):
+        return
+    db.rollback()
+    log.warning("Alteração recusada: o sistema ficaria sem administrador")
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            "Esta alteração deixaria o sistema sem nenhum administrador (usuário ativo com "
+            "gestão de usuários e de grupos). Dê essas permissões a outro usuário antes."
+        ),
+    )

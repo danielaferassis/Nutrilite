@@ -14,7 +14,6 @@ from app.routers import (
     health,
     importacoes,
     indicadores,
-    items,
     planos,
     previsoes,
     previsoes_importacao,
@@ -33,7 +32,6 @@ registrar_handlers(app)
 
 app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
-app.include_router(items.router, prefix="/api")
 app.include_router(usuarios.router, prefix="/api")
 app.include_router(grupos.router, prefix="/api")
 app.include_router(funcionalidades.router, prefix="/api")

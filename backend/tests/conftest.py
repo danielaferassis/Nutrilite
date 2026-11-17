@@ -73,7 +73,8 @@ def db():
         conexao.execute(text(
             "CREATE TABLE usuario (id INTEGER PRIMARY KEY, nome TEXT, email TEXT,"
             " senha_hash TEXT, ativo BOOLEAN, ultimo_login DATETIME,"
-            " criado_em DATETIME, atualizado_em DATETIME)"
+            " criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,"
+            " atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP)"
         ))
         conexao.execute(text(
             "CREATE TABLE vw_permissao_usuario (usuario_id INTEGER, funcionalidade_codigo TEXT)"

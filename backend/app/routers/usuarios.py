@@ -2,9 +2,17 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.acesso import encerrar_sessoes, get_sessao_atual, requer_permissao
+from app.acesso import (
+    codigos_dos_grupos,
+    encerrar_sessoes,
+    ensure_administrador_restante,
+    ensure_sem_escalada,
+    get_sessao_atual,
+    requer_permissao,
+)
 from app.database import get_db
 from app.models import Grupo, Sessao, Usuario
 from app.schemas import UsuarioCreate, UsuarioRead, UsuarioUpdate
@@ -49,14 +57,20 @@ def list_usuarios(db: Session = Depends(get_db)):
     return usuarios
 
 
-@router.post("", response_model=UsuarioRead, status_code=201, dependencies=[Depends(pode_gerenciar)])
-def create_usuario(data: UsuarioCreate, db: Session = Depends(get_db)):
+@router.post("", response_model=UsuarioRead, status_code=201)
+def create_usuario(
+    data: UsuarioCreate,
+    atual: Usuario = Depends(pode_gerenciar),
+    db: Session = Depends(get_db),
+):
     ensure_email_disponivel(data.email, db)
+    grupos = load_grupos(data.grupo_ids, db)
+    ensure_sem_escalada(atual, codigos_dos_grupos(grupos), db)
     usuario = Usuario(
         **data.model_dump(exclude={"senha", "grupo_ids"}),
         senha_hash=hash_senha(data.senha),
     )
-    usuario.grupos = load_grupos(data.grupo_ids, db)
+    usuario.grupos = grupos
     db.add(usuario)
     db.commit()
     db.refresh(usuario)
@@ -88,7 +102,12 @@ def update_usuario(
     if data.senha is not None:
         usuario.senha_hash = hash_senha(data.senha)
     if data.grupo_ids is not None:
-        usuario.grupos = load_grupos(data.grupo_ids, db)
+        grupos = load_grupos(data.grupo_ids, db)
+        # Só os grupos novos contam: manter um grupo que o usuário já tinha não concede nada
+        novos = [g for g in grupos if g not in usuario.grupos]
+        ensure_sem_escalada(atual, codigos_dos_grupos(novos), db)
+        usuario.grupos = grupos
+    ensure_administrador_restante(db)
     if data.senha is not None or data.ativo is False:
         # Quem estava logado com a senha antiga (ou foi desativado) cai na hora;
         # se for o próprio usuário trocando a senha, a sessão atual é mantida
@@ -107,5 +126,15 @@ def delete_usuario(
     if usuario.id == atual.id:
         raise HTTPException(status_code=400, detail="Você não pode excluir o próprio usuário")
     db.delete(usuario)
-    db.commit()
+    try:
+        ensure_administrador_restante(db)  # o flush aqui já esbarra nas FKs
+        db.commit()
+    except IntegrityError:
+        # Demandas, previsões, planos etc. guardam quem os criou (rastreabilidade)
+        db.rollback()
+        log.warning("Usuário %s tem registros vinculados e não foi excluído", usuario_id)
+        raise HTTPException(
+            status_code=409,
+            detail="Usuário tem registros no sistema e não pode ser excluído. Desative-o.",
+        ) from None
     log.info("Usuário %s removido", usuario_id)

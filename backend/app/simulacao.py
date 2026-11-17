@@ -48,7 +48,7 @@ from app.models import (
     Secador,
 )
 from app.planner import simular
-from app.planner.types import EntradaPlanejamento, ResultadoPlano
+from app.planner.types import EntradaPlanejamento, ResultadoPlano, TipoPendencia
 
 log = logging.getLogger(__name__)
 
@@ -137,12 +137,30 @@ def executar(
 ) -> tuple[EntradaPlanejamento, ResultadoPlano, list[str]]:
     """Monta a entrada, roda o motor e devolve também os avisos da simulação.
 
-    Avisos são limitações que não viram pendência do motor. Hoje não há
-    nenhuma; a lista fica para as próximas (ex.: calendário ainda no pedido).
+    Avisos são limitações que não viram pendência do motor (ex.: plano parcial
+    porque alguma erva ficou de fora por parâmetro ausente).
     """
     entrada = montar_entrada(db, inicio, fim, dias_operacao)
     resultado = simular(entrada)
-    return entrada, resultado, []
+    return entrada, resultado, avisos_do_resultado(resultado)
+
+
+def avisos_do_resultado(resultado: ResultadoPlano) -> list[str]:
+    ausentes = sorted(
+        {p.erva for p in resultado.pendencias if p.tipo == TipoPendencia.PARAM_AUSENTE and p.erva}
+    )
+    if not ausentes or not (resultado.alocacoes or resultado.necessidades):
+        return []
+    if len(ausentes) == 1:
+        quem = f"{ausentes[0]} ficou fora da simulação"
+        com = "Com essa erva"
+    else:
+        quem = f"{', '.join(ausentes[:-1])} e {ausentes[-1]} ficaram fora da simulação"
+        com = "Com essas ervas"
+    return [
+        f"Plano parcial: {quem} por cadastro incompleto. {com}, os secadores teriam menos "
+        "horas livres para as demais. Complete o cadastro e simule de novo para poder aprovar."
+    ]
 
 
 def para_json(valor):

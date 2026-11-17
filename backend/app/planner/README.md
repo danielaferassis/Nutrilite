@@ -61,6 +61,8 @@ Os dois modos exigem `setup_inicial_h`, `setup_final_h`, `setup_diario_h` e `set
 - Setup fora do turno (`False`): `max(0, min(regime, 24 − setup))`.
 - `None` é sempre ausência; `0` e `False` são valores informados.
 - Parâmetro ausente → `ParametroAusenteError` (e `PARAM_AUSENTE` na validação), nunca zero.
+- Só a erva incompleta sai da simulação: seus lotes e demandas não entram na alocação e as demais ervas seguem. Pendência sem erva (horizonte, dias de operação) interrompe tudo. O plano parcial não pode ser aprovado.
+- Rendimento só é exigido de erva com demanda em desidratado ou moído; erva só com oferta ou com demanda em fresco não passa pelo cálculo reverso.
 
 Exemplo (camomila fictícia: 12 h, setups 3/9/1): campanha de 1 dia = 0 h; de 3 dias = 8 + 11 + 2 h; por carga (4 h, 350 kg) num dia intermediário = 2 cargas / 700 kg; setup fora do turno em campanha de 1 dia = 11 h.
 
@@ -70,7 +72,7 @@ Guloso, dia a dia, do `inicio` ao `fim` do horizonte:
 
 1. Lote com saldo após o vencimento (`data_chegada + espera_maxima_dias`) → `CAPACIDADE_EXCEDIDA`. Lote que vence no último dia do horizonte e sobra também é perda.
 2. Enquanto houver secador disponível e erva com saldo disponível no dia:
-   - escolhe primeiro a erva **mais urgente**: menos secadores já usados por ela no dia → vencimento mais próximo → maior prioridade de demanda → maior saldo;
+   - escolhe primeiro a erva **mais urgente**: lote que **vence hoje** (senão vira perda) → menos secadores já usados por ela no dia → vencimento mais próximo → maior prioridade de demanda → maior saldo. A erva que vence hoje pode ocupar todos os secadores capazes; entre as demais, cada uma pega um secador antes de alguma reforçar. Em 2.000 cenários aleatórios, pôr "vence hoje" na frente reduziu a perda total em 2,5% (menor em 148, maior em 29); ordenar só pelo vencimento reduzia 2,8%, mas piorava mais cenários (40) e o atraso em 21.
    - ela vai para o secador livre com **menor `prioridade` cadastrada** na capacidade erva × secador. Sem prioridade (ou em empate), vai para o de **maior capacidade líquida no dia**: os kg que ele consegue secar, já descontados os setups, sem limitar ao saldo do lote. Continuar a campanha sai mais barato que trocar de erva.
    - **Troca de erva no mesmo dia** (PCP, 21/10): se a erva **encerra a campanha** no secador (secou todo o saldo e fez a limpeza) e sobram horas, o secador continua livre no dia, com as horas restantes, e outra erva pode entrar pagando o próprio setup inicial. Campanha que fica aberta (a erva tem lote chegando depois) segura o secador até o dia seguinte.
 3. Os kg secos saem dos lotes que vencem primeiro e vão para as demandas ainda no prazo, por maior prioridade e prazo mais próximo. O que sobra fica na alocação sem demanda (`demanda_id=None`).
@@ -149,7 +151,7 @@ Só a regra; os valores da tabela oficial **não** entram no repositório (são 
 - Demandas: as com prazo a partir do `inicio`, inclusive as que vencem depois do `fim` (veja a regra 4 da alocação). Lotes: chegada até o `fim` e a partir de `inicio − maior espera cadastrada` (o motor descarta os vencidos).
 - Demanda ou lote de erva inativa não some: vira `PARAM_AUSENTE`.
 - Bloqueios (`/api/bloqueios`, tabela `bloqueio_secador`): entram os que tocam o horizonte, de secadores ativos. Datas inclusivas e motivo obrigatório.
-- `avisos`: limitações que não viram pendência do motor. Hoje vem vazio.
+- `avisos`: limitações que não viram pendência do motor. Hoje: plano parcial, quando alguma erva ficou de fora por `PARAM_AUSENTE` (as demais foram planejadas com os secadores livres dessa erva).
 - **Recebido substitui previsto** (`/api/recebimentos`): previsão com recebimento sai da entrada, e cada recebimento entra como lote com data e kg reais (id `R<n>`). Chegada não prevista também entra. Previsão recebida não pode mais ser alterada nem removida. Premissa a validar com o PCP: com entrega parcial, o restante previsto **não** é mais esperado (se ainda vier, cadastra-se nova previsão).
 - "Hoje" (data futura de recebimento, chegada atrasada) é o dia no fuso da fazenda (`FUSO_FAZENDA`, padrão `America/Fortaleza`), não o do servidor em UTC.
 - IDs de demanda e lote saem como texto (`"12"`): é o `id` da tabela.
@@ -214,5 +216,18 @@ Denominador zero → `None` ("n/a"), nunca 0%. Secador disponível que não seco
 ```bash
 docker compose exec backend pytest tests/planner -v
 ```
+
+`test_invariantes.py` sorteia 300 cenários (semente fixa) e confere em cada um regras que valem para qualquer plano:
+
+- até 24 h por secador no dia e o regime de cada erva;
+- cargas inteiras e vazão;
+- nada em dia bloqueado ou sem operação;
+- todo lote é seco ou declarado perdido;
+- a demanda não recebe além da necessidade nem depois do prazo;
+- os KPIs fecham com as alocações;
+- o resultado é determinístico;
+- lote perdido não cede secador a uma erva que podia esperar.
+
+Se um teste falhar, a mensagem traz a semente, e `cenario(semente)` refaz a entrada.
 
 Os valores dos testes (rendimentos 6:1 e 23,3:1, setups da camomila etc.) vêm do relatório da etapa 1 e ainda **não foram validados pelo PCP**.
