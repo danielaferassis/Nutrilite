@@ -94,6 +94,34 @@ export interface ErroImportacao {
   mensagem: string;
 }
 
+/** Percentuais com 1 casa; null = não aplicável. Regras em backend/app/indicadores.py. */
+export interface Indicadores {
+  horas_disponiveis: number;
+  horas_apontadas: number;
+  cargas: number;
+  /** Sem tempo padrão no cadastro: ficam fora da performance. */
+  cargas_sem_padrao: number;
+  disponibilidade_pct: number | null;
+  performance_pct: number | null;
+  /** Sempre null: o Infinity não traz refugo. */
+  qualidade_pct: number | null;
+  oee_pct: number | null;
+  /** Disponibilidade × performance. */
+  oee_sem_qualidade_pct: number | null;
+  kg_planejado: number;
+  kg_apontado: number;
+  aderencia_pct: number | null;
+}
+
+export interface IndicadoresSecagem {
+  de: string;
+  ate: string;
+  total: Indicadores;
+  secadores: (Indicadores & { secador: Resumo })[];
+  dias: (Indicadores & { dia: string; secador_id: number })[];
+  avisos: string[];
+}
+
 export interface Capacidade {
   id: number;
   erva_id: number;

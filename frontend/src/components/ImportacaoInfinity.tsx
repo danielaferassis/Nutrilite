@@ -8,6 +8,7 @@ import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { ErroImportacao, Importacao, StatusImportacao } from '../tipos';
 import ItemList from './ItemList';
+import PainelOEE from './PainelOEE';
 import { Alerta, Button, Card, Etiqueta, EtiquetaCor } from './ui';
 
 const TIPO = 'infinity_csv';
@@ -103,7 +104,9 @@ export default function ImportacaoInfinity() {
     }
   };
 
-  if (!podeImportar) {
+  // O painel é leitura: também quem acompanha os planos vê (o backend confere o mesmo)
+  const podeVerIndicadores = podeImportar || pode('plano.consultar', 'plano.simular', 'plano.aprovar');
+  if (!podeImportar && !podeVerIndicadores) {
     return <Alerta>Seu perfil não tem acesso à importação do Infinity.</Alerta>;
   }
 
@@ -134,62 +137,60 @@ export default function ImportacaoInfinity() {
         </p>
       </div>
 
-      <Card>
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-          <label className="block text-sm">
-            <span className="font-medium text-[#211E16]">Export do Infinity (.csv ou .xlsx)</span>
-            <input
-              type="file"
-              accept=".csv,.xlsx"
-              aria-label="Export do Infinity"
-              className="mt-1 block w-full text-sm"
-              onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
-            />
-          </label>
-          <Button variant="primary" onClick={() => enviar()} disabled={!arquivo || enviando}>
-            {enviando ? 'Enviando…' : 'Enviar'}
-          </Button>
-        </div>
-        <p className="text-xs text-gray-500 mt-3">
-          Cada secador precisa ter o <strong>código no Infinity</strong> (texto da coluna Processo) informado no
-          cadastro, em Matriz de Capacidade. Linhas repetidas, no arquivo ou já importadas, são ignoradas. Com
-          qualquer erro de linha, nada do arquivo é gravado.
-        </p>
-      </Card>
+      {podeVerIndicadores && <PainelOEE />}
 
-      <Card>
-        <h2 className="font-semibold mb-3">Importações</h2>
-        {importacoes.erro && <Alerta>{importacoes.erro}</Alerta>}
-        <ItemList
-          colunas={['ID', 'Arquivo', 'Enviado', 'Situação', 'Resultado', '']}
-          dados={linhas}
-          vazio={importacoes.carregando ? 'Carregando…' : 'Nenhum arquivo do Infinity enviado ainda.'}
-        />
-        {erros && (
-          <div className="mt-4">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="font-medium">Erros da importação #{erros.id}</h3>
-              <Button variant="secondary" onClick={() => setErros(null)}>Fechar</Button>
+      {podeImportar && (
+        <>
+          <Card>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
+              <label className="block text-sm">
+                <span className="font-medium text-[#211E16]">Export do Infinity (.csv ou .xlsx)</span>
+                <input
+                  type="file"
+                  accept=".csv,.xlsx"
+                  aria-label="Export do Infinity"
+                  className="mt-1 block w-full text-sm"
+                  onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              <Button variant="primary" onClick={() => enviar()} disabled={!arquivo || enviando}>
+                {enviando ? 'Enviando…' : 'Enviar'}
+              </Button>
             </div>
-            <ul className="text-sm list-disc pl-5 max-h-64 overflow-auto">
-              {erros.lista.map((e, k) => (
-                <li key={k}>
-                  {e.linha !== null && <>Linha {e.linha}{e.coluna ? ` (${e.coluna})` : ''}: </>}
-                  {e.mensagem}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </Card>
+            <p className="text-xs text-gray-500 mt-3">
+              Cada secador precisa ter o <strong>código no Infinity</strong> (texto da coluna Processo) informado no
+              cadastro, em Matriz de Capacidade. Linhas repetidas, no arquivo ou já importadas, são ignoradas. Com
+              qualquer erro de linha, nada do arquivo é gravado.
+            </p>
+          </Card>
 
-      <Card className="bg-gray-50 border-dashed">
-        <h2 className="font-semibold mb-1">Indicadores de OEE e aderência ao plano</h2>
-        <p className="text-sm text-gray-500">
-          Em construção: disponibilidade, performance e aderência ao plano aprovado, calculados com os apontamentos
-          importados. A qualidade aparece como "não informada", porque o Infinity não traz refugo.
-        </p>
-      </Card>
+          <Card>
+            <h2 className="font-semibold mb-3">Importações</h2>
+            {importacoes.erro && <Alerta>{importacoes.erro}</Alerta>}
+            <ItemList
+              colunas={['ID', 'Arquivo', 'Enviado', 'Situação', 'Resultado', '']}
+              dados={linhas}
+              vazio={importacoes.carregando ? 'Carregando…' : 'Nenhum arquivo do Infinity enviado ainda.'}
+            />
+            {erros && (
+              <div className="mt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-medium">Erros da importação #{erros.id}</h3>
+                  <Button variant="secondary" onClick={() => setErros(null)}>Fechar</Button>
+                </div>
+                <ul className="text-sm list-disc pl-5 max-h-64 overflow-auto">
+                  {erros.lista.map((e, k) => (
+                    <li key={k}>
+                      {e.linha !== null && <>Linha {e.linha}{e.coluna ? ` (${e.coluna})` : ''}: </>}
+                      {e.mensagem}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }

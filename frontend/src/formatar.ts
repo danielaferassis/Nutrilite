@@ -15,6 +15,9 @@ export const formatarKg = (valor: number | string) => `${formatarNumero(valor)} 
 
 export const formatarHoras = (valor: number | string) => `${formatarNumero(valor)} h`;
 
+/** Percentual do backend; null = não aplicável (denominador zero ou dado ausente), nunca 0%. */
+export const formatarPct = (valor: number | null) => (valor === null ? 'n/a' : `${formatarNumero(valor)}%`);
+
 /** Data local de hoje em ISO (yyyy-mm-dd), somando `dias`. */
 export const hojeIso = (dias = 0) => {
   const data = new Date();

@@ -94,9 +94,21 @@ describe('ImportacaoInfinity', () => {
   });
 
   it('sem permissão não busca nada', async () => {
-    const { chamadas } = renderizarTela(<ImportacaoInfinity />, {}, ['plano.consultar']);
+    const { chamadas } = renderizarTela(<ImportacaoInfinity />, {}, ['previsao.propria']);
 
     expect(await screen.findByText('Seu perfil não tem acesso à importação do Infinity.')).toBeInTheDocument();
+    expect(chamadas.filter((c) => c.caminho !== '/auth/me')).toHaveLength(0);
+  });
+
+  it('quem só acompanha os planos vê os indicadores, mas não envia arquivos', async () => {
+    const { chamadas } = renderizarTela(
+      <ImportacaoInfinity />,
+      { 'GET /indicadores/secagem': { de: '2026-12-01', ate: '2026-12-07', total: {}, secadores: [], dias: [], avisos: [] } },
+      ['plano.consultar']
+    );
+
+    expect(await screen.findByText('Indicadores de OEE e aderência ao plano')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Export do Infinity (.csv ou .xlsx)')).not.toBeInTheDocument();
     expect(chamadas.filter((c) => c.caminho.startsWith('/importacoes'))).toHaveLength(0);
   });
 });

@@ -195,6 +195,20 @@ O export do Infinity (CSV ou .xlsx) traz uma linha por **carga** de secador: Pro
 - **Dado pessoal:** "Funcionário" não é lido nem gravado (não entra nos indicadores).
 - **A confirmar com a fazenda:** unidade da Quantidade (assumido: kg de erva fresca da carga) e se existe registro de refugo (sem ele, a qualidade do OEE fica "não informada").
 
+## Indicadores da secagem (`GET /api/indicadores/secagem?de=&ate=`)
+
+OEE e aderência ao plano por secador, por dia e da fábrica, com os apontamentos do Infinity (`app/indicadores.py`). Tela: Importação Infinity, painel no topo (também para quem só consulta planos).
+
+| Indicador | Cálculo |
+| --- | --- |
+| Disponibilidade | horas apontadas ÷ horas disponíveis (24 h por dia sem bloqueio e dentro dos dias de operação do plano que vale no dia; sem plano, o dia conta) |
+| Performance | tempo padrão ÷ tempo real das cargas. Padrão: `horas_por_carga` (por carga) ou kg ÷ `kg_fresco_por_hora` (contínuo). Carga sem esse parâmetro fica de fora e é contada em `cargas_sem_padrao` |
+| Qualidade | `None` ("não informada"): o Infinity não traz refugo |
+| OEE | `None` sem qualidade; `oee_sem_qualidade_pct` = disponibilidade × performance |
+| Aderência | kg apontados ÷ kg planejados nas alocações do plano que vale em cada dia |
+
+Denominador zero → `None` ("n/a"), nunca 0%. Secador disponível que não secou nada tem disponibilidade 0% (é um valor real, não ausência). Pendente com a fazenda: validar a fórmula local de OEE e o denominador da disponibilidade (o mesmo da ocupação planejada: 24 h de calendário).
+
 ## Testes
 
 ```bash

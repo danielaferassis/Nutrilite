@@ -13,6 +13,7 @@ from app.routers import (
     grupos,
     health,
     importacoes,
+    indicadores,
     items,
     planos,
     previsoes,
@@ -47,3 +48,4 @@ app.include_router(bloqueios.router, prefix="/api")
 app.include_router(cadastros.router, prefix="/api")
 app.include_router(recebimentos.router, prefix="/api")
 app.include_router(cronograma.router, prefix="/api")
+app.include_router(indicadores.router, prefix="/api")

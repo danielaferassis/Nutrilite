@@ -787,3 +787,41 @@ class CronogramaRead(BaseModel):
     # Só do plano que vale em cada dia
     alocacoes: list[AlocacaoCronograma]
     chegadas: list[ChegadaCronograma]
+
+
+# --- Indicadores da secagem (OEE e aderência; regras em app/indicadores.py) ---
+
+
+class Indicadores(BaseModel):
+    """Percentuais com 1 casa; None = não aplicável (denominador zero ou dado ausente)."""
+
+    horas_disponiveis: float
+    horas_apontadas: float
+    cargas: int
+    cargas_sem_padrao: int  # sem tempo padrão no cadastro: fora da performance
+    disponibilidade_pct: float | None
+    performance_pct: float | None
+    qualidade_pct: float | None  # sempre None: o Infinity não traz refugo
+    oee_pct: float | None  # sempre None enquanto não houver qualidade
+    oee_sem_qualidade_pct: float | None  # disponibilidade × performance
+    kg_planejado: float
+    kg_apontado: float
+    aderencia_pct: float | None
+
+
+class IndicadoresSecador(Indicadores):
+    secador: SecadorResumo
+
+
+class IndicadoresDia(Indicadores):
+    dia: date
+    secador_id: int
+
+
+class IndicadoresSecagemRead(BaseModel):
+    de: date
+    ate: date
+    total: Indicadores  # a fábrica no período
+    secadores: list[IndicadoresSecador]  # cada secador no período
+    dias: list[IndicadoresDia]  # secador × dia com carga ou plano
+    avisos: list[str]
