@@ -1,4 +1,4 @@
-import { CircleSlash, Info, Lock, Pencil, Save, Trash2 } from 'lucide-react';
+import { CircleSlash, Lock, Pencil, Save, Trash2 } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 
 import { apiFetch } from '../api';
@@ -148,6 +148,11 @@ export default function Bloqueios() {
       <PageHeader
         secao="Planejamento"
         titulo="Bloqueios de Secador"
+        ajuda={[
+          'Cadastre manutenções e feriados: secador, início, fim (o dia final conta) e o motivo.',
+          'O bloqueio pesa nas próximas simulações do Plano de Secagem (o secador sai da distribuição nesses dias) e no OEE (dias bloqueados não contam como horas disponíveis).',
+          'Planos já salvos não mudam: simule de novo para o bloqueio entrar.',
+        ]}
         descricao="Manutenções e feriados. Nesses dias o secador não recebe erva e não conta como hora disponível."
       />
 
@@ -181,14 +186,6 @@ export default function Bloqueios() {
               </div>
             )}
           </form>
-          <div className="mt-4 flex gap-2 rounded-lg bg-fundo p-3 text-xs text-suave">
-            <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-verde-700" />
-            <p>
-              <b className="text-texto">Onde o bloqueio pesa:</b> nas próximas simulações do Plano de Secagem (o
-              secador sai da distribuição nesses dias) e na disponibilidade do OEE (dias bloqueados não contam como
-              horas disponíveis). Planos já salvos não mudam.
-            </p>
-          </div>
         </Card>
       )}
 

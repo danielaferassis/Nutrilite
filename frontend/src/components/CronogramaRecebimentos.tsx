@@ -389,6 +389,12 @@ export default function CronogramaRecebimentos() {
       <PageHeader
         secao="Planejamento"
         titulo="Cronograma e Recebimentos"
+        ajuda={[
+          'Escolha o período nos atalhos ou nas datas. O calendário mostra, dia a dia, o que cada secador seca e as chegadas de erva fresca.',
+          'A programação vem só de planos aprovados no Plano de Secagem. Período vazio? Use "Ver o próximo plano aprovado".',
+          'Quando a erva chegar, clique em "Registrar chegada" na lista de chegadas. O recebido passa a valer no lugar do previsto nas próximas simulações.',
+          'Chegou erva sem previsão? Use "Chegada não prevista".',
+        ]}
         descricao="O que os planos aprovados mandam secar, dia a dia, e o que de fato chegou."
       />
 

@@ -106,6 +106,11 @@ export default function GestaoUsuarios() {
       <PageHeader
         secao="Administração"
         titulo="Usuários"
+        ajuda={[
+          'Cadastre nome, e-mail e senha, e marque os grupos do usuário.',
+          'O que cada um pode fazer vem dos grupos (as permissões ficam em Permissões de Acesso).',
+          'Para tirar o acesso sem apagar o histórico, desmarque "Ativo".',
+        ]}
         descricao="Cadastro de quem acessa o sistema. O que cada um pode fazer vem dos grupos a que pertence."
       />
 

@@ -156,11 +156,6 @@ export default function PlanosSalvos({
         </ul>
       )}
 
-      <p className="mt-4 text-xs text-suave">
-        <b className="text-texto">Versão</b> conta os planos salvos para exatamente o mesmo período: simular e salvar
-        07/12 a 13/12 de novo gera a versão 2 desse período. Rascunhos podem ser excluídos; aprovados ficam guardados
-        como histórico.
-      </p>
     </Card>
   );
 }

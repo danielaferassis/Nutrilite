@@ -153,6 +153,12 @@ export default function EntradaPrevisoes() {
       <PageHeader
         secao="Planejamento"
         titulo="Entrada de Previsões"
+        ajuda={[
+          'Cada previsão é um lote de erva fresca que vai chegar: erva, origem, kg e data. Essa é a oferta que o Plano de Secagem distribui.',
+          'Para a fazenda, importe a planilha de programação: você vê o que será criado, alterado e removido antes de confirmar.',
+          'Para lotes avulsos (Procompete, P&D), use "Nova previsão".',
+          'A data de chegada não é reagendável: o que não couber nos secadores dentro da espera máxima vira perda. Previsão já recebida fica travada; corrija o recebimento no Cronograma.',
+        ]}
         descricao="Lotes de erva fresca que vão chegar (fazenda, Procompete, P&D). São a oferta que o Plano de Secagem distribui entre os secadores."
         acoes={
           podeCadastrar && (

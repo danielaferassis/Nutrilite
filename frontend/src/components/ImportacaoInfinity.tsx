@@ -126,6 +126,12 @@ export default function ImportacaoInfinity() {
       <PageHeader
         secao="Cadastros e dados"
         titulo="Importação Infinity"
+        ajuda={[
+          'Exporte os apontamentos de secagem do Infinity (.csv ou .xlsx) e arraste o arquivo para a área de importação.',
+          'Cada secador precisa ter o código do Infinity no cadastro (Matriz de Capacidade, editar secador).',
+          'Linhas repetidas são ignoradas, e se houver erro em alguma linha nada do arquivo é gravado: abra "Ver erros", corrija e envie de novo.',
+          'Os indicadores no topo (OEE e aderência ao plano) usam os apontamentos importados no período escolhido.',
+        ]}
         descricao="Cargas de secagem apontadas no Infinity, comparadas com o plano aprovado."
       />
 
@@ -151,10 +157,6 @@ export default function ImportacaoInfinity() {
                 Enviar
               </Button>
             </div>
-            <ul className="mt-3 list-disc space-y-0.5 pl-5 text-xs text-suave">
-              <li>Cada secador precisa do código no Infinity (cadastro na Matriz de Capacidade).</li>
-              <li>Linhas repetidas são ignoradas; com qualquer erro, nada do arquivo é gravado.</li>
-            </ul>
           </Card>
 
           <Card>

@@ -135,6 +135,12 @@ export default function DashboardPCP() {
       <PageHeader
         secao="Visão geral"
         titulo="Dashboard PCP"
+        ajuda={[
+          'Comece pelos quatro números do topo: plano em vigor, pendências, chegadas da semana e demandas do mês.',
+          '"Secagem dos próximos 7 dias" mostra o que os planos aprovados mandam secar; clique em "Abrir cronograma" para ver mais dias.',
+          '"Precisa de atenção" junta o que pede ação: pendências do plano, erva que não chegou e secador parado.',
+          '"Confiabilidade das fontes" compara o previsto com o recebido nos últimos 30 dias: use para planejar com folga as fontes abaixo de 70%.',
+        ]}
         descricao="O plano em vigor hoje, a secagem dos próximos 7 dias e o que precisa de atenção."
       />
 

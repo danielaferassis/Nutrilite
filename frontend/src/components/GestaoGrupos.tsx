@@ -88,6 +88,11 @@ export default function GestaoGrupos() {
       <PageHeader
         secao="Administração"
         titulo="Grupos"
+        ajuda={[
+          'Grupos são perfis de acesso, por exemplo PCP/Gestor ou Fonte fornecedora.',
+          'Depois de criar o grupo, marque o que ele pode fazer em Permissões de Acesso.',
+          'Grupo inativo não concede permissão a ninguém.',
+        ]}
         descricao="Perfis de acesso (ex.: PCP/Gestor, Fonte fornecedora). Grupo inativo não concede permissão a ninguém."
       />
 

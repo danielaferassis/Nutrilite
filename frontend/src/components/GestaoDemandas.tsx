@@ -168,6 +168,12 @@ export default function GestaoDemandas() {
       <PageHeader
         secao="Planejamento"
         titulo="Gestão de Demandas"
+        ajuda={[
+          'Cadastre a meta de produção em "Nova demanda": erva, quantidade, estágio (fresco, desidratado ou moído) e prazo.',
+          'Não é preciso calcular a erva fresca: o Plano de Secagem converte a meta em kg de fresco pelo rendimento da erva.',
+          'Use a prioridade para desempatar demandas com prazo parecido (maior = mais urgente).',
+          'Filtre o período do prazo no topo da lista e o resto (erva, estágio, responsável) em "Filtrar por coluna".',
+        ]}
         descricao="Metas de produção com prazo. A conversão para kg de erva fresca é feita no módulo Plano de Secagem."
         acoes={
           podeGerenciar && (

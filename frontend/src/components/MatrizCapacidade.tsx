@@ -186,6 +186,12 @@ export default function MatrizCapacidade() {
       <PageHeader
         secao="Cadastros e dados"
         titulo="Matriz de Capacidade"
+        ajuda={[
+          'Cada linha é uma erva e cada coluna, um secador. O bloco do cruzamento traz como essa erva seca naquele secador.',
+          'Clique em "editar" no bloco para mudar carga, horas e setups, ou em "cadastrar" para fazer a erva operar num secador.',
+          'Campo vazio fica "não informado" (âmbar) e vira pendência na simulação: o sistema nunca assume um valor.',
+          'Use os filtros para achar rápido o que falta preencher ("Com parâmetro não informado").',
+        ]}
         descricao="Parâmetros de cada erva em cada secador. O que estiver vazio vira pendência na simulação."
         acoes={
           podeGerenciar && (

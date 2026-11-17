@@ -1,4 +1,4 @@
-import { Info } from 'lucide-react';
+import { ChevronDown, Info } from 'lucide-react';
 import { ReactNode } from 'react';
 
 export interface ItemLegenda {
@@ -9,14 +9,18 @@ export interface ItemLegenda {
   descricao?: string;
 }
 
-/** "Como ler": explica cores e marcas usadas numa tabela ou gráfico. */
+/**
+ * "Como ler": explica cores e marcas de uma tabela ou gráfico. Fica recolhido
+ * num botão pequeno, para a tela não encher de texto; abre com um clique.
+ */
 export const Legenda = ({ itens, titulo = 'Como ler' }: { itens: ItemLegenda[]; titulo?: string }) => (
-  <div className="mt-4 rounded-lg border border-borda bg-fundo/70 px-3 py-2.5 text-xs">
-    <p className="mb-1.5 flex items-center gap-1.5 font-semibold text-tinta">
-      <Info aria-hidden="true" className="size-3.5 text-verde-700" />
+  <details className="group mt-3 text-xs">
+    <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full border border-borda bg-white px-2.5 py-1 font-semibold text-suave transition-colors hover:border-verde-600 hover:text-verde-700 group-open:border-verde-600 group-open:bg-verde-50 group-open:text-verde-700 [&::-webkit-details-marker]:hidden">
+      <Info aria-hidden="true" className="size-3.5" />
       {titulo}
-    </p>
-    <ul className="grid gap-x-5 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
+      <ChevronDown aria-hidden="true" className="size-3.5 transition-transform duration-200 group-open:rotate-180" />
+    </summary>
+    <ul className="mt-2 grid gap-x-5 gap-y-1.5 rounded-lg border border-borda bg-fundo/70 px-3 py-2.5 animate-entra sm:grid-cols-2 lg:grid-cols-3">
       {itens.map((item) => (
         <li key={item.rotulo} className="flex items-start gap-2 text-suave">
           {typeof item.amostra === 'string' ? (
@@ -31,5 +35,5 @@ export const Legenda = ({ itens, titulo = 'Como ler' }: { itens: ItemLegenda[]; 
         </li>
       ))}
     </ul>
-  </div>
+  </details>
 );

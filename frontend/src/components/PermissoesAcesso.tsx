@@ -120,6 +120,11 @@ export default function PermissoesAcesso() {
       <PageHeader
         secao="Administração"
         titulo="Permissões de Acesso"
+        ajuda={[
+          'Cada coluna é um grupo e cada linha, uma funcionalidade. Marque o que o grupo pode fazer.',
+          'O usuário recebe a soma das permissões de todos os grupos ativos a que pertence.',
+          'As mudanças só valem depois de "Salvar alterações".',
+        ]}
         descricao="Marque o que cada grupo pode fazer. O usuário recebe a soma das permissões dos grupos ativos a que pertence."
       />
 

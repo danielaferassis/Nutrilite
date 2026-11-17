@@ -203,6 +203,13 @@ export default function PlanoSecagem() {
       <PageHeader
         secao="Planejamento"
         titulo="Plano de Secagem"
+        ajuda={[
+          'Em "Simular", escolha início, fim e os dias em que a fábrica opera, e clique em Simular. Nada é gravado.',
+          'Confira as pendências e a programação. Se servir, use "Simular e salvar rascunho".',
+          'Abra o rascunho em "Planos salvos" e clique em Aprovar. Só depois de aprovado ele vale e aparece no Cronograma.',
+          'Só vale um plano aprovado por dia: o aprovado por último. "Versão" conta os planos salvos para exatamente o mesmo período (salvar 07/12 a 13/12 de novo gera a versão 2).',
+          'Rascunhos podem ser excluídos; aprovados ficam guardados como histórico (o que valeu, quem aprovou e quando).',
+        ]}
         descricao="Cruza demandas, previsões e capacidade dos secadores e aponta conflitos antes de a erva chegar."
       />
 
