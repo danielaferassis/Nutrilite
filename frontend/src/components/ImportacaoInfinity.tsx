@@ -19,10 +19,11 @@ const COLUNAS_PADRAO = [
   'Observações',
 ];
 
+// Dados fictícios (CLAUDE.md: nada de nomes, lotes ou números reais da empresa no repositório)
 const PREVIEW_DE_EXEMPLO = [
-  ['SB-03-Secador Bandejas', 'Turno B', '21/10/2026', '21:24:51', 'Thaliano d', 'Camomila', '20266292C', '101', '65', '19:25', '22:35', '190', '22:40', 'Conforme Thaliano das Neves'],
-  ['SB-03-Secador Bandejas', 'Turno B', '21/10/2026', '16:52:24', 'Thaliano d', 'Camomila', '20266292C', '107', '65', '15:25', '18:35', '190', '19:10', 'Conforme Thaliano das Neves'],
-  ['SB-03-Secador Bandejas', 'Turno B', '21/10/2026', '14:28:30', 'Thaliano d', 'Camomila', '20266292C', '109', '65', '12:45', '15:20', '155', '15:30', 'Ajuste de lote'],
+  ['SEC-03-Secador Exemplo', 'Turno A', '01/12/2026', '10:00:00', 'Operador A', 'Erva A', 'LOTE-0001', '1', '50', '60', '07:00', '09:30', '150', 'Sem ocorrências'],
+  ['SEC-03-Secador Exemplo', 'Turno A', '01/12/2026', '13:00:00', 'Operador A', 'Erva A', 'LOTE-0001', '2', '50', '60', '10:00', '12:30', '150', 'Sem ocorrências'],
+  ['SEC-03-Secador Exemplo', 'Turno B', '01/12/2026', '16:00:00', 'Operador B', 'Erva A', 'LOTE-0001', '3', '45', '58', '13:00', '15:40', '160', 'Carga menor'],
 ];
 
 const parseCsvPreview = (texto: string) => {
