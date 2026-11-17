@@ -5,7 +5,6 @@ import {
   Grid3x3,
   KeyRound,
   LayoutDashboard,
-  Leaf,
   ListChecks,
   LogOut,
   LucideIcon,
@@ -30,7 +29,7 @@ import CronogramaRecebimentos from './components/CronogramaRecebimentos';
 import GestaoUsuarios from './components/GestaoUsuarios';
 import GestaoGrupos from './components/GestaoGrupos';
 import PermissoesAcesso from './components/PermissoesAcesso';
-import { Alerta } from './components/ui';
+import { Alerta, Logo } from './components/ui';
 import { FeedbackProvider } from './feedback';
 import { SessaoProvider, useSessao } from './sessao';
 
@@ -152,9 +151,7 @@ export default function App() {
           <aside className="flex flex-col bg-verde-900 text-white md:sticky md:top-0 md:h-screen md:w-64 md:shrink-0">
             <div className="flex items-center justify-between px-5 py-5">
               <a href="/dashboard" className="flex items-center gap-2.5 text-base font-bold">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-lima-500 to-verde-600">
-                  <Leaf aria-hidden="true" className="size-[18px]" />
-                </span>
+                <Logo tamanho={34} comFundo />
                 Nutrilite PCP
               </a>
               <button

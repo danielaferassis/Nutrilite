@@ -1,3 +1,4 @@
+import { KeyRound, RotateCcw, Save } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { apiFetch, textoDoErro } from '../api';
@@ -6,7 +7,7 @@ import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { Funcionalidade, Grupo } from '../tipos';
-import { Alerta, Button, Card, Etiqueta, PageHeader, SkeletonTabela } from './ui';
+import { Alerta, Button, CabecalhoCard, Card, Etiqueta, PageHeader, SkeletonTabela } from './ui';
 
 // grupo_id → ids das funcionalidades marcadas
 type Marcacoes = Record<number, number[]>;
@@ -126,6 +127,7 @@ export default function PermissoesAcesso() {
       {funcionalidades.erro && <Alerta>{funcionalidades.erro}</Alerta>}
 
       <Card>
+        <CabecalhoCard icone={KeyRound} titulo="Permissões por grupo" descricao="Cada coluna é um grupo; cada linha, uma funcionalidade do sistema." />
         {carregando && !listaGrupos.length ? (
           <SkeletonTabela linhas={6} />
         ) : !listaGrupos.length ? (
@@ -133,7 +135,7 @@ export default function PermissoesAcesso() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="border-b border-borda text-xs font-semibold">
+              <thead className="sticky top-0 bg-white text-xs font-semibold text-suave shadow-[inset_0_-1px_0_var(--color-borda)]">
                 <tr>
                   <th className="py-3 px-4">Funcionalidade</th>
                   {listaGrupos.map((g) => (
@@ -152,7 +154,7 @@ export default function PermissoesAcesso() {
                     </td>
                   </tr>,
                   ...lista.map((f) => (
-                    <tr key={f.id} className="border-b border-borda hover:bg-fundo">
+                    <tr key={f.id} className="border-b border-borda transition-colors hover:bg-verde-50">
                       <td className="py-2 px-4">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-tinta">{f.nome}</span>
@@ -182,11 +184,11 @@ export default function PermissoesAcesso() {
           </div>
         )}
 
-        <div className="flex items-center gap-2 mt-4">
-          <Button onClick={salvar} disabled={!alterados.length || salvando}>
+        <div className="mt-4 flex flex-col-reverse gap-2 border-t border-borda pt-4 sm:flex-row sm:items-center">
+          <Button icone={Save} carregando={salvando} onClick={salvar} disabled={!alterados.length || salvando}>
             {salvando ? 'Salvando…' : 'Salvar alterações'}
           </Button>
-          <Button variant="secondary" onClick={() => setMarcadas(originais)} disabled={!alterados.length || salvando}>
+          <Button variant="secondary" icone={RotateCcw} onClick={() => setMarcadas(originais)} disabled={!alterados.length || salvando}>
             Descartar
           </Button>
           {alterados.length > 0 && (

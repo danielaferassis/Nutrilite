@@ -1,3 +1,4 @@
+import { Pencil, Save, Trash2, UserPlus, Users } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 
 import { apiFetch } from '../api';
@@ -8,7 +9,7 @@ import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { Grupo, Usuario } from '../tipos';
 import ItemList from './ItemList';
-import { Alerta, Button, Card, Etiqueta, Input, PageHeader } from './ui';
+import { Alerta, Button, CabecalhoCard, Card, Etiqueta, Input, PageHeader } from './ui';
 
 interface Formulario {
   nome: string;
@@ -109,9 +110,10 @@ export default function GestaoUsuarios() {
       />
 
       <Card>
-        <h2 className="text-lg font-semibold text-tinta mb-4">
-          {editandoId === null ? 'Novo usuário' : `Editar usuário: ${form.nome}`}
-        </h2>
+        <CabecalhoCard
+          icone={editandoId === null ? UserPlus : Pencil}
+          titulo={editandoId === null ? 'Novo usuário' : `Editar usuário: ${form.nome}`}
+        />
         <form onSubmit={salvar} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input
@@ -176,8 +178,8 @@ export default function GestaoUsuarios() {
             {editandoASiMesmo && <span className="text-suave">— você não pode desativar o próprio usuário</span>}
           </label>
 
-          <div className="flex gap-2">
-            <Button type="submit" disabled={salvando}>
+          <div className="flex flex-col-reverse gap-2 border-t border-borda pt-4 sm:flex-row">
+            <Button type="submit" icone={Save} carregando={salvando}>
               {salvando ? 'Salvando…' : editandoId === null ? 'Cadastrar' : 'Salvar alterações'}
             </Button>
             {editandoId !== null && (
@@ -188,6 +190,7 @@ export default function GestaoUsuarios() {
       </Card>
 
       <Card>
+        <CabecalhoCard icone={Users} titulo="Usuários cadastrados" />
         {usuarios.erro && <Alerta>{usuarios.erro}</Alerta>}
         <ItemList
           colunas={['Nome', 'E-mail', 'Grupos', 'Situação', 'Último login', '']}
@@ -205,9 +208,9 @@ export default function GestaoUsuarios() {
             login: u.ultimo_login ? formatarDataHora(u.ultimo_login) : 'Nunca',
             acoes: (
               <div className="flex gap-2 justify-end">
-                <Button variant="secondary" onClick={() => editar(u)}>Editar</Button>
+                <Button variant="secondary" tamanho="sm" icone={Pencil} compacto onClick={() => editar(u)}>Editar</Button>
                 {u.id !== sessao?.usuario.id && (
-                  <Button variant="danger" onClick={() => excluir(u)}>Excluir</Button>
+                  <Button variant="secondary" tamanho="sm" icone={Trash2} compacto onClick={() => excluir(u)}>Excluir</Button>
                 )}
               </div>
             ),

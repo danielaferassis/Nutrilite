@@ -1,3 +1,4 @@
+import { Ban, FileWarning, History, RotateCcw, Send, UploadCloud } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ErroApi, apiFetch, query } from '../api';
@@ -7,9 +8,19 @@ import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { ErroImportacao, Importacao, StatusImportacao } from '../tipos';
-import ItemList from './ItemList';
 import PainelOEE from './PainelOEE';
-import { Alerta, Button, Card, Etiqueta, EtiquetaCor, PageHeader } from './ui';
+import {
+  Alerta,
+  AreaArquivo,
+  Button,
+  CabecalhoCard,
+  Card,
+  Etiqueta,
+  EtiquetaCor,
+  Janela,
+  PageHeader,
+  Tabela,
+} from './ui';
 
 const TIPO = 'infinity_csv';
 // Enquanto alguma importação estiver na fila, a lista se atualiza sozinha
@@ -110,29 +121,12 @@ export default function ImportacaoInfinity() {
     return <Alerta>Seu perfil não tem acesso à importação do Infinity.</Alerta>;
   }
 
-  const linhas = (importacoes.dados ?? []).map((i) => ({
-    id: `#${i.id}`,
-    arquivo: i.nome_arquivo,
-    enviado: `${formatarDataHora(i.criado_em)}${i.usuario ? ` · ${i.usuario.nome}` : ''}`,
-    status: <Etiqueta cor={COR_STATUS[i.status]}>{ROTULO_STATUS[i.status]}</Etiqueta>,
-    resultado: resultado(i),
-    acoes: (
-      <div className="flex gap-2">
-        {i.status === 'erro' && <Button variant="secondary" onClick={() => verErros(i)}>Ver erros</Button>}
-        {(i.status === 'erro' || i.status === 'cancelado') && i.arquivo_disponivel && (
-          <Button variant="secondary" onClick={() => acao(i, 'reprocessar')}>Reprocessar</Button>
-        )}
-        {i.status === 'pendente' && <Button variant="secondary" onClick={() => acao(i, 'cancelar')}>Cancelar</Button>}
-      </div>
-    ),
-  }));
-
   return (
     <div className="space-y-6">
       <PageHeader
         secao="Cadastros e dados"
         titulo="Importação Infinity"
-        descricao="Apontamentos de secagem exportados do Infinity: cada linha é uma carga de um secador. Eles alimentam os indicadores de OEE e a aderência ao plano."
+        descricao="Cargas de secagem apontadas no Infinity, comparadas com o plano aprovado."
       />
 
       {podeVerIndicadores && <PainelOEE />}
@@ -140,55 +134,104 @@ export default function ImportacaoInfinity() {
       {podeImportar && (
         <>
           <Card>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
-              <label className="block text-sm">
-                <span className="font-medium text-tinta">Export do Infinity (.csv ou .xlsx)</span>
-                <input
-                  type="file"
-                  accept=".csv,.xlsx"
-                  aria-label="Export do Infinity"
-                  className="mt-1 block w-full text-sm"
-                  onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
-                />
-              </label>
-              <Button variant="primary" onClick={() => enviar()} disabled={!arquivo || enviando}>
-                {enviando ? 'Enviando…' : 'Enviar'}
+            <CabecalhoCard
+              icone={UploadCloud}
+              titulo="Importar export do Infinity"
+              descricao="Importe aqui o arquivo exportado do Infinity."
+            />
+            <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+              <AreaArquivo
+                rotulo="Export do Infinity (.csv ou .xlsx)"
+                aceita=".csv,.xlsx"
+                arquivo={arquivo}
+                aoEscolher={setArquivo}
+                desabilitado={enviando}
+              />
+              <Button icone={Send} onClick={() => enviar()} disabled={!arquivo} carregando={enviando}>
+                Enviar
               </Button>
             </div>
-            <p className="text-xs text-suave mt-3">
-              Cada secador precisa ter o <strong>código no Infinity</strong> (texto da coluna Processo) informado no
-              cadastro, em Matriz de Capacidade. Linhas repetidas, no arquivo ou já importadas, são ignoradas. Com
-              qualquer erro de linha, nada do arquivo é gravado.
-            </p>
+            <ul className="mt-3 list-disc space-y-0.5 pl-5 text-xs text-suave">
+              <li>Cada secador precisa do código no Infinity (cadastro na Matriz de Capacidade).</li>
+              <li>Linhas repetidas são ignoradas; com qualquer erro, nada do arquivo é gravado.</li>
+            </ul>
           </Card>
 
           <Card>
-            <h2 className="font-semibold mb-3">Importações</h2>
+            <CabecalhoCard icone={History} titulo="Importações" descricao="Os 20 envios mais recentes." />
             {importacoes.erro && <Alerta>{importacoes.erro}</Alerta>}
-            <ItemList
-              colunas={['ID', 'Arquivo', 'Enviado', 'Situação', 'Resultado', '']}
-              dados={linhas}
+            <Tabela
+              linhas={importacoes.dados ?? []}
+              chave={(i) => i.id}
               carregando={importacoes.carregando}
               vazio="Nenhum arquivo do Infinity enviado ainda."
+              colunas={[
+                { titulo: 'ID', valor: (i) => `#${i.id}`, texto: (i) => `#${i.id}`, ordenar: (i) => i.id },
+                { titulo: 'Arquivo', valor: (i) => i.nome_arquivo, texto: (i) => i.nome_arquivo },
+                {
+                  titulo: 'Enviado',
+                  valor: (i) => (
+                    <>
+                      {formatarDataHora(i.criado_em)}
+                      {i.usuario && <span className="block text-xs text-suave">{i.usuario.nome}</span>}
+                    </>
+                  ),
+                  texto: (i) => `${formatarDataHora(i.criado_em)} ${i.usuario?.nome ?? ''}`,
+                  ordenar: (i) => i.criado_em,
+                },
+                {
+                  titulo: 'Situação',
+                  valor: (i) => <Etiqueta cor={COR_STATUS[i.status]}>{ROTULO_STATUS[i.status]}</Etiqueta>,
+                  texto: (i) => ROTULO_STATUS[i.status],
+                  filtro: 'opcoes',
+                },
+                { titulo: 'Resultado', valor: (i) => resultado(i), texto: (i) => resultado(i) },
+              ]}
+              acoes={(i) => (
+                <>
+                  {i.status === 'erro' && (
+                    <Button variant="secondary" tamanho="sm" icone={FileWarning} compacto onClick={() => verErros(i)}>
+                      Ver erros
+                    </Button>
+                  )}
+                  {(i.status === 'erro' || i.status === 'cancelado') && i.arquivo_disponivel && (
+                    <Button variant="secondary" tamanho="sm" icone={RotateCcw} compacto onClick={() => acao(i, 'reprocessar')}>
+                      Reprocessar
+                    </Button>
+                  )}
+                  {i.status === 'pendente' && (
+                    <Button variant="secondary" tamanho="sm" icone={Ban} compacto onClick={() => acao(i, 'cancelar')}>
+                      Cancelar
+                    </Button>
+                  )}
+                </>
+              )}
             />
-            {erros && (
-              <div className="mt-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-medium">Erros da importação #{erros.id}</h3>
-                  <Button variant="secondary" onClick={() => setErros(null)}>Fechar</Button>
-                </div>
-                <ul className="text-sm list-disc pl-5 max-h-64 overflow-auto">
-                  {erros.lista.map((e, k) => (
-                    <li key={k}>
-                      {e.linha !== null && <>Linha {e.linha}{e.coluna ? ` (${e.coluna})` : ''}: </>}
-                      {e.mensagem}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </Card>
         </>
+      )}
+
+      {erros && (
+        <Janela
+          titulo={`Erros da importação #${erros.id}`}
+          descricao={`${erros.lista.length} linha(s) com problema. Corrija no arquivo e envie de novo.`}
+          icone={FileWarning}
+          aoFechar={() => setErros(null)}
+        >
+          <ul className="space-y-2 text-sm">
+            {erros.lista.map((e, k) => (
+              <li key={k} className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-red-900">
+                {e.linha !== null && (
+                  <strong className="font-semibold">
+                    Linha {e.linha}
+                    {e.coluna ? ` (${e.coluna})` : ''}:{' '}
+                  </strong>
+                )}
+                {e.mensagem}
+              </li>
+            ))}
+          </ul>
+        </Janela>
       )}
     </div>
   );

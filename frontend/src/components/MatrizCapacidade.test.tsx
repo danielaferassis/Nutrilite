@@ -1,6 +1,6 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { Resposta, escritas, renderizarTela } from '../test/apiFalsa';
 import MatrizCapacidade from './MatrizCapacidade';
@@ -41,15 +41,11 @@ const celula = (erva: string, coluna: number) =>
   screen.getByText(erva).closest('tr')!.querySelectorAll('td')[coluna];
 
 describe('MatrizCapacidade', () => {
-  afterEach(() => {
-    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
-  });
-
   it('sem cadastro.gerenciar só consulta', async () => {
     renderizarTela(<MatrizCapacidade />, rotas(), []);
 
     await screen.findByText('Erva B');
-    expect(screen.queryByText('+ Nova erva')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Nova erva' })).not.toBeInTheDocument();
     expect(screen.queryByText('editar')).not.toBeInTheDocument();
     expect(screen.queryByText('cadastrar')).not.toBeInTheDocument();
   });
@@ -148,7 +144,7 @@ describe('MatrizCapacidade', () => {
       GERENCIAR
     );
 
-    await usuario.click(await screen.findByText('+ Nova erva'));
+    await usuario.click(await screen.findByRole('button', { name: 'Nova erva' }));
     await usuario.type(screen.getByLabelText('Código'), 'erva-c');
     await usuario.type(screen.getByLabelText('Nome'), 'Erva C');
     await usuario.type(screen.getByLabelText('Kg de fresco para 1 kg desidratado'), '6.5');
@@ -225,16 +221,65 @@ describe('MatrizCapacidade', () => {
     expect(buscas).toEqual(expect.arrayContaining(['/ervas', '/secadores']));
   });
 
-  it('abre e fecha o formulário quando scrollIntoView devolve Promise (Chromium recente)', async () => {
-    // No jsdom scrollIntoView não existe; no Brave/Chrome atual ele devolve uma Promise
-    Element.prototype.scrollIntoView = vi.fn(() => Promise.resolve()) as never;
+  it('abre o cadastro em janela e fecha no Cancelar ou no Esc', async () => {
     const usuario = userEvent.setup();
     renderizarTela(<MatrizCapacidade />, rotas(), GERENCIAR);
 
     await screen.findByText('Erva A');
-    await usuario.click(screen.getByText('+ Nova erva'));
-    expect(screen.getByRole('heading', { name: 'Nova erva' })).toBeInTheDocument();
+    await usuario.click(screen.getByRole('button', { name: 'Nova erva' }));
+    expect(screen.getByRole('dialog', { name: 'Nova erva' })).toBeInTheDocument();
+    // Exemplo no campo é só placeholder: o campo continua vazio
+    expect(screen.getByLabelText('Regime (horas por dia)')).toHaveValue(null);
+    expect(screen.getByLabelText('Regime (horas por dia)')).toHaveAttribute('placeholder', 'ex.: 12');
     await usuario.click(screen.getByText('Cancelar'));
     expect(screen.queryByRole('heading', { name: 'Nova erva' })).not.toBeInTheDocument();
+
+    await usuario.click(screen.getByRole('button', { name: 'Novo secador' }));
+    expect(screen.getByRole('dialog', { name: 'Novo secador' })).toBeInTheDocument();
+    await usuario.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('filtra ervas, secadores e situação do par', async () => {
+    const usuario = userEvent.setup();
+    renderizarTela(<MatrizCapacidade />, rotas(), []);
+
+    await screen.findByText('Erva B');
+    expect(screen.getByText('2 erva(s) × 2 secador(es)')).toBeInTheDocument();
+
+    // Busca pelo nome: só a Erva B
+    await usuario.type(screen.getByLabelText('Buscar erva'), 'erva b');
+    expect(screen.queryByText('Erva A')).not.toBeInTheDocument();
+    expect(screen.getByText('Erva B')).toBeInTheDocument();
+    await usuario.click(screen.getByText('Limpar filtros'));
+    expect(screen.getByText('Erva A')).toBeInTheDocument();
+
+    // Um secador: só a coluna dele
+    await usuario.selectOptions(screen.getByLabelText('Secador'), '2');
+    expect(screen.queryByText('SEC-1')).not.toBeInTheDocument();
+    expect(screen.getByText('SEC-2')).toBeInTheDocument();
+    await usuario.selectOptions(screen.getByLabelText('Secador'), '');
+
+    // Completas: só a Erva A tem um par completo (SEC-1)
+    await usuario.selectOptions(screen.getByLabelText('Situação do par'), 'completa');
+    expect(screen.getByText('Erva A')).toBeInTheDocument();
+    expect(screen.queryByText('Erva B')).not.toBeInTheDocument();
+
+    // Com parâmetro vazio: a Erva B (regime e rendimento vazios) e a Erva A (rendimento moído vazio)
+    await usuario.selectOptions(screen.getByLabelText('Situação do par'), 'incompleta');
+    expect(screen.getByText('Erva A')).toBeInTheDocument();
+    expect(screen.getByText('Erva B')).toBeInTheDocument();
+  });
+
+  it('resume os pares completos, com parâmetro vazio e que não operam', async () => {
+    renderizarTela(<MatrizCapacidade />, rotas(), []);
+
+    await screen.findByText('Erva B');
+    const card = (titulo: string) => screen.getByText(titulo).closest('div.rounded-xl') as HTMLElement;
+    // 2 ervas × 2 secadores: 1 completo, 0 incompletos, 3 não operam
+    // O número conta até o valor: espera a contagem terminar
+    await waitFor(() => expect(card('Pares completos')).toHaveTextContent('1de 4'));
+    await waitFor(() => expect(card('Com parâmetro vazio')).toHaveTextContent('0de 4'));
+    await waitFor(() => expect(card('Não operam')).toHaveTextContent('3de 4'));
   });
 });

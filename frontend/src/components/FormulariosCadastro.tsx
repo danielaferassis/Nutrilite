@@ -1,13 +1,15 @@
-import { FormEvent, ReactNode, useEffect, useRef, useState } from 'react';
+import { Factory, Gauge, Leaf, LucideIcon, Save, Trash2 } from 'lucide-react';
+import { FormEvent, ReactNode, useState } from 'react';
 
 import { apiFetch } from '../api';
 import { camposAlterados } from '../edicao';
 import { useFeedback } from '../feedback';
 import { logger } from '../logger';
 import { Capacidade, Erva, Rendimento, Secador } from '../tipos';
-import { Button, Card, Input, Select } from './ui';
+import { Button, Input, Janela, Select } from './ui';
 
-// Campo vazio = "não informado" (null). Nunca vira zero: a simulação acusa PARAM_AUSENTE
+// Campo vazio = "não informado" (null). Nunca vira zero: a simulação acusa PARAM_AUSENTE.
+// Os placeholders ("ex.: …") são só exemplo de formato e nunca são enviados.
 const texto = (v: string | number | boolean | null) => (v === null ? '' : String(v));
 const decimalOuNulo = (v: string) => (v.trim() === '' ? null : v.trim());
 const inteiroOuNulo = (v: string) => (v.trim() === '' ? null : Number(v));
@@ -15,31 +17,50 @@ const simNaoOuNulo = (v: string) => (v === '' ? null : v === 'true');
 
 const AVISO_VAZIO = 'Campo vazio fica como "não informado": a simulação aponta a falta, sem assumir valor.';
 
-function Moldura({ titulo, children }: { titulo: string; children: ReactNode }) {
-  // O formulário abre acima da matriz: rola até ele quando o "editar" foi clicado lá embaixo
-  const ref = useRef<HTMLDivElement>(null);
-  // Com chaves: no Chromium recente scrollIntoView devolve uma Promise, e o React
-  // trataria esse retorno como função de limpeza (erro "destroy is not a function")
-  useEffect(() => {
-    ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-  }, []);
+/** Janela (popup) com o formulário de cadastro. */
+function Moldura({
+  titulo,
+  icone,
+  aoCancelar,
+  children,
+}: {
+  titulo: string;
+  icone: LucideIcon;
+  aoCancelar: () => void;
+  children: ReactNode;
+}) {
   return (
-    <div ref={ref}>
-      <Card>
-        <h2 className="text-lg font-semibold">{titulo}</h2>
-        <p className="text-xs text-suave mb-4">{AVISO_VAZIO}</p>
-        {children}
-      </Card>
+    <Janela titulo={titulo} descricao={AVISO_VAZIO} icone={icone} aoFechar={aoCancelar} largura="xl">
+      {children}
+    </Janela>
+  );
+}
+
+/** Campo com uma linha de ajuda embaixo (o que é e como medir). */
+function Ajuda({ children, texto: ajuda }: { children: ReactNode; texto: string }) {
+  return (
+    <div>
+      {children}
+      <p className="mt-1 text-xs text-suave">{ajuda}</p>
     </div>
+  );
+}
+
+/** Subtítulo que separa grupos de campos dentro do formulário. */
+function Grupo({ titulo }: { titulo: string }) {
+  return (
+    <p className="border-b border-borda pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-suave md:col-span-3">
+      {titulo}
+    </p>
   );
 }
 
 function Botoes({ salvando, aoCancelar, extra }: { salvando: boolean; aoCancelar: () => void; extra?: ReactNode }) {
   return (
-    <div className="md:col-span-3 flex flex-wrap gap-3 justify-end">
-      {extra}
+    <div className="mt-2 flex flex-col-reverse gap-2 border-t border-borda pt-4 sm:flex-row sm:justify-end md:col-span-3">
+      {extra && <div className="sm:mr-auto [&>button]:w-full sm:[&>button]:w-auto">{extra}</div>}
       <Button type="button" variant="secondary" onClick={aoCancelar}>Cancelar</Button>
-      <Button type="submit" disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar'}</Button>
+      <Button type="submit" icone={Save} carregando={salvando}>{salvando ? 'Salvando…' : 'Salvar'}</Button>
     </div>
   );
 }
@@ -133,23 +154,36 @@ export function FormularioErva({
   };
 
   return (
-    <Moldura titulo={erva === null ? 'Nova erva' : `Editar ${erva.nome}`}>
-      <form onSubmit={salvar} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Input label="Código" maxLength={50} value={form.codigo} onChange={alterar('codigo')} required />
-        <Input label="Nome" maxLength={150} value={form.nome} onChange={alterar('nome')} required />
+    <Moldura titulo={erva === null ? 'Nova erva' : `Editar ${erva.nome}`} icone={Leaf} aoCancelar={aoCancelar}>
+      <form onSubmit={salvar} className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Grupo titulo="Identificação" />
+        <Input label="Código" maxLength={50} placeholder="ex.: ERVA-X" value={form.codigo} onChange={alterar('codigo')} required />
+        <Input label="Nome" maxLength={150} placeholder="ex.: Erva X" value={form.nome} onChange={alterar('nome')} required />
         <Select label="Situação" value={form.ativo} onChange={alterar('ativo')}>
           <option value="true">Ativa</option>
           <option value="false">Inativa (fora do planejamento)</option>
         </Select>
-        <Input label="Regime (horas por dia)" type="number" min="0.01" max="24" step="0.01"
-          value={form.regime_horas_dia} onChange={alterar('regime_horas_dia')} />
-        <Input label="Espera máxima do fresco (dias)" type="number" min="0" step="1"
-          value={form.espera_maxima_dias} onChange={alterar('espera_maxima_dias')} />
-        <div />
-        <Input label="Kg de fresco para 1 kg desidratado" type="number" min="0.0001" step="0.0001"
-          value={form.fresco_por_desidratado} onChange={alterar('fresco_por_desidratado')} />
-        <Input label="Kg desidratado para 1 kg moído" type="number" min="0.0001" step="0.0001"
-          value={form.desidratado_por_moido} onChange={alterar('desidratado_por_moido')} />
+
+        <Grupo titulo="Regime de secagem" />
+        <Ajuda texto="Horas por dia em que a erva pode secar (24 = dia inteiro).">
+          <Input label="Regime (horas por dia)" type="number" min="0.01" max="24" step="0.01" placeholder="ex.: 12"
+            value={form.regime_horas_dia} onChange={alterar('regime_horas_dia')} />
+        </Ajuda>
+        <Ajuda texto="Dias que o fresco aguenta esperando secador; depois disso é perda.">
+          <Input label="Espera máxima do fresco (dias)" type="number" min="0" step="1" placeholder="ex.: 3"
+            value={form.espera_maxima_dias} onChange={alterar('espera_maxima_dias')} />
+        </Ajuda>
+        <div className="hidden md:block" />
+
+        <Grupo titulo="Rendimento (cálculo reverso da demanda)" />
+        <Ajuda texto="Quantos kg de erva fresca viram 1 kg de desidratado.">
+          <Input label="Kg de fresco para 1 kg desidratado" type="number" min="0.0001" step="0.0001" placeholder="ex.: 6,5"
+            value={form.fresco_por_desidratado} onChange={alterar('fresco_por_desidratado')} />
+        </Ajuda>
+        <Ajuda texto="Quantos kg de desidratado viram 1 kg de moído (produto acabado).">
+          <Input label="Kg desidratado para 1 kg moído" type="number" min="0.0001" step="0.0001" placeholder="ex.: 1,1"
+            value={form.desidratado_por_moido} onChange={alterar('desidratado_por_moido')} />
+        </Ajuda>
         <Botoes salvando={salvando} aoCancelar={aoCancelar} />
       </form>
     </Moldura>
@@ -203,25 +237,24 @@ export function FormularioSecador({ secador, aoSalvar, aoCancelar }: PropsFormul
   };
 
   return (
-    <Moldura titulo={secador === null ? 'Novo secador' : `Editar ${secador.codigo}`}>
-      <form onSubmit={salvar} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Input label="Código" maxLength={50} value={form.codigo} onChange={alterar('codigo')} required />
-        <Input label="Nome" maxLength={150} value={form.nome} onChange={alterar('nome')} required />
+    <Moldura titulo={secador === null ? 'Novo secador' : `Editar ${secador.codigo}`} icone={Factory} aoCancelar={aoCancelar}>
+      <form onSubmit={salvar} className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Input label="Código" maxLength={50} placeholder="ex.: SEC-9" value={form.codigo} onChange={alterar('codigo')} required />
+        <Input label="Nome" maxLength={150} placeholder="ex.: Secador de bandejas 9" value={form.nome} onChange={alterar('nome')} required />
         <Select label="Situação" value={form.ativo} onChange={alterar('ativo')}>
           <option value="true">Ativo</option>
           <option value="false">Inativo (fora do planejamento)</option>
         </Select>
         <div className="md:col-span-3">
-          <Input
-            label="Código no Infinity"
-            maxLength={150}
-            placeholder="Como aparece na coluna Processo, ex.: SB-03-Secador Bandejas"
-            value={form.codigo_infinity}
-            onChange={alterar('codigo_infinity')}
-          />
-          <p className="text-xs text-suave mt-1">
-            Liga os apontamentos importados do Infinity a este secador. Vazio: os apontamentos dele não são importados.
-          </p>
+          <Ajuda texto="Liga os apontamentos importados do Infinity a este secador. Vazio: os apontamentos dele não são importados.">
+            <Input
+              label="Código no Infinity"
+              maxLength={150}
+              placeholder="Como aparece na coluna Processo, ex.: SB-09-Secador Bandejas"
+              value={form.codigo_infinity}
+              onChange={alterar('codigo_infinity')}
+            />
+          </Ajuda>
         </div>
         <Botoes salvando={salvando} aoCancelar={aoCancelar} />
       </form>
@@ -313,47 +346,69 @@ export function FormularioCapacidade({
   };
 
   return (
-    <Moldura titulo={`Capacidade: ${par}`}>
-      <form onSubmit={salvar} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Select label="Modo de secagem" value={form.modo} onChange={alterar('modo')}>
-          <option value="">Não informado</option>
-          <option value="por_carga">Por carga</option>
-          <option value="continuo">Contínuo</option>
-        </Select>
+    <Moldura titulo={`Capacidade: ${par}`} icone={Gauge} aoCancelar={aoCancelar}>
+      <form onSubmit={salvar} className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Grupo titulo="Ritmo de secagem" />
+        <Ajuda texto="Por carga: enche, seca e esvazia. Contínuo: a erva passa pelo secador numa vazão constante.">
+          <Select label="Modo de secagem" value={form.modo} onChange={alterar('modo')}>
+            <option value="">Não informado</option>
+            <option value="por_carga">Por carga</option>
+            <option value="continuo">Contínuo</option>
+          </Select>
+        </Ajuda>
         {form.modo === 'continuo' ? (
           <>
-            <Input label="Vazão (kg de fresco por hora)" type="number" min="0.001" step="0.001"
-              value={form.kg_fresco_por_hora} onChange={alterar('kg_fresco_por_hora')} />
-            <div />
+            <Ajuda texto="Quantos kg de erva fresca o secador processa por hora.">
+              <Input label="Vazão (kg de fresco por hora)" type="number" min="0.001" step="0.001" placeholder="ex.: 80"
+                value={form.kg_fresco_por_hora} onChange={alterar('kg_fresco_por_hora')} />
+            </Ajuda>
+            <div className="hidden md:block" />
           </>
         ) : (
           <>
-            <Input label="Kg de fresco por carga" type="number" min="0.001" step="0.001"
-              value={form.kg_por_carga} onChange={alterar('kg_por_carga')} />
-            <Input label="Horas por carga" type="number" min="0.01" step="0.01"
-              value={form.horas_por_carga} onChange={alterar('horas_por_carga')} />
+            <Ajuda texto="Kg de erva fresca que cabem numa carga do secador.">
+              <Input label="Kg de fresco por carga" type="number" min="0.001" step="0.001" placeholder="ex.: 250"
+                value={form.kg_por_carga} onChange={alterar('kg_por_carga')} />
+            </Ajuda>
+            <Ajuda texto="Tempo de secagem de uma carga, do início ao fim.">
+              <Input label="Horas por carga" type="number" min="0.01" step="0.01" placeholder="ex.: 6"
+                value={form.horas_por_carga} onChange={alterar('horas_por_carga')} />
+            </Ajuda>
           </>
         )}
-        <Input label="Setup inicial (h)" type="number" min="0" step="0.01"
-          value={form.setup_inicial_h} onChange={alterar('setup_inicial_h')} />
-        <Input label="Setup final / limpeza (h)" type="number" min="0" step="0.01"
-          value={form.setup_final_h} onChange={alterar('setup_final_h')} />
+
+        <Grupo titulo="Setups (horas paradas para preparo e limpeza)" />
+        <Ajuda texto="Preparo do secador ao começar a campanha desta erva.">
+          <Input label="Setup inicial (h)" type="number" min="0" step="0.01" placeholder="ex.: 1,5"
+            value={form.setup_inicial_h} onChange={alterar('setup_inicial_h')} />
+        </Ajuda>
+        <Ajuda texto="Limpeza ao encerrar a campanha (antes de trocar de erva).">
+          <Input label="Setup final / limpeza (h)" type="number" min="0" step="0.01" placeholder="ex.: 2"
+            value={form.setup_final_h} onChange={alterar('setup_final_h')} />
+        </Ajuda>
         {/* Na tabela do PCP é a coluna "Interv": 1 vez por dia */}
-        <Input label="Setup diário / Interv (h)" type="number" min="0" step="0.01"
-          value={form.setup_diario_h} onChange={alterar('setup_diario_h')} />
-        <Select label="Setup dentro do regime?" value={form.setup_dentro_do_regime} onChange={alterar('setup_dentro_do_regime')}>
-          <option value="">Não informado</option>
-          <option value="true">Sim (desconta das horas do turno)</option>
-          <option value="false">Não (fora do turno)</option>
-        </Select>
-        <Input label="Prioridade (menor = preferido; vazio = sem preferência)" type="number" min="0" step="1"
-          value={form.prioridade} onChange={alterar('prioridade')} />
-        <div />
+        <Ajuda texto='Parada de todo dia de operação (coluna "Interv" da planilha do PCP).'>
+          <Input label="Setup diário / Interv (h)" type="number" min="0" step="0.01" placeholder="ex.: 0,5"
+            value={form.setup_diario_h} onChange={alterar('setup_diario_h')} />
+        </Ajuda>
+        <Ajuda texto="Sim: o setup consome horas do regime da erva. Não: acontece fora dele.">
+          <Select label="Setup dentro do regime?" value={form.setup_dentro_do_regime} onChange={alterar('setup_dentro_do_regime')}>
+            <option value="">Não informado</option>
+            <option value="true">Sim (desconta das horas do turno)</option>
+            <option value="false">Não (fora do turno)</option>
+          </Select>
+        </Ajuda>
+
+        <Grupo titulo="Preferência" />
+        <Ajuda texto="Ordem de escolha entre secadores para esta erva. Vazio: vai para o de maior capacidade no dia.">
+          <Input label="Prioridade (menor = preferido; vazio = sem preferência)" type="number" min="0" step="1" placeholder="ex.: 1"
+            value={form.prioridade} onChange={alterar('prioridade')} />
+        </Ajuda>
         <Botoes
           salvando={salvando}
           aoCancelar={aoCancelar}
           extra={capacidade && (
-            <Button type="button" variant="danger" onClick={remover}>Remover (não opera)</Button>
+            <Button type="button" variant="danger" icone={Trash2} onClick={remover}>Remover (não opera)</Button>
           )}
         />
       </form>

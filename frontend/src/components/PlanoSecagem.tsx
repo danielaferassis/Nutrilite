@@ -1,3 +1,4 @@
+import { Check, FlaskConical, Play, Save } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 
 import { apiFetch } from '../api';
@@ -15,15 +16,64 @@ import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { PlanoDetalhe, PlanoResumo, ResultadoSimulacao, StatusPlano } from '../tipos';
-import ItemList from './ItemList';
+import PlanosSalvos from './PlanosSalvos';
 import ResultadoPlano from './ResultadoPlano';
-import { Alerta, Button, Card, Etiqueta, EtiquetaCor, Input, PageHeader } from './ui';
+import {
+  Alerta,
+  Button,
+  CabecalhoCard,
+  Card,
+  Etiqueta,
+  EtiquetaCor,
+  Input,
+  PageHeader,
+} from './ui';
 
 const COR_STATUS: Record<StatusPlano, EtiquetaCor> = {
   rascunho: 'cinza',
   aprovado: 'verde',
   substituido: 'amarelo',
 };
+
+/** Dias de operação como botões que ligam e desligam (checkbox por baixo, para teclado e leitor de tela). */
+function DiasOperacao({ dias, alternar, definir }: { dias: number[]; alternar: (d: number) => void; definir: (d: number[]) => void }) {
+  return (
+    <fieldset>
+      <legend className="mb-2 text-sm font-medium text-tinta">Dias de operação da fábrica</legend>
+      <div className="flex flex-wrap items-center gap-2">
+        {DIAS_SEMANA.map((rotulo, dia) => {
+          const marcado = dias.includes(dia);
+          return (
+            <label
+              key={dia}
+              className={`cursor-pointer select-none rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-all duration-200 ease-suave has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-lima-500 ${
+                marcado
+                  ? 'border-verde-700 bg-verde-700 text-white shadow-suave'
+                  : 'border-borda bg-white text-suave hover:border-verde-600 hover:text-tinta'
+              }`}
+            >
+              <input type="checkbox" className="sr-only" checked={marcado} onChange={() => alternar(dia)} />
+              {rotulo}
+            </label>
+          );
+        })}
+        <span className="mx-1 hidden h-5 w-px bg-borda sm:block" />
+        {/* Atalhos: só marcam quando o usuário clica; nada vem marcado de início */}
+        <button type="button" onClick={() => definir([0, 1, 2, 3, 4, 5, 6])} className="text-xs font-semibold text-verde-700 hover:underline">
+          Todos
+        </button>
+        <button type="button" onClick={() => definir([])} className="text-xs font-semibold text-suave hover:underline">
+          Limpar
+        </button>
+      </div>
+      {dias.length === 0 && (
+        <p className="mt-2 text-xs text-amber-700">
+          Nenhum dia marcado: a simulação vai apontar o calendário como parâmetro ausente.
+        </p>
+      )}
+    </fieldset>
+  );
+}
 
 export default function PlanoSecagem() {
   const { pode } = useSessao();
@@ -38,7 +88,7 @@ export default function PlanoSecagem() {
 
   const [simulacao, setSimulacao] = useState<ResultadoSimulacao | null>(null);
   const [plano, setPlano] = useState<PlanoDetalhe | null>(null);
-  const [ocupado, setOcupado] = useState(false);
+  const [ocupado, setOcupado] = useState<'simular' | 'salvar' | 'outro' | null>(null);
   const feedback = useFeedback();
 
   const planos = useApi<PlanoResumo[]>('/planos');
@@ -46,14 +96,14 @@ export default function PlanoSecagem() {
   const pedido = () => ({ inicio, fim, dias_operacao: dias.length ? dias : null });
 
   /** Roda a ação e, se falhar, mostra a janela de erro com `tituloErro`. */
-  const executar = async (tituloErro: string, acao: () => Promise<void>) => {
-    setOcupado(true);
+  const executar = async (tituloErro: string, acao: () => Promise<void>, qual: 'simular' | 'salvar' | 'outro' = 'outro') => {
+    setOcupado(qual);
     try {
       await acao();
     } catch (err) {
       feedback.erro(tituloErro, err);
     } finally {
-      setOcupado(false);
+      setOcupado(null);
     }
   };
 
@@ -66,7 +116,7 @@ export default function PlanoSecagem() {
         method: 'POST',
         body: JSON.stringify(pedido()),
       }));
-    });
+    }, 'simular');
   };
 
   const salvar = () =>
@@ -83,7 +133,7 @@ export default function PlanoSecagem() {
         'Plano salvo',
         `O plano v${salvo.versao} foi salvo como rascunho. Ele só passa a valer depois de aprovado.`
       );
-    });
+    }, 'salvar');
 
   const abrir = (id: number) =>
     executar('Não foi possível abrir o plano', async () => {
@@ -146,23 +196,7 @@ export default function PlanoSecagem() {
   const alternarDia = (dia: number) =>
     setDias(dias.includes(dia) ? dias.filter((d) => d !== dia) : [...dias, dia].sort());
 
-  const linhas = (planos.dados ?? []).map((p) => ({
-    versao: `v${p.versao}`,
-    horizonte: `${formatarData(p.inicio)} a ${formatarData(p.fim)}`,
-    status: <Etiqueta cor={COR_STATUS[p.status]}>{ROTULO_STATUS[p.status]}</Etiqueta>,
-    viavel: p.viavel ? 'Sim' : 'Não',
-    criado: `${p.criado_por.nome}, ${formatarDataHora(p.criado_em)}`,
-    aprovado: p.aprovado_por ? `${p.aprovado_por.nome}, ${formatarDataHora(p.aprovado_em!)}` : '—',
-    acoes: (
-      <div className="flex gap-2">
-        <Button variant="secondary" onClick={() => abrir(p.id)}>Ver</Button>
-        {podeAprovar && p.status === 'rascunho' && <Button onClick={() => aprovar(p)}>Aprovar</Button>}
-        {podeSimular && p.status === 'rascunho' && (
-          <Button variant="secondary" onClick={() => excluir(p)}>Excluir</Button>
-        )}
-      </div>
-    ),
-  }));
+  const resultadoAberto = simulacao ?? plano;
 
   return (
     <div className="space-y-6">
@@ -173,73 +207,100 @@ export default function PlanoSecagem() {
       />
 
       {podeSimular && (
-        <Card>
-          <h2 className="text-lg font-semibold mb-4">Simular</h2>
-          <form onSubmit={simular} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="relative overflow-hidden border-verde-700/30 bg-gradient-to-br from-white via-white to-verde-50 ring-1 ring-verde-700/10">
+          <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-verde-700 to-lima-500" />
+          <CabecalhoCard
+            icone={FlaskConical}
+            titulo="Simular"
+            descricao="Escolha o período e os dias de operação. Simular não grava nada; salve como rascunho quando o resultado servir."
+          />
+          <form onSubmit={simular} className="space-y-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Input label="Início" type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} required />
               <Input label="Fim" type="date" value={fim} onChange={(e) => setFim(e.target.value)} required />
-              <Input label="Observação (ao salvar)" maxLength={500} value={observacao}
-                onChange={(e) => setObservacao(e.target.value)} />
-            </div>
-            <fieldset>
-              <legend className="text-sm font-medium text-tinta mb-2">Dias de operação da fábrica</legend>
-              <div className="flex flex-wrap gap-4">
-                {DIAS_SEMANA.map((rotulo, dia) => (
-                  <label key={dia} className="flex items-center gap-1 text-sm">
-                    <input type="checkbox" checked={dias.includes(dia)} onChange={() => alternarDia(dia)} />
-                    {rotulo}
-                  </label>
-                ))}
+              <div className="sm:col-span-2">
+                <Input
+                  label="Observação (ao salvar)"
+                  maxLength={500}
+                  placeholder="ex.: plano com o secador 2 em manutenção"
+                  value={observacao}
+                  onChange={(e) => setObservacao(e.target.value)}
+                />
               </div>
-              {dias.length === 0 && (
-                <p className="text-xs text-amber-700 mt-2">
-                  Nenhum dia marcado: a simulação vai apontar o calendário como parâmetro ausente.
-                </p>
-              )}
-            </fieldset>
-            <div className="flex gap-3 justify-end">
-              <Button type="submit" variant="secondary" disabled={ocupado}>Simular</Button>
-              <Button type="button" onClick={salvar} disabled={ocupado}>Simular e salvar rascunho</Button>
+            </div>
+            <DiasOperacao dias={dias} alternar={alternarDia} definir={setDias} />
+            <div className="flex flex-col-reverse gap-3 border-t border-borda pt-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                tamanho="lg"
+                icone={Save}
+                onClick={salvar}
+                carregando={ocupado === 'salvar'}
+                disabled={ocupado !== null}
+              >
+                Simular e salvar rascunho
+              </Button>
+              <Button type="submit" tamanho="lg" icone={Play} carregando={ocupado === 'simular'} disabled={ocupado !== null} className="sm:min-w-40">
+                Simular
+              </Button>
             </div>
           </form>
         </Card>
       )}
 
-      {simulacao && (
-        <div className="space-y-2">
-          <h2 className="text-lg font-semibold">Resultado da simulação (não salvo)</h2>
-          <ResultadoPlano resultado={simulacao} />
-        </div>
-      )}
-
-      {plano && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold">Plano v{plano.versao}</h2>
-            <Etiqueta cor={COR_STATUS[plano.status]}>{ROTULO_STATUS[plano.status]}</Etiqueta>
+      {resultadoAberto && (
+        <section className="space-y-4 animate-entra">
+          <div className="flex flex-col gap-3 border-b border-borda pb-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              {simulacao ? (
+                <h2 className="text-xl font-bold text-tinta">
+                  Resultado da simulação <span className="text-base font-medium text-suave">(não salvo)</span>
+                </h2>
+              ) : (
+                plano && (
+                  <>
+                    <h2 className="flex flex-wrap items-center gap-3 text-xl font-bold text-tinta">
+                      Plano v{plano.versao} · {formatarData(plano.inicio)} a {formatarData(plano.fim)}
+                      <Etiqueta cor={COR_STATUS[plano.status]}>{ROTULO_STATUS[plano.status]}</Etiqueta>
+                    </h2>
+                    <p className="mt-1 text-sm text-suave">
+                      Criado por {plano.criado_por.nome} em {formatarDataHora(plano.criado_em)}
+                      {plano.aprovado_por && ` · aprovado por ${plano.aprovado_por.nome} em ${formatarDataHora(plano.aprovado_em!)}`}
+                      {' · dias de operação: '}
+                      {plano.parametros.dias_operacao?.map((d) => DIAS_SEMANA[d]).join(', ') ?? 'não informados'}
+                      {plano.observacao && ` · ${plano.observacao}`}
+                    </p>
+                  </>
+                )
+              )}
+            </div>
+            {plano && !simulacao && podeAprovar && plano.status === 'rascunho' && (
+              <Button icone={Check} onClick={() => aprovar(plano)} disabled={ocupado !== null}>
+                Aprovar plano
+              </Button>
+            )}
           </div>
-          <p className="text-sm text-suave">
-            Criado por {plano.criado_por.nome} em {formatarDataHora(plano.criado_em)}
-            {plano.aprovado_por && ` · aprovado por ${plano.aprovado_por.nome} em ${formatarDataHora(plano.aprovado_em!)}`}
-            {' · dias de operação: '}
-            {plano.parametros.dias_operacao?.map((d) => DIAS_SEMANA[d]).join(', ') ?? 'não informados'}
-            {plano.observacao && ` · ${plano.observacao}`}
-          </p>
-          <ResultadoPlano resultado={plano} nomeArquivo={`plano-v${plano.versao}`} />
-        </div>
+          {simulacao ? (
+            <ResultadoPlano resultado={simulacao} />
+          ) : (
+            plano && <ResultadoPlano resultado={plano} nomeArquivo={`plano-v${plano.versao}`} />
+          )}
+        </section>
       )}
 
-      <Card>
-        <h2 className="text-lg font-semibold mb-4">Planos salvos</h2>
-        {planos.erro && <Alerta>{planos.erro}</Alerta>}
-        <ItemList
-          colunas={['Versão', 'Horizonte', 'Status', 'Viável', 'Criado', 'Aprovado', '']}
-          dados={linhas}
-          carregando={planos.carregando}
-          vazio="Nenhum plano salvo."
-        />
-      </Card>
+      {planos.erro && <Alerta>{planos.erro}</Alerta>}
+      <PlanosSalvos
+        planos={planos.dados}
+        carregando={planos.carregando}
+        hoje={hojeIso()}
+        abertoId={simulacao ? undefined : plano?.id}
+        podeAprovar={podeAprovar}
+        podeExcluir={podeSimular}
+        aoVer={(p) => abrir(p.id)}
+        aoAprovar={aprovar}
+        aoExcluir={excluir}
+      />
     </div>
   );
 }

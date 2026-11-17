@@ -44,7 +44,7 @@ const RESULTADO: ResultadoSimulacao = {
 
 // Linha da demanda na tabela de necessidades (o "#1" também aparece como lote no detalhe)
 const linhaDa = (demanda: string) => {
-  const tabela = screen.getByText('Necessidade de erva fresca (cálculo reverso)').closest('div')!;
+  const tabela = screen.getByRole('table', { name: 'Necessidade de erva fresca (cálculo reverso)' });
   return within(tabela).getByText(demanda).closest('tr')!;
 };
 

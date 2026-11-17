@@ -41,7 +41,7 @@ describe('PainelOEE', () => {
   it('mostra os indicadores, qualidade não informada e n/a onde não se aplica', async () => {
     renderizarTela(<PainelOEE />, { 'GET /indicadores/secagem': RESPOSTA }, ['plano.consultar']);
 
-    expect((await screen.findByText('Disponibilidade', { selector: 'p' })).nextSibling).toHaveTextContent('25%');
+    expect(await screen.findByRole('region', { name: 'Disponibilidade' })).toHaveTextContent('25%');
     expect(screen.getByText('não informada')).toBeInTheDocument();
     expect(screen.getAllByText('20,8%').length).toBeGreaterThan(0);
     expect(screen.getByText(/600 kg de 800 kg planejados/)).toBeInTheDocument();
@@ -56,7 +56,7 @@ describe('PainelOEE', () => {
   it('busca de novo ao mudar o período', async () => {
     const usuario = userEvent.setup();
     const { chamadas } = renderizarTela(<PainelOEE />, { 'GET /indicadores/secagem': RESPOSTA }, ['plano.consultar']);
-    await screen.findByText('Disponibilidade', { selector: 'p' });
+    await screen.findByRole('region', { name: 'Disponibilidade' });
 
     const de = screen.getByLabelText('De');
     await usuario.clear(de);

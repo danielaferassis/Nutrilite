@@ -1,3 +1,4 @@
+import { Pencil, Save, ShieldPlus, Trash2, Users } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 
 import { apiFetch } from '../api';
@@ -6,7 +7,7 @@ import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { Grupo } from '../tipos';
 import ItemList from './ItemList';
-import { Alerta, Button, Card, Etiqueta, Input, PageHeader } from './ui';
+import { Alerta, Button, CabecalhoCard, Card, Etiqueta, Input, PageHeader } from './ui';
 
 interface Formulario {
   nome: string;
@@ -91,9 +92,10 @@ export default function GestaoGrupos() {
       />
 
       <Card>
-        <h2 className="text-lg font-semibold text-tinta mb-4">
-          {editandoId === null ? 'Novo grupo' : `Editar grupo: ${form.nome}`}
-        </h2>
+        <CabecalhoCard
+          icone={editandoId === null ? ShieldPlus : Pencil}
+          titulo={editandoId === null ? 'Novo grupo' : `Editar grupo: ${form.nome}`}
+        />
         <form onSubmit={salvar} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input
@@ -123,8 +125,8 @@ export default function GestaoGrupos() {
             Ativo (concede as permissões aos membros)
           </label>
 
-          <div className="flex gap-2">
-            <Button type="submit" disabled={salvando}>
+          <div className="flex flex-col-reverse gap-2 border-t border-borda pt-4 sm:flex-row">
+            <Button type="submit" icone={Save} carregando={salvando}>
               {salvando ? 'Salvando…' : editandoId === null ? 'Cadastrar' : 'Salvar alterações'}
             </Button>
             {editandoId !== null && (
@@ -135,6 +137,7 @@ export default function GestaoGrupos() {
       </Card>
 
       <Card>
+        <CabecalhoCard icone={Users} titulo="Grupos cadastrados" />
         {grupos.erro && <Alerta>{grupos.erro}</Alerta>}
         <ItemList
           colunas={['Nome', 'Descrição', 'Permissões', 'Situação', '']}
@@ -145,8 +148,8 @@ export default function GestaoGrupos() {
             situacao: g.ativo ? <Etiqueta cor="verde">Ativo</Etiqueta> : <Etiqueta>Inativo</Etiqueta>,
             acoes: (
               <div className="flex gap-2 justify-end">
-                <Button variant="secondary" onClick={() => editar(g)}>Editar</Button>
-                <Button variant="danger" onClick={() => excluir(g)}>Excluir</Button>
+                <Button variant="secondary" tamanho="sm" icone={Pencil} compacto onClick={() => editar(g)}>Editar</Button>
+                <Button variant="secondary" tamanho="sm" icone={Trash2} compacto onClick={() => excluir(g)}>Excluir</Button>
               </div>
             ),
           }))}

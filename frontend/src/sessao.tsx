@@ -1,7 +1,7 @@
-import { Leaf } from 'lucide-react';
 import { ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 import { apiFetch, textoDoErro } from './api';
+import { Logo } from './components/ui/Logo';
 import { SessaoAtual } from './tipos';
 
 interface ContextoSessao {
@@ -33,8 +33,8 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
   if (!sessao) {
     return (
       <div role="status" className="flex min-h-screen flex-col items-center justify-center gap-3 bg-fundo text-suave">
-        <span className="flex size-12 animate-pulse items-center justify-center rounded-xl bg-gradient-to-br from-lima-500 to-verde-700 text-white">
-          <Leaf aria-hidden="true" className="size-6" />
+        <span className="animate-pulse">
+          <Logo tamanho={48} />
         </span>
         <span className="text-sm">Carregando…</span>
       </div>

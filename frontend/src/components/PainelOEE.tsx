@@ -1,21 +1,24 @@
+import { Activity, CalendarRange, CircleCheckBig, Gauge, ShieldQuestion, Target, Timer } from 'lucide-react';
 import { useState } from 'react';
 
 import { query } from '../api';
 import { formatarData, formatarHoras, formatarKg, formatarPct, hojeIso } from '../formatar';
 import { useApi } from '../hooks';
 import { IndicadoresSecagem } from '../tipos';
-import ItemList from './ItemList';
-import { Alerta, Card, Input } from './ui';
+import { Alerta, Barra, CabecalhoCard, Card, Input, KpiCard, Legenda, TEXTO_TOM, Tabela, tomPorFaixa } from './ui';
 
 // Período padrão: os últimos 30 dias até hoje
 const JANELA_DIAS = 30;
 
-function Indicador({ titulo, valor, detalhe }: { titulo: string; valor: string; detalhe: string }) {
+/** Percentual com mini barra colorida pela faixa (null = "n/a", barra vazia). */
+function CelulaPct({ pct }: { pct: number | null }) {
+  const tom = tomPorFaixa(pct);
   return (
-    <div className="rounded-lg border border-borda bg-white p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-suave">{titulo}</p>
-      <p className="text-2xl font-bold text-verde-700">{valor}</p>
-      <p className="text-xs text-suave">{detalhe}</p>
+    <div className="min-w-24">
+      <span className={`font-semibold ${TEXTO_TOM[tom]}`}>{formatarPct(pct)}</span>
+      <div className="mt-1">
+        <Barra valor={pct} tom={tom} />
+      </div>
     </div>
   );
 }
@@ -35,90 +38,143 @@ export default function PainelOEE() {
 
   return (
     <Card>
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4">
-        <div>
-          <h2 className="font-semibold">Indicadores de OEE e aderência ao plano</h2>
-          <p className="text-sm text-suave">
-            Com os apontamentos importados. A qualidade não é informada pelo Infinity: o OEE mostrado é
-            disponibilidade × performance.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3 md:w-80">
-          <Input id="oee-de" label="De" type="date" value={periodo.de} onChange={(e) => setPeriodo({ ...periodo, de: e.target.value })} />
-          <Input id="oee-ate" label="Até" type="date" value={periodo.ate} onChange={(e) => setPeriodo({ ...periodo, ate: e.target.value })} />
-        </div>
-      </div>
+      <CabecalhoCard
+        icone={Gauge}
+        titulo="Indicadores de OEE e aderência ao plano"
+        descricao="OEE sem qualidade: o Infinity não informa refugo."
+        acoes={
+          <div className="grid w-full grid-cols-2 gap-3 sm:w-80">
+            <Input id="oee-de" label="De" type="date" value={periodo.de} onChange={(e) => setPeriodo({ ...periodo, de: e.target.value })} />
+            <Input id="oee-ate" label="Até" type="date" value={periodo.ate} onChange={(e) => setPeriodo({ ...periodo, ate: e.target.value })} />
+          </div>
+        }
+      />
 
       {!valido && <Alerta>Escolha um período válido.</Alerta>}
       {indicadores.erro && <Alerta>{indicadores.erro}</Alerta>}
-      {dados?.avisos.map((aviso) => (
-        <p key={aviso} className="text-sm text-amber-700 mb-2">{aviso}</p>
-      ))}
+      {dados && dados.avisos.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {dados.avisos.map((aviso) => <Alerta key={aviso} tipo="aviso">{aviso}</Alerta>)}
+        </div>
+      )}
 
       {dados && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <Indicador
-              titulo="Disponibilidade"
-              valor={formatarPct(dados.total.disponibilidade_pct)}
-              detalhe={`${formatarHoras(dados.total.horas_apontadas)} de ${formatarHoras(dados.total.horas_disponiveis)}`}
-            />
-            <Indicador
-              titulo="Performance"
-              valor={formatarPct(dados.total.performance_pct)}
-              detalhe="tempo padrão ÷ tempo real das cargas"
-            />
-            <Indicador titulo="Qualidade" valor="não informada" detalhe="o Infinity não traz refugo" />
-            <Indicador
-              titulo="OEE (sem qualidade)"
-              valor={formatarPct(dados.total.oee_sem_qualidade_pct)}
-              detalhe="disponibilidade × performance"
-            />
-            <Indicador
-              titulo="Aderência ao plano"
-              valor={formatarPct(dados.total.aderencia_pct)}
-              detalhe={`${formatarKg(dados.total.kg_apontado)} de ${formatarKg(dados.total.kg_planejado)} planejados`}
-            />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <section aria-label="Disponibilidade">
+              <KpiCard
+                icone={Timer}
+                titulo="Disponibilidade"
+                valor={formatarPct(dados.total.disponibilidade_pct)}
+                progresso={dados.total.disponibilidade_pct ?? 0}
+                tom={tomPorFaixa(dados.total.disponibilidade_pct)}
+                detalhe={`${formatarHoras(dados.total.horas_apontadas)} de ${formatarHoras(dados.total.horas_disponiveis)}`}
+              />
+            </section>
+            <section aria-label="Performance">
+              <KpiCard
+                icone={Activity}
+                titulo="Performance"
+                valor={formatarPct(dados.total.performance_pct)}
+                progresso={dados.total.performance_pct ?? 0}
+                tom={tomPorFaixa(dados.total.performance_pct)}
+                detalhe="tempo padrão ÷ tempo real"
+              />
+            </section>
+            <section aria-label="Qualidade">
+              <KpiCard
+                icone={ShieldQuestion}
+                titulo="Qualidade"
+                valor={<span className="text-base text-suave">não informada</span>}
+                tom="neutro"
+                detalhe="o Infinity não traz refugo"
+              />
+            </section>
+            <section aria-label="OEE (sem qualidade)">
+              <KpiCard
+                icone={Gauge}
+                titulo="OEE (sem qualidade)"
+                valor={formatarPct(dados.total.oee_sem_qualidade_pct)}
+                progresso={dados.total.oee_sem_qualidade_pct ?? 0}
+                tom={tomPorFaixa(dados.total.oee_sem_qualidade_pct)}
+                detalhe="disponibilidade × performance"
+              />
+            </section>
+            <section aria-label="Aderência ao plano">
+              <KpiCard
+                icone={Target}
+                titulo="Aderência ao plano"
+                valor={formatarPct(dados.total.aderencia_pct)}
+                progresso={dados.total.aderencia_pct ?? 0}
+                tom={tomPorFaixa(dados.total.aderencia_pct)}
+                detalhe={`${formatarKg(dados.total.kg_apontado)} de ${formatarKg(dados.total.kg_planejado)} planejados`}
+              />
+            </section>
           </div>
 
           <div>
-            <h3 className="font-medium mb-2">Por secador</h3>
-            <ItemList
-              colunas={['Secador', 'Cargas', 'Disponibilidade', 'Performance', 'OEE (sem qualidade)', 'Apontado / planejado', 'Aderência']}
-              dados={dados.secadores.map((s) => ({
-                secador: s.secador.codigo,
-                cargas: s.cargas_sem_padrao ? `${s.cargas} (${s.cargas_sem_padrao} sem padrão)` : String(s.cargas),
-                disponibilidade: formatarPct(s.disponibilidade_pct),
-                performance: formatarPct(s.performance_pct),
-                oee: formatarPct(s.oee_sem_qualidade_pct),
-                kg: `${formatarKg(s.kg_apontado)} / ${formatarKg(s.kg_planejado)}`,
-                aderencia: formatarPct(s.aderencia_pct),
-              }))}
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-tinta">
+              <CircleCheckBig aria-hidden="true" className="size-4 text-verde-700" />
+              Por secador
+            </h3>
+            <Tabela
+              linhas={dados.secadores}
+              chave={(s) => s.secador.id}
+              filtravel={false}
               vazio="Nenhum secador ativo."
+              colunas={[
+                { titulo: 'Secador', valor: (s) => <span className="font-semibold text-tinta">{s.secador.codigo}</span> },
+                {
+                  titulo: 'Cargas',
+                  valor: (s) => (s.cargas_sem_padrao ? `${s.cargas} (${s.cargas_sem_padrao} sem padrão)` : String(s.cargas)),
+                },
+                { titulo: 'Disponibilidade', valor: (s) => <CelulaPct pct={s.disponibilidade_pct} /> },
+                { titulo: 'Performance', valor: (s) => <CelulaPct pct={s.performance_pct} /> },
+                { titulo: 'OEE (sem qualidade)', valor: (s) => <CelulaPct pct={s.oee_sem_qualidade_pct} /> },
+                { titulo: 'Apontado / planejado', valor: (s) => `${formatarKg(s.kg_apontado)} / ${formatarKg(s.kg_planejado)}` },
+                { titulo: 'Aderência', valor: (s) => <CelulaPct pct={s.aderencia_pct} /> },
+              ]}
             />
           </div>
 
           {dados.dias.length > 0 && (
-            <details>
-              <summary className="cursor-pointer font-medium">Dia a dia ({dados.dias.length})</summary>
-              <div className="mt-2">
-                <ItemList
-                  colunas={['Dia', 'Secador', 'Cargas', 'Horas', 'Disponibilidade', 'Performance', 'Apontado / planejado', 'Aderência']}
-                  dados={dados.dias.map((d) => ({
-                    dia: formatarData(d.dia),
-                    secador: codigoDo(d.secador_id),
-                    cargas: String(d.cargas),
-                    horas: formatarHoras(d.horas_apontadas),
-                    disponibilidade: formatarPct(d.disponibilidade_pct),
-                    performance: formatarPct(d.performance_pct),
-                    kg: `${formatarKg(d.kg_apontado)} / ${formatarKg(d.kg_planejado)}`,
-                    aderencia: formatarPct(d.aderencia_pct),
-                  }))}
-                  vazio=""
+            <details className="group rounded-lg border border-borda">
+              <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-semibold text-tinta hover:bg-fundo">
+                <CalendarRange aria-hidden="true" className="size-4 text-verde-700" />
+                Dia a dia ({dados.dias.length})
+              </summary>
+              <div className="border-t border-borda p-3">
+                <Tabela
+                  linhas={dados.dias}
+                  chave={(d) => `${d.dia}-${d.secador_id}`}
+                  colunas={[
+                    { titulo: 'Dia', valor: (d) => formatarData(d.dia), texto: (d) => formatarData(d.dia), ordenar: (d) => d.dia },
+                    { titulo: 'Secador', valor: (d) => codigoDo(d.secador_id), texto: (d) => codigoDo(d.secador_id), filtro: 'opcoes' },
+                    { titulo: 'Cargas', valor: (d) => String(d.cargas), ordenar: (d) => d.cargas },
+                    { titulo: 'Horas', valor: (d) => formatarHoras(d.horas_apontadas), ordenar: (d) => d.horas_apontadas },
+                    { titulo: 'Disponibilidade', valor: (d) => <CelulaPct pct={d.disponibilidade_pct} /> },
+                    { titulo: 'Performance', valor: (d) => <CelulaPct pct={d.performance_pct} /> },
+                    { titulo: 'Apontado / planejado', valor: (d) => `${formatarKg(d.kg_apontado)} / ${formatarKg(d.kg_planejado)}` },
+                    { titulo: 'Aderência', valor: (d) => <CelulaPct pct={d.aderencia_pct} /> },
+                  ]}
                 />
               </div>
             </details>
           )}
+
+          <Legenda
+            itens={[
+              { amostra: 'bg-verde-600', rotulo: '90% ou mais', descricao: 'perto do ideal (100%)' },
+              { amostra: 'bg-amber-500', rotulo: '70% a 90%', descricao: 'atenção' },
+              { amostra: 'bg-red-600', rotulo: 'abaixo de 70%', descricao: 'crítico' },
+              { amostra: 'bg-cinza', rotulo: 'n/a', descricao: 'sem dado no período (nunca vira 0%)' },
+              {
+                amostra: 'bg-gradient-to-r from-verde-700 to-lima-500',
+                rotulo: 'Faixas visuais',
+                descricao: 'meta oficial de OEE a validar com a empresa',
+              },
+            ]}
+          />
         </div>
       )}
     </Card>

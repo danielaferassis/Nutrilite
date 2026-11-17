@@ -1,3 +1,4 @@
+import { Inbox } from 'lucide-react';
 import { ReactNode } from 'react';
 
 import { SkeletonTabela } from './ui';
@@ -11,29 +12,43 @@ interface ItemListProps {
   carregando?: boolean;
 }
 
+/**
+ * Tabela simples, sem filtro nem ordenação. Para listas com filtro por coluna,
+ * use <Tabela> de ./ui. Mesmo visual das duas.
+ */
 export default function ItemList({ colunas, dados, vazio = 'Nenhum registro.', carregando = false }: ItemListProps) {
   // Recarregar com dados já na tela não pisca: o esqueleto é só para a primeira carga
   if (carregando && dados.length === 0) return <SkeletonTabela />;
   return (
-    <div className="overflow-x-auto -mx-1 px-1">
-      <table className="w-full text-sm text-left tabular-nums">
-        <thead className="text-xs font-semibold text-suave">
-          <tr className="border-b border-borda">
+    <div className="-mx-1 overflow-x-auto px-1">
+      <table className="w-full border-separate border-spacing-0 text-left text-sm tabular-nums">
+        <thead>
+          <tr>
             {colunas.map((col, idx) => (
-              <th key={idx} className="py-2.5 px-4 whitespace-nowrap">{col}</th>
+              <th
+                key={idx}
+                className="sticky top-0 whitespace-nowrap border-b border-borda bg-white px-3 py-2.5 text-xs font-semibold text-suave"
+              >
+                {col}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {dados.length === 0 && (
             <tr>
-              <td colSpan={colunas.length} className="py-10 px-4 text-center text-suave">{vazio}</td>
+              <td colSpan={colunas.length} className="px-4 py-10 text-center text-suave">
+                <Inbox aria-hidden="true" className="mx-auto mb-2 size-8 text-cinza" />
+                {vazio}
+              </td>
             </tr>
           )}
           {dados.map((linha, idx) => (
-            <tr key={idx} className="border-b border-borda last:border-b-0 transition-colors hover:bg-verde-50">
+            <tr key={idx} className="group/linha transition-colors hover:bg-verde-50">
               {Object.values(linha).map((valor, vIdx) => (
-                <td key={vIdx} className="py-3 px-4 text-texto">{valor}</td>
+                <td key={vIdx} className="border-b border-borda px-3 py-3 text-texto group-last/linha:border-b-0">
+                  {valor}
+                </td>
               ))}
             </tr>
           ))}

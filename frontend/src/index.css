@@ -30,6 +30,12 @@
   /* Entrada das telas e dos avisos; o esqueleto brilha enquanto carrega */
   --animate-entra: entra 0.45s var(--ease-suave) both;
   --animate-brilho: brilho 1.3s ease infinite;
+  /* Janelas (formulários em popup) surgem com leve zoom */
+  --animate-surge: surge 0.25s var(--ease-suave) both;
+  /* Fundo do login: ondas que correm de lado e folhas que caem balançando */
+  --animate-onda: onda 18s linear infinite;
+  --animate-cai: cai linear infinite;
+  --animate-balanca: balanca ease-in-out infinite alternate;
 
   @keyframes entra {
     from { opacity: 0; transform: translateY(8px); }
@@ -38,6 +44,22 @@
   @keyframes brilho {
     from { background-position: 100% 50%; }
     to { background-position: 0 50%; }
+  }
+  @keyframes surge {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes onda {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes cai {
+    from { transform: translateY(-12vh) rotate(0deg); }
+    to { transform: translateY(112vh) rotate(540deg); }
+  }
+  @keyframes balanca {
+    from { transform: translateX(-28px); }
+    to { transform: translateX(28px); }
   }
 }
 

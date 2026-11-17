@@ -1,3 +1,4 @@
+import { Check, FileSpreadsheet } from 'lucide-react';
 import { useState } from 'react';
 
 import { apiFetch } from '../api';
@@ -5,7 +6,7 @@ import { useFeedback } from '../feedback';
 import { ROTULO_ORIGEM, formatarData, formatarKg } from '../formatar';
 import { logger } from '../logger';
 import { Erva, ImportacaoPrevisoes as Resultado, LinhaImportacaoPrevisao, Origem } from '../tipos';
-import { Alerta, Button, Etiqueta, Select } from './ui';
+import { Alerta, AreaArquivo, Button, Etiqueta, Select } from './ui';
 
 interface Escolhas {
   aba: string;
@@ -125,23 +126,23 @@ export default function ImportacaoPrevisoes({ ervas, aoImportar }: { ervas: Erva
 
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="font-medium">Importar planilha de programação</h3>
-        <p className="text-sm text-suave">
-          Planilha da fazenda (.xlsx), uma aba por erva e uma coluna por talhão. Você vê o que muda antes de confirmar.
-        </p>
+      <div className="flex gap-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-verde-100 text-verde-700">
+          <FileSpreadsheet aria-hidden="true" className="size-4" />
+        </span>
+        <div>
+          <h3 className="text-[15px] font-semibold text-tinta">Importar planilha de programação</h3>
+          <p className="text-[13px] text-suave">Uma aba por erva, uma coluna por talhão. Você vê o que muda antes de confirmar.</p>
+        </div>
       </div>
 
-      <label className="block text-sm">
-        <span className="font-medium text-tinta">Arquivo</span>
-        <input
-          type="file"
-          accept=".xlsx"
-          aria-label="Arquivo"
-          className="mt-1 block w-full text-sm"
-          onChange={(e) => escolherArquivo(e.target.files?.[0] ?? null)}
-        />
-      </label>
+      <AreaArquivo
+        rotulo="Arquivo"
+        aceita=".xlsx"
+        arquivo={arquivo}
+        aoEscolher={(novo) => (novo ? escolherArquivo(novo) : limpar())}
+        desabilitado={ocupado}
+      />
 
       {erro && <Alerta>{erro}</Alerta>}
 
@@ -160,7 +161,7 @@ export default function ImportacaoPrevisoes({ ervas, aoImportar }: { ervas: Erva
             </Select>
           </div>
 
-          <p className="text-sm text-suave">
+          <p className="rounded-lg bg-white px-3 py-2 text-sm text-suave ring-1 ring-borda">
             {previa.erva_na_planilha && <>Na planilha: <strong>{previa.erva_na_planilha}</strong> · </>}
             {previa.talhoes.length} talhão(ões)
             {previa.de && previa.ate && <> · {formatarData(previa.de)} a {formatarData(previa.ate)}</>}
@@ -180,11 +181,11 @@ export default function ImportacaoPrevisoes({ ervas, aoImportar }: { ervas: Erva
           )}
 
           {previa.avisos.map((aviso) => (
-            <p key={aviso} className="text-sm text-amber-700">{aviso}</p>
+            <Alerta key={aviso} tipo="aviso">{aviso}</Alerta>
           ))}
 
           {previa.erva_id && previa.erros.length === 0 && (
-            <div className="space-y-1">
+            <div className="space-y-2">
               <div className="flex flex-wrap gap-2">
                 <Etiqueta cor="verde">Criar: {previa.criar.length}</Etiqueta>
                 <Etiqueta cor="azul">Alterar: {previa.alterar.length}</Etiqueta>
@@ -197,9 +198,9 @@ export default function ImportacaoPrevisoes({ ervas, aoImportar }: { ervas: Erva
             </div>
           )}
 
-          <div className="flex gap-3">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="secondary" onClick={limpar} disabled={ocupado}>Cancelar</Button>
-            <Button variant="primary" onClick={confirmar} disabled={!podeConfirmar || ocupado}>
+            <Button variant="primary" icone={Check} onClick={confirmar} disabled={!podeConfirmar} carregando={ocupado}>
               Confirmar importação
             </Button>
           </div>

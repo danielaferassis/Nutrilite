@@ -1,15 +1,28 @@
+import { CalendarClock, ChartLine, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 
 import { apiFetch, query } from '../api';
 import { camposAlterados } from '../edicao';
 import { useFeedback } from '../feedback';
-import { ROTULO_ESTAGIO, formatarData, formatarKg } from '../formatar';
+import { ROTULO_ESTAGIO, formatarData, formatarKg, hojeIso } from '../formatar';
 import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { Demanda, Erva, Estagio } from '../tipos';
-import ItemList from './ItemList';
-import { Alerta, Button, Card, Input, PageHeader, Select } from './ui';
+import {
+  Alerta,
+  Button,
+  CabecalhoCard,
+  Card,
+  Coluna,
+  Etiqueta,
+  Input,
+  Janela,
+  Legenda,
+  PageHeader,
+  Select,
+  Tabela,
+} from './ui';
 
 const FORM_VAZIO = {
   erva_id: '',
@@ -39,11 +52,32 @@ const paraForm = (d: Demanda): FormDemanda => ({
   observacao: d.observacao ?? '',
 });
 
+// Dias entre hoje e o prazo, sem passar pelo fuso do navegador
+const diasAte = (iso: string) => {
+  const utc = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
+  return Math.round((utc(iso) - utc(hojeIso())) / 86_400_000);
+};
+
+/** Quanto falta para o prazo: só para orientar a leitura da lista. */
+function Prazo({ prazo }: { prazo: string }) {
+  const dias = diasAte(prazo);
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <span>{formatarData(prazo)}</span>
+      {dias < 0 ? (
+        <Etiqueta cor="vermelho">vencida</Etiqueta>
+      ) : dias <= 7 ? (
+        <Etiqueta cor="amarelo">{dias === 0 ? 'hoje' : `em ${dias} dia(s)`}</Etiqueta>
+      ) : null}
+    </span>
+  );
+}
+
 export default function GestaoDemandas() {
   const { pode } = useSessao();
   const podeGerenciar = pode('demanda.gerenciar');
 
-  const [filtro, setFiltro] = useState({ erva_id: '', prazo_de: '', prazo_ate: '' });
+  const [filtro, setFiltro] = useState({ prazo_de: '', prazo_ate: '' });
   const demandas = useApi<Demanda[]>(`/demandas${query(filtro)}`);
   const ervas = useApi<Erva[]>('/ervas');
 
@@ -113,43 +147,45 @@ export default function GestaoDemandas() {
     }
   };
 
-  const linhas = (demandas.dados ?? []).map((d) => ({
-    id: `#${d.id}`,
-    erva: d.erva.nome,
-    qtde: `${formatarKg(d.kg)} (${ROTULO_ESTAGIO[d.estagio].toLowerCase()})`,
-    reserva: Number(d.reserva_kg) ? formatarKg(d.reserva_kg) : '—',
-    prazo: formatarData(d.prazo),
-    prioridade: d.prioridade,
-    criado: d.criado_por.nome,
-    acoes: podeGerenciar ? (
-      <div className="flex gap-2">
-        <Button variant="secondary" onClick={() => editar(d)}>Editar</Button>
-        <Button variant="secondary" onClick={() => excluir(d)}>Excluir</Button>
-      </div>
-    ) : null,
-  }));
+  const colunas: Coluna<Demanda>[] = [
+    { titulo: 'ID', valor: (d) => <span className="font-semibold text-tinta">#{d.id}</span>, texto: (d) => `#${d.id}`, ordenar: (d) => d.id },
+    { titulo: 'Erva', valor: (d) => d.erva.nome, texto: (d) => d.erva.nome, filtro: 'opcoes' },
+    {
+      titulo: 'Quantidade',
+      valor: (d) => `${formatarKg(d.kg)} (${ROTULO_ESTAGIO[d.estagio].toLowerCase()})`,
+      texto: (d) => ROTULO_ESTAGIO[d.estagio],
+      ordenar: (d) => Number(d.kg),
+      filtro: 'opcoes',
+    },
+    { titulo: 'Reserva', valor: (d) => (Number(d.reserva_kg) ? formatarKg(d.reserva_kg) : '—'), ordenar: (d) => Number(d.reserva_kg) },
+    { titulo: 'Prazo', valor: (d) => <Prazo prazo={d.prazo} />, texto: (d) => formatarData(d.prazo), ordenar: (d) => d.prazo },
+    { titulo: 'Prioridade', valor: (d) => d.prioridade, texto: (d) => String(d.prioridade), ordenar: (d) => d.prioridade, filtro: 'opcoes' },
+    { titulo: 'Cadastrada por', valor: (d) => d.criado_por.nome, texto: (d) => d.criado_por.nome, filtro: 'opcoes' },
+  ];
 
   return (
     <div className="space-y-6">
       <PageHeader
         secao="Planejamento"
         titulo="Gestão de Demandas"
-        descricao="Metas de produção com prazo. A conversão para kg de erva fresca é feita na simulação."
+        descricao="Metas de produção com prazo. A conversão para kg de erva fresca é feita no módulo Plano de Secagem."
         acoes={
           podeGerenciar && (
-            <Button variant="primary" onClick={() => (mostrarForm ? fecharForm() : setMostrarForm(true))}>
-              {mostrarForm ? 'Cancelar' : '+ Nova Demanda'}
+            <Button icone={Plus} onClick={() => setMostrarForm(true)}>
+              Nova demanda
             </Button>
           )
         }
       />
 
       {mostrarForm && (
-        <Card>
-          <h2 className="text-lg font-semibold mb-4">
-            {editando === null ? 'Nova demanda' : `Editar demanda #${editando.id}`}
-          </h2>
-          <form onSubmit={salvar} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Janela
+          titulo={editando === null ? 'Nova demanda' : `Editar demanda #${editando.id}`}
+          descricao="Quanto produzir, em qual estágio e até quando."
+          icone={ChartLine}
+          aoFechar={fecharForm}
+        >
+          <form onSubmit={salvar} className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Select label="Erva" value={form.erva_id} onChange={alterar('erva_id')} required>
               <option value="">Selecione…</option>
               {(ervas.dados ?? []).map((erva) => (
@@ -160,49 +196,70 @@ export default function GestaoDemandas() {
                 <option value={editando.erva.id}>{editando.erva.nome} (inativa)</option>
               )}
             </Select>
-            <Input label="Quantidade líquida (kg)" type="number" min="0.001" step="0.001"
+            <Input label="Prazo" type="date" value={form.prazo} onChange={alterar('prazo')} required />
+            <Input label="Quantidade líquida (kg)" type="number" min="0.001" step="0.001" placeholder="ex.: 150"
               value={form.kg} onChange={alterar('kg')} required />
             <Select label="Estágio da quantidade" value={form.estagio} onChange={alterar('estagio')}>
               {Object.entries(ROTULO_ESTAGIO).map(([valor, rotulo]) => (
                 <option key={valor} value={valor}>{rotulo}</option>
               ))}
             </Select>
-            <Input label="Prazo" type="date" value={form.prazo} onChange={alterar('prazo')} required />
             <Input label="Reserva (kg, mesmo estágio)" type="number" min="0" step="0.001"
               value={form.reserva_kg} onChange={alterar('reserva_kg')} required />
             <Input label="Prioridade (maior = mais urgente)" type="number" min="0" step="1"
               value={form.prioridade} onChange={alterar('prioridade')} required />
-            <div className="md:col-span-3">
-              <Input label="Observação" maxLength={500} value={form.observacao} onChange={alterar('observacao')} />
+            <div className="md:col-span-2">
+              <Input label="Observação" maxLength={500} placeholder="ex.: pedido do lote de exportação"
+                value={form.observacao} onChange={alterar('observacao')} />
             </div>
-            <div className="md:col-span-3 flex justify-end">
-              <Button type="submit" disabled={salvando}>
-                {salvando ? 'Salvando…' : editando === null ? 'Salvar demanda' : 'Salvar alterações'}
+            <div className="flex flex-col-reverse gap-2 border-t border-borda pt-4 sm:flex-row sm:justify-end md:col-span-2">
+              <Button type="button" variant="secondary" onClick={fecharForm}>Cancelar</Button>
+              <Button type="submit" icone={Save} carregando={salvando}>
+                {editando === null ? 'Salvar demanda' : 'Salvar alterações'}
               </Button>
             </div>
           </form>
-        </Card>
+        </Janela>
       )}
 
       <Card>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Select label="Erva" value={filtro.erva_id} onChange={(e) => setFiltro({ ...filtro, erva_id: e.target.value })}>
-            <option value="">Todas</option>
-            {(ervas.dados ?? []).map((erva) => (
-              <option key={erva.id} value={erva.id}>{erva.nome}</option>
-            ))}
-          </Select>
+        <CabecalhoCard
+          icone={CalendarClock}
+          titulo="Demandas cadastradas"
+          descricao="Filtre o período do prazo aqui; erva, estágio e responsável, pelo filtro de cada coluna."
+        />
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:max-w-lg">
           <Input label="Prazo a partir de" type="date" value={filtro.prazo_de}
             onChange={(e) => setFiltro({ ...filtro, prazo_de: e.target.value })} />
           <Input label="Prazo até" type="date" value={filtro.prazo_ate}
             onChange={(e) => setFiltro({ ...filtro, prazo_ate: e.target.value })} />
         </div>
         {demandas.erro && <Alerta>{demandas.erro}</Alerta>}
-        <ItemList
-          colunas={['ID', 'Erva', 'Quantidade', 'Reserva', 'Prazo', 'Prioridade', 'Cadastrada por', '']}
-          dados={linhas}
+        <Tabela
+          rotulo="Demandas"
+          colunas={colunas}
+          linhas={demandas.dados ?? []}
+          chave={(d) => d.id}
           carregando={demandas.carregando}
           vazio="Nenhuma demanda cadastrada."
+          acoes={
+            podeGerenciar
+              ? (d) => (
+                  <>
+                    <Button variant="secondary" tamanho="sm" icone={Pencil} compacto onClick={() => editar(d)}>Editar</Button>
+                    <Button variant="secondary" tamanho="sm" icone={Trash2} compacto onClick={() => excluir(d)}>Excluir</Button>
+                  </>
+                )
+              : undefined
+          }
+        />
+        <Legenda
+          itens={[
+            { amostra: 'bg-red-600', rotulo: 'Vencida', descricao: 'o prazo já passou' },
+            { amostra: 'bg-amber-500', rotulo: 'Em até 7 dias', descricao: 'prazo próximo' },
+            { amostra: 'bg-verde-700', rotulo: 'Estágio', descricao: 'fresco, desidratado ou moído (produto acabado)' },
+            { amostra: 'bg-cinza', rotulo: 'Reserva', descricao: 'kg a mais guardados como segurança, no mesmo estágio' },
+          ]}
         />
       </Card>
     </div>

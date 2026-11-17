@@ -38,7 +38,7 @@ describe('GestaoDemandas', () => {
     renderizarTela(<GestaoDemandas />, rotas(), ['demanda.consultar']);
 
     await screen.findByText('#7');
-    expect(screen.queryByText('+ Nova Demanda')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Nova demanda' })).not.toBeInTheDocument();
     expect(screen.queryByText('Editar')).not.toBeInTheDocument();
     expect(screen.queryByText('Excluir')).not.toBeInTheDocument();
   });
@@ -86,8 +86,9 @@ describe('GestaoDemandas', () => {
       ['demanda.gerenciar']
     );
 
-    await usuario.click(await screen.findByText('+ Nova Demanda'));
-    const form = screen.getByText('Nova demanda').closest('div')!;
+    await usuario.click(await screen.findByRole('button', { name: 'Nova demanda' }));
+    // O formulário abre numa janela (popup)
+    const form = screen.getByRole('dialog', { name: 'Nova demanda' });
     await usuario.selectOptions(within(form).getAllByRole('combobox')[0], '2');
     await usuario.type(screen.getByLabelText('Quantidade líquida (kg)'), '50');
     await usuario.type(screen.getByLabelText('Prazo'), '2026-12-20');

@@ -50,7 +50,7 @@ describe('EntradaPrevisoes', () => {
     expect(linhaDa(2)).not.toHaveTextContent('Editar');
   });
 
-  it('edita a data de chegada com PATCH e volta ao registo manual', async () => {
+  it('edita a data de chegada com PATCH e fecha a janela', async () => {
     const usuario = userEvent.setup();
     const { chamadas } = renderizarTela(
       <EntradaPrevisoes />,
@@ -74,7 +74,7 @@ describe('EntradaPrevisoes', () => {
     expect(escritas(chamadas)).toEqual([
       { metodo: 'PATCH', caminho: '/previsoes/1', busca: '', corpo: { data_chegada: '2026-12-04' } },
     ]);
-    expect(screen.getByText('Registo Manual')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('cancelar a edição limpa o formulário sem chamar a API', async () => {
@@ -88,8 +88,11 @@ describe('EntradaPrevisoes', () => {
     await usuario.click(await screen.findByText('Editar'));
     expect(screen.getByLabelText('Quantidade de erva fresca (kg)')).toHaveValue(800);
     await usuario.click(screen.getByText('Cancelar'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
-    expect(screen.getByText('Registo Manual')).toBeInTheDocument();
+    // Reabrir como previsão nova: formulário limpo
+    await usuario.click(screen.getByRole('button', { name: 'Nova previsão' }));
+    expect(screen.getByText('Registro manual')).toBeInTheDocument();
     expect(screen.getByLabelText('Quantidade de erva fresca (kg)')).toHaveValue(null);
     expect(escritas(chamadas)).toEqual([]);
   });
