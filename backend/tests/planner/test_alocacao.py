@@ -492,3 +492,38 @@ def test_demanda_futura_mais_prioritaria_e_atendida_primeiro():
     # Só a demanda do horizonte vira atraso
     [atraso] = pendencias(resultado, TipoPendencia.ATRASO)
     assert (atraso.demanda_id, atraso.kg) == ("D-agora", 400)
+
+
+# --- Lote que vence hoje passa na frente do espalhamento (QA, 17/11/2026) ---
+
+
+def test_lote_que_vence_hoje_ocupa_os_dois_secadores_antes_da_erva_que_pode_esperar():
+    # Dois secadores iguais, 240 kg/dia (24 h × 10 kg/h) para as duas ervas, sem setup:
+    # o dia fica cheio, sem sobra para troca de erva.
+    vence_hoje = Erva("PICAO", "Picão", regime_horas_dia=24, espera_maxima_dias=0)
+    pode_esperar = Erva("SALSA", "Salsa", regime_horas_dia=24, espera_maxima_dias=10)
+    capacidades = [
+        capacidade(erva, secador, 10, inicial=0, final=0, diario=0)
+        for erva in ("PICAO", "SALSA")
+        for secador in ("SCB01", "SCB03")
+    ]
+
+    resultado = simular(
+        entrada(
+            fim=TER,
+            ervas=[vence_hoje, pode_esperar],
+            capacidades=capacidades,
+            rendimentos=[Rendimento("PICAO", 5, 1), Rendimento("SALSA", 5, 1)],
+            lotes=[lote("L-picao", "PICAO", SEG, 480), lote("L-salsa", "SALSA", SEG, 240)],
+        )
+    )
+
+    # Antes, a regra de espalhar dava um secador para cada erva na segunda
+    # e 240 kg de picão venciam sem secador.
+    assert not pendencias(resultado, TipoPendencia.CAPACIDADE_EXCEDIDA)
+    por_dia = sorted((a.dia, a.secador, a.erva, a.kg_fresco) for a in resultado.alocacoes)
+    assert por_dia == [
+        (SEG, "SCB01", "PICAO", 240),
+        (SEG, "SCB03", "PICAO", 240),
+        (TER, "SCB01", "SALSA", 240),
+    ]

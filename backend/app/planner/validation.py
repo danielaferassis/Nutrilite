@@ -9,6 +9,7 @@ from __future__ import annotations
 from app.planner.types import (
     Capacidade,
     EntradaPlanejamento,
+    Estagio,
     ModoCapacidade,
     Pendencia,
     TipoPendencia,
@@ -77,6 +78,9 @@ def validar_entrada(entrada: EntradaPlanejamento) -> list[Pendencia]:
 
     # Só exigimos parâmetros das ervas que aparecem na oferta ou na demanda.
     ervas_usadas = {lote.erva for lote in entrada.lotes} | {d.erva for d in entrada.demandas}
+    # Rendimento só entra no cálculo reverso: erva só com oferta ou com demanda
+    # em fresco não precisa dele.
+    convertem = {d.erva for d in entrada.demandas if d.estagio != Estagio.FRESCO}
 
     for codigo in sorted(ervas_usadas):
         erva = ervas.get(codigo)
@@ -89,7 +93,7 @@ def validar_entrada(entrada: EntradaPlanejamento) -> list[Pendencia]:
             pendencias.append(
                 _ausente(f"Tempo máximo de espera da erva fresca ausente para {codigo}", erva=codigo)
             )
-        if codigo not in rendimentos:
+        if codigo in convertem and codigo not in rendimentos:
             pendencias.append(_ausente(f"Rendimento não cadastrado para {codigo}", erva=codigo))
 
         capacidades = [c for c in entrada.capacidades if c.erva == codigo]

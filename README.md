@@ -167,7 +167,7 @@ O login é por **sessão no servidor**, guardada num cookie `HttpOnly` (o JavaSc
 | Endpoint | Exige |
 | --- | --- |
 | `/api/health`, `/api/auth/login`, `/api/auth/logout` | nada |
-| `/api/auth/me`, `/api/auth/senha`, `/api/items` | estar logado |
+| `/api/auth/me`, `/api/auth/senha` | estar logado |
 | `GET /api/ervas`, `GET /api/secadores`, `GET /api/capacidades` (só leitura, para os selects) | estar logado |
 | `/api/usuarios` | `usuario.gerenciar` |
 | `/api/grupos`, `GET /api/funcionalidades` | `grupo.gerenciar` |
@@ -193,6 +193,14 @@ from app.acesso import get_usuario_atual, requer_permissao
 @router.get("", dependencies=[Depends(requer_permissao("relatorio.ver"))])  # login + permissão
 @router.get("/meus", dependencies=[Depends(get_usuario_atual)])            # só login
 ```
+
+Rota que **altera dados** (POST, PATCH, DELETE) precisa de `requer_permissao`: `tests/test_rotas_protegidas.py` varre todas as rotas e falha se alguma só exigir login (exceções listadas no próprio teste, com o motivo).
+
+**Proteções da gestão de acesso:**
+
+- Ninguém concede permissão que não tem: vincular grupos a um usuário (inclusive a si mesmo) ou dar funcionalidades a um grupo só passa se quem pede já tem todas elas (403).
+- O sistema nunca fica sem administrador, isto é, sem um usuário ativo com `usuario.gerenciar` e `grupo.gerenciar`. Alterações que acabariam com o último são recusadas (409): esvaziar, desativar ou excluir o grupo, tirar os próprios grupos, desativar ou excluir o último outro admin.
+- Usuário com registros (demandas, planos etc.) não é excluído, porque eles guardam quem os criou: desative-o (409).
 
 Funcionalidades não são cadastradas pela API. As novas entram pela migration que cria o recurso (veja `FUNCIONALIDADES` na migration de demanda e previsão); depois rode `criar-admin` de novo para o grupo Administrador recebê-las.
 

@@ -41,18 +41,6 @@ def _nao_nulo(value):
     return value
 
 
-class ItemCreate(BaseModel):
-    name: str
-    description: str | None = None
-
-
-class ItemRead(ItemCreate):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    created_at: UtcDatetime
-
-
 # --- Funcionalidades ---
 
 

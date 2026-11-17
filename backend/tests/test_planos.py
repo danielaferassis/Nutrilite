@@ -200,3 +200,18 @@ def test_alocacoes_saem_em_ordem_de_dia(cliente, cadastro):
     dias = [a["dia"] for a in salvar(cliente).json()["alocacoes"]]
 
     assert dias == sorted(dias)
+
+
+def test_plano_parcial_mostra_aviso_e_nao_pode_ser_aprovado(cliente, cenario):
+    # ERVA-B tem oferta, mas nenhum cadastro: fica de fora, e a ERVA-A é planejada.
+    lote(cenario, erva_id=2)
+
+    plano = salvar(cliente).json()
+
+    assert {p["erva"] for p in plano["pendencias"] if p["tipo"] == "param_ausente"} == {"ERVA-B"}
+    assert {a["erva"] for a in plano["alocacoes"]} == {"ERVA-A"}
+    [aviso] = plano["avisos"]
+    assert aviso.startswith("Plano parcial: ERVA-B")
+    resposta = aprovar(cliente, plano["id"])
+    assert resposta.status_code == 409
+    assert "parâmetros ausentes" in resposta.json()["detail"]
