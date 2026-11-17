@@ -1,8 +1,18 @@
-import { ROTULO_ESTAGIO, ROTULO_PENDENCIA, formatarData, formatarHoras, formatarKg, formatarNumero } from '../formatar';
+import { Fragment } from 'react';
+
+import {
+  DIAS_SEMANA,
+  ROTULO_ESTAGIO,
+  ROTULO_PENDENCIA,
+  formatarData,
+  formatarHoras,
+  formatarKg,
+  formatarPct,
+} from '../formatar';
 import { baixarCsv, dataCsv, gerarCsv, numeroCsv } from '../exportar';
 import { Alocacao, Necessidade, ResultadoSimulacao, TipoPendencia } from '../tipos';
 import ItemList from './ItemList';
-import { Alerta, Button, Card, Etiqueta, EtiquetaCor } from './ui';
+import { Alerta, Button, Card, Etiqueta, EtiquetaCor, KpiCard } from './ui';
 
 // Mesma folga do motor para comparar kg em ponto flutuante
 const FOLGA_KG = 1e-6;
@@ -14,42 +24,103 @@ const COR_PENDENCIA: Record<TipoPendencia, EtiquetaCor> = {
   saldo_nao_alocado: 'azul',
 };
 
-/** Cronograma: uma linha por dia, uma coluna por secador. */
+// Cores das ervas no cronograma: tons escuros o bastante para texto branco,
+// na família da marca. A ordem segue o código da erva, para não mudar entre telas.
+const CORES_ERVA = ['#0b8355', '#5e8c0a', '#2e6f8e', '#8a6d1e', '#7a4e9c', '#b4532a', '#3f7d6e', '#4a5a1c'];
+
+// Dia da semana de uma data ISO, sem passar pelo fuso do navegador
+const diaDaSemana = (iso: string) =>
+  DIAS_SEMANA[(new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10))).getUTCDay() + 6) % 7];
+
+/**
+ * Cronograma em blocos: uma linha por secador, uma coluna por dia. Cada bloco é
+ * uma erva no secador naquele dia; a faixa listrada marca que houve setup. Troca
+ * de erva no mesmo dia empilha os blocos, na ordem em que entraram.
+ */
 export function Cronograma({ alocacoes }: { alocacoes: Alocacao[] }) {
+  if (alocacoes.length === 0) return <p className="text-sm text-suave">Nenhuma alocação.</p>;
+
   const secadores = [...new Set(alocacoes.map((a) => a.secador))].sort();
   const dias = [...new Set(alocacoes.map((a) => a.dia))].sort();
-  // Pode haver mais de uma erva no dia (troca no mesmo dia), cada uma com várias
-  // linhas (lotes/demandas). A ordem das linhas é a ordem em que entraram.
-  const celula = (dia: string, secador: string) => {
+  const ervas = [...new Set(alocacoes.map((a) => a.erva))].sort();
+  const cor = (erva: string) => CORES_ERVA[ervas.indexOf(erva) % CORES_ERVA.length];
+
+  // Pode haver mais de uma erva no dia, cada uma com várias linhas (lotes/demandas)
+  const blocos = (dia: string, secador: string) => {
     const doDia = alocacoes.filter((a) => a.dia === dia && a.secador === secador);
-    if (doDia.length === 0) return <span className="text-suave/70">livre</span>;
-    const ervas = [...new Set(doDia.map((a) => a.erva))];
-    return (
-      <div className="space-y-1">
-        {ervas.map((erva, i) => {
-          const daErva = doDia.filter((a) => a.erva === erva);
-          const kg = daErva.reduce((soma, a) => soma + a.kg_fresco, 0);
-          const horas = daErva.reduce((soma, a) => soma + a.horas_secagem + a.horas_setup, 0);
-          return (
-            <div key={erva} className={i > 0 ? 'pt-1 border-t border-dashed border-borda' : ''}>
-              <div className="font-semibold text-verde-700">{i > 0 && '↳ '}{erva}</div>
-              <div className="text-xs text-suave">{formatarKg(kg)} · {formatarHoras(horas)}</div>
-            </div>
-          );
-        })}
-      </div>
-    );
+    return [...new Set(doDia.map((a) => a.erva))].map((erva) => {
+      const daErva = doDia.filter((a) => a.erva === erva);
+      const soma = (campo: 'kg_fresco' | 'horas_secagem' | 'horas_setup') =>
+        daErva.reduce((total, a) => total + Number(a[campo]), 0);
+      return { erva, kg: soma('kg_fresco'), secagem: soma('horas_secagem'), setup: soma('horas_setup') };
+    });
   };
 
-  if (alocacoes.length === 0) return <p className="text-sm text-suave">Nenhuma alocação.</p>;
   return (
-    <ItemList
-      colunas={['Dia', ...secadores]}
-      dados={dias.map((dia) => ({
-        dia: formatarData(dia),
-        ...Object.fromEntries(secadores.map((s) => [s, celula(dia, s)])),
-      }))}
-    />
+    <div>
+      <div className="overflow-x-auto pb-2">
+        <div
+          className="grid gap-1.5 text-xs"
+          style={{ gridTemplateColumns: `4.5rem repeat(${dias.length}, minmax(6.5rem, 1fr))` }}
+        >
+          <div />
+          {dias.map((dia) => (
+            <div key={dia} className="pb-1 text-center font-semibold text-suave">
+              {diaDaSemana(dia)}
+              <span className="block text-sm text-tinta">{formatarData(dia).slice(0, 5)}</span>
+            </div>
+          ))}
+          {secadores.map((secador) => (
+            <Fragment key={secador}>
+              <div className="flex items-center font-bold text-tinta">{secador}</div>
+              {dias.map((dia) => {
+                const doDia = blocos(dia, secador);
+                if (doDia.length === 0) {
+                  return (
+                    <div key={dia} className="flex min-h-14 items-center justify-center rounded-lg border border-dashed border-borda bg-fundo text-suave/70">
+                      livre
+                    </div>
+                  );
+                }
+                return (
+                  <div key={dia} className="flex flex-col gap-1">
+                    {doDia.map((b, i) => (
+                      <div
+                        key={b.erva}
+                        title={`${b.erva} no ${secador} em ${formatarData(dia)}: ${formatarKg(b.kg)}, ${formatarHoras(b.secagem)} de secagem e ${formatarHoras(b.setup)} de setup`}
+                        className="relative flex min-h-14 flex-1 flex-col justify-between overflow-hidden rounded-lg py-1.5 pr-2 pl-3 text-white shadow-suave transition-transform duration-200 ease-suave hover:z-10 hover:-translate-y-0.5 hover:shadow-elevada"
+                        style={{ backgroundColor: cor(b.erva) }}
+                      >
+                        {b.setup > 0 && (
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-y-0 left-0 w-1.5 bg-[repeating-linear-gradient(45deg,rgb(255_255_255/0.6)_0_3px,transparent_3px_6px)]"
+                          />
+                        )}
+                        <span className="truncate font-semibold">{i > 0 && '↳ '}{b.erva}</span>
+                        <span className="opacity-90">{formatarKg(b.kg)} · {formatarHoras(b.secagem + b.setup)}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-suave">
+        {ervas.map((erva) => (
+          <span key={erva} className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="size-2.5 rounded-sm" style={{ backgroundColor: cor(erva) }} />
+            {erva}
+          </span>
+        ))}
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="h-2.5 w-1.5 rounded-sm bg-[repeating-linear-gradient(45deg,#6b6860_0_2px,transparent_2px_4px)]" />
+          dia com setup
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -166,15 +237,14 @@ export default function ResultadoPlano({
       {Object.keys(ocupacao).length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {Object.entries(ocupacao).map(([secador, pct]) => (
-            <Card key={secador}>
-              <p className="text-sm font-semibold text-tinta mb-1">Ocupação {secador}</p>
-              {/* null = sem dia disponível no horizonte: "não aplicável", nunca 0% */}
-              <p className="text-2xl font-bold text-verde-700">{pct === null ? 'n/a' : `${formatarNumero(pct)}%`}</p>
-              <p className="text-xs text-suave">
-                {formatarHoras(kpis.horas_ocupadas?.[secador] ?? 0)} de{' '}
-                {formatarHoras(kpis.horas_disponiveis?.[secador] ?? 0)} disponíveis
-              </p>
-            </Card>
+            <KpiCard
+              key={secador}
+              titulo={`Ocupação ${secador}`}
+              // null = sem dia disponível no horizonte: "não aplicável", nunca 0%
+              valor={formatarPct(pct)}
+              progresso={pct}
+              detalhe={`${formatarHoras(kpis.horas_ocupadas?.[secador] ?? 0)} de ${formatarHoras(kpis.horas_disponiveis?.[secador] ?? 0)} disponíveis`}
+            />
           ))}
         </div>
       )}
