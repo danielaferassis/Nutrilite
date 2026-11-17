@@ -1,7 +1,7 @@
 import { ReactNode, createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
 import { textoDoErro } from './api';
-import { Modal, ModalTipo } from './components/ui';
+import { Modal, ModalTipo, ToastItem, Toasts } from './components/ui';
 
 export interface OpcoesConfirmacao {
   titulo: string;
@@ -34,14 +34,19 @@ interface Pendente {
 const Feedback = createContext<ContextoFeedback | null>(null);
 
 /**
- * Janelas de resultado (sucesso/erro) e de confirmação, no lugar de avisos
- * no topo da página e do window.confirm (cujos botões seguem o idioma do navegador).
- * Se várias chegarem juntas, aparecem uma de cada vez, na ordem.
+ * Avisos de resultado e janelas de confirmação, no lugar de avisos no topo da
+ * página e do window.confirm (cujos botões seguem o idioma do navegador).
+ * - Sucesso: toast no canto, que some sozinho e não bloqueia a tela.
+ * - Erro e confirmação: janela (modal) que exige resposta. Se várias chegarem
+ *   juntas, aparecem uma de cada vez, na ordem.
  */
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [fila, setFila] = useState<Pendente[]>([]);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const proximoId = useRef(0);
   const atual = fila[0];
+
+  const fecharToast = useCallback((id: number) => setToasts((t) => t.filter((item) => item.id !== id)), []);
 
   const enfileirar = useCallback((item: Omit<Pendente, 'id' | 'responder'>) => {
     return new Promise<boolean>((resolve) => {
@@ -64,7 +69,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const valor = useMemo<ContextoFeedback>(
     () => ({
       sucesso: (titulo, mensagem) => {
-        enfileirar({ tipo: 'sucesso', titulo, mensagem });
+        const id = ++proximoId.current;
+        setToasts((t) => [...t, { id, titulo, mensagem }]);
       },
       erro: (titulo, causa) => {
         const mensagem = causa === undefined ? undefined : typeof causa === 'string' ? causa : textoDoErro(causa);
@@ -79,6 +85,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   return (
     <Feedback.Provider value={valor}>
       {children}
+      <Toasts itens={toasts} aoFechar={fecharToast} />
       {atual && (
         <Modal
           // key: cada janela nova recomeça o foco

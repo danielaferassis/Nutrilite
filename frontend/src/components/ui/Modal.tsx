@@ -1,22 +1,14 @@
+import { Check, CircleAlert, LucideIcon, X } from 'lucide-react';
 import { ReactNode, useEffect, useId } from 'react';
 
 import { Button } from './Button';
 
 export type ModalTipo = 'sucesso' | 'erro' | 'confirmacao';
 
-const ICONES: Record<ModalTipo, { cor: string; caminho: ReactNode }> = {
-  sucesso: {
-    cor: 'bg-green-100 text-[#006F44]',
-    caminho: <path d="M5 13l4 4L19 7" />,
-  },
-  erro: {
-    cor: 'bg-red-100 text-red-700',
-    caminho: <path d="M6 6l12 12M18 6L6 18" />,
-  },
-  confirmacao: {
-    cor: 'bg-amber-100 text-amber-700',
-    caminho: <path d="M12 8v5m0 3.5v.01" />,
-  },
+const ICONES: Record<ModalTipo, { cor: string; Icone: LucideIcon }> = {
+  sucesso: { cor: 'bg-verde-100 text-verde-700', Icone: Check },
+  erro: { cor: 'bg-red-100 text-red-700', Icone: X },
+  confirmacao: { cor: 'bg-amber-100 text-amber-700', Icone: CircleAlert },
 };
 
 export interface ModalProps {
@@ -60,7 +52,7 @@ export const Modal = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-tinta/40 backdrop-blur-[2px] p-4 animate-entra"
       onMouseDown={(e) => e.target === e.currentTarget && aoCancelar()}
     >
       <div
@@ -68,27 +60,16 @@ export const Modal = ({
         aria-modal="true"
         aria-labelledby={tituloId}
         aria-describedby={mensagem ? mensagemId : undefined}
-        className="w-full max-w-md rounded-lg bg-[#FFFFFF] p-6 shadow-xl"
+        className="w-full max-w-md rounded-2xl border border-borda bg-white p-6 shadow-2xl"
       >
         <div className="flex gap-4">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${icone.cor}`}>
-            <svg
-              viewBox="0 0 24 24"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              {icone.caminho}
-            </svg>
+          <div className={`flex size-10 shrink-0 items-center justify-center rounded-full ${icone.cor}`}>
+            <icone.Icone aria-hidden="true" className="size-5" strokeWidth={2.5} />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 id={tituloId} className="text-lg font-semibold text-[#211E16]">{titulo}</h2>
+            <h2 id={tituloId} className="text-lg font-semibold text-tinta">{titulo}</h2>
             {mensagem && (
-              <div id={mensagemId} className="mt-2 whitespace-pre-line break-words text-sm text-gray-600">
+              <div id={mensagemId} className="mt-2 whitespace-pre-line break-words text-sm text-suave">
                 {mensagem}
               </div>
             )}

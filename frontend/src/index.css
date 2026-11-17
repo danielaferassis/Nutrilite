@@ -1,17 +1,70 @@
 @import "tailwindcss";
 
 /*
+ * Tokens de design (identidade Nutrilite). Viram utilitários do Tailwind:
+ * bg-verde-700, text-tinta, border-borda, shadow-suave, animate-entra...
+ * Use os tokens em vez de cores soltas (#006F44): mudar aqui muda o sistema todo.
+ */
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-verde-900: #00452a; /* barra lateral */
+  --color-verde-700: #006f44; /* cor principal da marca */
+  --color-verde-600: #0b8355; /* hover do principal */
+  --color-verde-100: #e3f2ea;
+  --color-verde-50: #f2f9f5; /* fundo de hover em linhas e botões claros */
+  --color-lima-500: #84bd00; /* destaque: foco, item ativo */
+  --color-lima-100: #eef6d6;
+  --color-tinta: #211e16; /* títulos e texto forte */
+  --color-texto: #3d3a33; /* texto corrido */
+  --color-suave: #6b6860; /* legendas e texto secundário */
+  --color-cinza: #c7c8ca;
+  --color-borda: #e4e4e2;
+  --color-fundo: #f6f7f5; /* fundo das páginas */
+
+  --shadow-suave: 0 1px 2px rgb(33 30 22 / 0.06), 0 1px 3px rgb(33 30 22 / 0.04);
+  --shadow-elevada: 0 4px 12px rgb(33 30 22 / 0.08), 0 2px 4px rgb(33 30 22 / 0.04);
+
+  --ease-suave: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Entrada das telas e dos avisos; o esqueleto brilha enquanto carrega */
+  --animate-entra: entra 0.45s var(--ease-suave) both;
+  --animate-brilho: brilho 1.3s ease infinite;
+
+  @keyframes entra {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes brilho {
+    from { background-position: 100% 50%; }
+    to { background-position: 0 50%; }
+  }
+}
+
+/*
  * Só estilos de base aqui. Regras soltas em elementos (form, input, main...)
  * ficam fora das camadas do Tailwind v4 e passam por cima dos utilitários,
  * desalinhando os componentes. O layout vai nas classes de cada componente.
  */
 :root {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
-  color: #1f2933;
-  background: #f7f9fa;
+  color: var(--color-texto);
+  background: var(--color-fundo);
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
   margin: 0;
+}
+
+/* Quem pede menos movimento no sistema operacional não vê animações */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

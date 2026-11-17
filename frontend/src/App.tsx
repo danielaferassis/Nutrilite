@@ -1,4 +1,22 @@
-import { ReactNode } from 'react';
+import {
+  CalendarDays,
+  ChartLine,
+  CircleSlash,
+  Grid3x3,
+  KeyRound,
+  LayoutDashboard,
+  Leaf,
+  ListChecks,
+  LogOut,
+  LucideIcon,
+  Menu,
+  Sprout,
+  Upload,
+  UserCog,
+  Users,
+  X,
+} from 'lucide-react';
+import { ReactNode, useState } from 'react';
 
 import Login from './components/Login';
 import DashboardPCP from './components/DashboardPCP';
@@ -20,36 +38,45 @@ interface Rota {
   path: string;
   titulo: string;
   tela: ReactNode;
+  icone: LucideIcon;
+  /** Grupo no menu lateral. */
+  grupo: string;
   /** Funcionalidade exigida para ver o link; sem ela a rota é aberta a qualquer usuário logado. */
   permissao?: string;
 }
 
 const ROTAS: Rota[] = [
-  { path: '/dashboard', titulo: 'Dashboard', tela: <DashboardPCP /> },
-  { path: '/demandas', titulo: 'Gestão de Demandas', tela: <GestaoDemandas /> },
-  { path: '/previsoes', titulo: 'Entrada de Previsões', tela: <EntradaPrevisoes /> },
-  { path: '/planos', titulo: 'Plano de Secagem', tela: <PlanoSecagem /> },
-  { path: '/cronograma', titulo: 'Cronograma e Recebimentos', tela: <CronogramaRecebimentos /> },
-  { path: '/bloqueios', titulo: 'Bloqueios de Secador', tela: <Bloqueios /> },
-  { path: '/matriz', titulo: 'Matriz de Capacidade', tela: <MatrizCapacidade /> },
-  { path: '/importacao-infinity', titulo: 'Importação Infinity', tela: <ImportacaoInfinity /> },
+  { path: '/dashboard', titulo: 'Dashboard', tela: <DashboardPCP />, icone: LayoutDashboard, grupo: 'Visão geral' },
+  { path: '/demandas', titulo: 'Gestão de Demandas', tela: <GestaoDemandas />, icone: ChartLine, grupo: 'Planejamento' },
+  { path: '/previsoes', titulo: 'Entrada de Previsões', tela: <EntradaPrevisoes />, icone: Sprout, grupo: 'Planejamento' },
+  { path: '/planos', titulo: 'Plano de Secagem', tela: <PlanoSecagem />, icone: CalendarDays, grupo: 'Planejamento' },
+  { path: '/cronograma', titulo: 'Cronograma e Recebimentos', tela: <CronogramaRecebimentos />, icone: ListChecks, grupo: 'Planejamento' },
+  { path: '/bloqueios', titulo: 'Bloqueios de Secador', tela: <Bloqueios />, icone: CircleSlash, grupo: 'Planejamento' },
+  { path: '/matriz', titulo: 'Matriz de Capacidade', tela: <MatrizCapacidade />, icone: Grid3x3, grupo: 'Cadastros e dados' },
+  { path: '/importacao-infinity', titulo: 'Importação Infinity', tela: <ImportacaoInfinity />, icone: Upload, grupo: 'Cadastros e dados' },
 ];
 
 // Só aparecem para quem tem a permissão (o backend também exige a mesma)
 const ROTAS_ADMINISTRACAO: Rota[] = [
-  { path: '/usuarios', titulo: 'Usuários', tela: <GestaoUsuarios />, permissao: 'usuario.gerenciar' },
-  { path: '/grupos', titulo: 'Grupos', tela: <GestaoGrupos />, permissao: 'grupo.gerenciar' },
-  { path: '/permissoes', titulo: 'Permissões de Acesso', tela: <PermissoesAcesso />, permissao: 'grupo.gerenciar' },
+  { path: '/usuarios', titulo: 'Usuários', tela: <GestaoUsuarios />, icone: UserCog, grupo: 'Administração', permissao: 'usuario.gerenciar' },
+  { path: '/grupos', titulo: 'Grupos', tela: <GestaoGrupos />, icone: Users, grupo: 'Administração', permissao: 'grupo.gerenciar' },
+  { path: '/permissoes', titulo: 'Permissões de Acesso', tela: <PermissoesAcesso />, icone: KeyRound, grupo: 'Administração', permissao: 'grupo.gerenciar' },
 ];
 
 function Link({ rota, atual }: { rota: Rota; atual: string }) {
   const ativo = rota.path === atual;
+  const Icone = rota.icone;
   return (
     <a
       href={rota.path}
       aria-current={ativo ? 'page' : undefined}
-      className={`block px-4 py-2 rounded hover:bg-[#211E16] ${ativo ? 'bg-[#211E16]/60' : ''}`}
+      className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-200 ${
+        ativo ? 'bg-white/12 font-semibold text-white' : 'text-white/80 hover:bg-white/8 hover:text-white'
+      }`}
     >
+      {/* Marcador lima do item ativo, colado na borda do menu */}
+      {ativo && <span aria-hidden="true" className="absolute -left-3 top-2 bottom-2 w-1 rounded-r bg-lima-500" />}
+      <Icone aria-hidden="true" className="size-[18px] shrink-0" />
       {rota.titulo}
     </a>
   );
@@ -57,18 +84,16 @@ function Link({ rota, atual }: { rota: Rota; atual: string }) {
 
 function Navegacao({ atual }: { atual: string }) {
   const { pode } = useSessao();
-  const administracao = ROTAS_ADMINISTRACAO.filter((r) => !r.permissao || pode(r.permissao));
+  const visiveis = [...ROTAS, ...ROTAS_ADMINISTRACAO.filter((r) => !r.permissao || pode(r.permissao))];
+  const grupos = [...new Set(visiveis.map((r) => r.grupo))];
   return (
-    <nav className="flex-1 p-4 space-y-2">
-      {ROTAS.map((r) => <Link key={r.path} rota={r} atual={atual} />)}
-      {administracao.length > 0 && (
-        <>
-          <p className="px-4 pt-4 text-xs font-semibold uppercase tracking-wide text-[#FFFFFF]/60">
-            Administração
-          </p>
-          {administracao.map((r) => <Link key={r.path} rota={r} atual={atual} />)}
-        </>
-      )}
+    <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-2">
+      {grupos.map((grupo) => (
+        <div key={grupo} className="space-y-1">
+          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-white/50">{grupo}</p>
+          {visiveis.filter((r) => r.grupo === grupo).map((r) => <Link key={r.path} rota={r} atual={atual} />)}
+        </div>
+      ))}
     </nav>
   );
 }
@@ -83,13 +108,38 @@ function Tela({ path }: { path: string }) {
   return <>{rota.tela}</>;
 }
 
+const iniciais = (nome: string) =>
+  nome.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+
 function UsuarioLogado() {
   const { sessao } = useSessao();
-  return <p className="text-sm mb-3 text-[#FFFFFF]/80">{sessao?.usuario.nome}</p>;
+  const nome = sessao?.usuario.nome ?? '';
+  return (
+    <div className="flex items-center gap-3 rounded-lg bg-white/6 p-3">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-lima-500 text-sm font-bold text-verde-900">
+        {iniciais(nome) || '·'}
+      </div>
+      <p className="min-w-0 flex-1 truncate text-sm font-medium text-white">{nome}</p>
+      <button
+        type="button"
+        title="Sair"
+        aria-label="Sair"
+        onClick={async () => {
+          await fetch('/api/auth/logout', { method: 'POST' }); // Invalida o cookie de sessão
+          window.location.href = '/login';
+        }}
+        className="rounded-md p-1.5 text-white/70 transition-colors hover:bg-red-600 hover:text-white"
+      >
+        <LogOut aria-hidden="true" className="size-4" />
+      </button>
+    </div>
+  );
 }
 
 export default function App() {
   const path = window.location.pathname;
+  // Menu do celular (no computador ele fica sempre aberto)
+  const [menuAberto, setMenuAberto] = useState(false);
 
   // Rotas públicas
   if (path === '/login' || path === '/') return <Login />;
@@ -98,25 +148,37 @@ export default function App() {
   return (
     <SessaoProvider>
       <FeedbackProvider>
-        <div className="min-h-screen bg-[#F9FAFB] flex flex-col md:flex-row">
-          <aside className="w-full md:w-64 bg-[#006F44] text-[#FFFFFF] flex flex-col">
-            <div className="p-6 text-xl font-bold border-b border-[#FFFFFF]/20">Nutrilite PCP</div>
-            <Navegacao atual={path} />
-            <div className="p-4 border-t border-[#FFFFFF]/20">
-              <UsuarioLogado />
+        <div className="min-h-screen bg-fundo md:flex">
+          <aside className="flex flex-col bg-verde-900 text-white md:sticky md:top-0 md:h-screen md:w-64 md:shrink-0">
+            <div className="flex items-center justify-between px-5 py-5">
+              <a href="/dashboard" className="flex items-center gap-2.5 text-base font-bold">
+                <span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-lima-500 to-verde-600">
+                  <Leaf aria-hidden="true" className="size-[18px]" />
+                </span>
+                Nutrilite PCP
+              </a>
               <button
-                onClick={async () => {
-                  await fetch('/api/auth/logout', { method: 'POST' }); // Invalida o cookie de sessão
-                  window.location.href = '/login';
-                }}
-                className="w-full text-center py-2 bg-red-600 rounded hover:bg-red-700 transition-colors"
+                type="button"
+                aria-label={menuAberto ? 'Fechar menu' : 'Abrir menu'}
+                aria-expanded={menuAberto}
+                onClick={() => setMenuAberto(!menuAberto)}
+                className="rounded-md p-1.5 hover:bg-white/10 md:hidden"
               >
-                Sair
+                {menuAberto ? <X className="size-5" /> : <Menu className="size-5" />}
               </button>
             </div>
+            <div className={`${menuAberto ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col md:flex`}>
+              <Navegacao atual={path} />
+              <div className="p-3">
+                <UsuarioLogado />
+              </div>
+            </div>
           </aside>
-          <main className="flex-1 p-8 overflow-y-auto">
-            <Tela path={path} />
+          <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">
+            {/* Cada tela entra com um leve deslizar */}
+            <div key={path} className="mx-auto max-w-7xl animate-entra">
+              <Tela path={path} />
+            </div>
           </main>
         </div>
       </FeedbackProvider>

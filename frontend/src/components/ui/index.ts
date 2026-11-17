@@ -5,3 +5,7 @@ export * from './Etiqueta';
 export * from './Input';
 export * from './Modal';
 export * from './Select';
+export * from './Toast';
+export * from './KpiCard';
+export * from './PageHeader';
+export * from './Skeleton';
