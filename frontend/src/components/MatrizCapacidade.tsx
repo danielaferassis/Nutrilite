@@ -1,8 +1,11 @@
-import { CircleSlash, Factory, FilterX, Grid3x3, Leaf, Pencil, Plus, Search, Sprout, TriangleAlert } from 'lucide-react';
+import { CircleSlash, Eye, Factory, FilterX, Grid3x3, Leaf, Pencil, Plus, RotateCcw, Search, Sprout, TriangleAlert } from 'lucide-react';
 import { ReactNode, useCallback, useMemo, useState } from 'react';
 
+import { apiFetch } from '../api';
+import { useFeedback } from '../feedback';
 import { formatarHoras, formatarNumero } from '../formatar';
 import { useApi } from '../hooks';
+import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { Capacidade, Erva, Rendimento, Secador } from '../tipos';
 import { FormularioCapacidade, FormularioErva, FormularioSecador } from './FormulariosCadastro';
@@ -107,11 +110,13 @@ export default function MatrizCapacidade() {
   const { pode } = useSessao();
   const podeGerenciar = pode('cadastro.gerenciar');
 
-  // Inativos só aparecem para quem pode reativá-los
+  // Quem pode gerenciar recebe também os inativos (para contar, reativar e excluir);
+  // na matriz eles só aparecem com "Mostrar inativos"
   const [mostrarInativos, setMostrarInativos] = useState(false);
-  const inativos = mostrarInativos ? '?ativos=false' : '';
+  const inativos = podeGerenciar ? '?ativos=false' : '';
   const ervas = useApi<Erva[]>(`/ervas${inativos}`);
   const secadores = useApi<Secador[]>(`/secadores${inativos}`);
+  const feedback = useFeedback();
   const capacidades = useApi<Capacidade[]>('/capacidades');
   const rendimentos = useApi<Rendimento[]>('/rendimentos');
   const erro = ervas.erro || secadores.erro || capacidades.erro || rendimentos.erro;
@@ -140,8 +145,23 @@ export default function MatrizCapacidade() {
   // Estável: a janela usa como dependência do efeito de foco
   const aoCancelar = useCallback(() => setEdicao(null), []);
 
-  const todasErvas = ervas.dados ?? [];
-  const todosSecadores = secadores.dados ?? [];
+  const ervasInativas = (ervas.dados ?? []).filter((e) => !e.ativo);
+  const secadoresInativos = (secadores.dados ?? []).filter((s) => !s.ativo);
+  const qtdInativos = ervasInativas.length + secadoresInativos.length;
+  const todasErvas = (ervas.dados ?? []).filter((e) => e.ativo || mostrarInativos);
+  const todosSecadores = (secadores.dados ?? []).filter((s) => s.ativo || mostrarInativos);
+
+  /** Volta a erva ou o secador para o planejamento num clique. */
+  const reativar = async (tipo: 'ervas' | 'secadores', id: number, nome: string) => {
+    try {
+      await apiFetch(`/${tipo}/${id}`, { method: 'PATCH', body: JSON.stringify({ ativo: true }) });
+      logger.info(`Reativado: /${tipo}/${id}`);
+      aoSalvar();
+      feedback.sucesso(`${nome} reativado`, 'Volta a entrar nas próximas simulações.');
+    } catch (err) {
+      feedback.erro(`Não foi possível reativar ${nome}`, err);
+    }
+  };
 
   // Situação de um par erva × secador
   const situacaoPar = useCallback(
@@ -153,12 +173,14 @@ export default function MatrizCapacidade() {
     [capacidade]
   );
 
-  // Resumo de todos os pares (sem filtro), para o topo da tela
+  // Resumo dos pares que entram no planejamento (só ativos, sem filtro), para o topo da tela
   const resumo = useMemo(() => {
     const conta = { completa: 0, incompleta: 0, nao_opera: 0 };
-    todasErvas.forEach((e) => todosSecadores.forEach((s) => (conta[situacaoPar(e.id, s.id)] += 1)));
+    const ativas = (ervas.dados ?? []).filter((e) => e.ativo);
+    const ativos = (secadores.dados ?? []).filter((s) => s.ativo);
+    ativas.forEach((e) => ativos.forEach((s) => (conta[situacaoPar(e.id, s.id)] += 1)));
     return conta;
-  }, [todasErvas, todosSecadores, situacaoPar]);
+  }, [ervas.dados, secadores.dados, situacaoPar]);
   const totalPares = resumo.completa + resumo.incompleta + resumo.nao_opera;
 
   // Colunas: só o secador escolhido. Linhas: busca pelo nome/código e situação nos secadores visíveis
@@ -291,18 +313,48 @@ export default function MatrizCapacidade() {
           </Select>
           <div className="flex flex-wrap items-center gap-3 pb-2">
             {podeGerenciar && (
-              <label className="flex items-center gap-2 whitespace-nowrap text-sm">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-verde-700"
-                  checked={mostrarInativos}
-                  onChange={(e) => setMostrarInativos(e.target.checked)}
-                />
-                Mostrar inativos
-              </label>
+              <span
+                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 transition-colors ${
+                  mostrarInativos ? 'border-verde-700 bg-verde-50' : 'border-borda bg-white'
+                }`}
+              >
+                <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-sm font-medium text-tinta">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-verde-700"
+                    checked={mostrarInativos}
+                    onChange={(e) => setMostrarInativos(e.target.checked)}
+                  />
+                  Mostrar inativos
+                </label>
+                <span
+                  aria-label={`${qtdInativos} inativo(s)`}
+                  className={`rounded-full px-1.5 text-xs font-bold ${qtdInativos ? 'bg-amber-100 text-amber-800' : 'bg-fundo text-suave'}`}
+                >
+                  {qtdInativos}
+                </span>
+              </span>
             )}
           </div>
         </div>
+
+        {/* Inativos escondidos: avisa onde estão, para reativar ou excluir */}
+        {podeGerenciar && !mostrarInativos && qtdInativos > 0 && (
+          <div className="mb-4 flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              {[
+                ervasInativas.length && `${ervasInativas.length} erva(s) inativa(s)`,
+                secadoresInativos.length && `${secadoresInativos.length} secador(es) inativo(s)`,
+              ]
+                .filter(Boolean)
+                .join(' e ')}{' '}
+              fora da matriz: {[...ervasInativas.map((e) => e.nome), ...secadoresInativos.map((s) => s.codigo)].join(', ')}.
+            </span>
+            <Button variant="secondary" tamanho="sm" icone={Eye} onClick={() => setMostrarInativos(true)}>
+              Mostrar para reativar ou excluir
+            </Button>
+          </div>
+        )}
 
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-suave" aria-live="polite">
@@ -333,13 +385,29 @@ export default function MatrizCapacidade() {
                   {secadoresVisiveis.map((s) => (
                     <th key={s.id} className="min-w-56 p-3 align-bottom">
                       {/* Moldura do secador: a coluna fica fácil de seguir com os olhos */}
-                      <div className="rounded-lg border border-verde-700/25 bg-verde-50 px-3 py-2 shadow-suave">
+                      <div
+                        className={`rounded-lg border px-3 py-2 shadow-suave ${
+                          s.ativo ? 'border-verde-700/25 bg-verde-50' : 'border-dashed border-cinza bg-fundo'
+                        }`}
+                      >
                         <div className="flex items-center gap-2 normal-case tracking-normal">
-                          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-verde-700 text-white">
+                          <span
+                            className={`flex size-6 shrink-0 items-center justify-center rounded-md text-white ${s.ativo ? 'bg-verde-700' : 'bg-suave'}`}
+                          >
                             <Factory aria-hidden="true" className="size-3.5" />
                           </span>
-                          <span className="text-sm font-bold text-tinta">{s.codigo}</span>
+                          <span className={`text-sm font-bold ${s.ativo ? 'text-tinta' : 'text-suave'}`}>{s.codigo}</span>
                           {!s.ativo && <Etiqueta cor="amarelo">inativo</Etiqueta>}
+                          {!s.ativo && podeGerenciar && (
+                            <button
+                              type="button"
+                              onClick={() => reativar('secadores', s.id, s.codigo)}
+                              className="inline-flex items-center gap-1 rounded bg-verde-700 px-2 py-0.5 text-[11px] font-semibold text-white transition-colors hover:bg-verde-600"
+                            >
+                              <RotateCcw aria-hidden="true" className="size-3" />
+                              Reativar
+                            </button>
+                          )}
                           {podeGerenciar && (
                             <span className="ml-auto">
                               <LinkEditar onClick={() => setEdicao({ tipo: 'secador', secador: s })} />
@@ -359,12 +427,30 @@ export default function MatrizCapacidade() {
                     <tr key={erva.id} className="align-top">
                       <td className="sticky left-0 z-10 border-b border-borda bg-white p-3">
                         {/* Cartão da erva com o tema das folhas do login */}
-                        <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-verde-900 via-verde-700 to-verde-600 p-3 text-white shadow-suave">
+                        <div
+                          className={`relative overflow-hidden rounded-lg bg-gradient-to-br p-3 text-white shadow-suave ${
+                            erva.ativo ? 'from-verde-900 via-verde-700 to-verde-600' : 'from-[#5f5d57] to-[#86847d]'
+                          }`}
+                        >
                           <FolhaMarca />
+                          {!erva.ativo && (
+                            <div className="relative mb-2 flex items-center justify-between gap-2 rounded-md bg-black/20 px-2 py-1 text-[11px]">
+                              <span className="font-semibold uppercase tracking-wide">Inativa</span>
+                              {podeGerenciar && (
+                                <button
+                                  type="button"
+                                  onClick={() => reativar('ervas', erva.id, erva.nome)}
+                                  className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 font-semibold text-verde-700 transition-colors hover:bg-lima-100"
+                                >
+                                  <RotateCcw aria-hidden="true" className="size-3" />
+                                  Reativar
+                                </button>
+                              )}
+                            </div>
+                          )}
                           <div className="relative flex items-center gap-2">
-                            <Leaf aria-hidden="true" className="size-4 shrink-0 text-lima-500" />
+                            <Leaf aria-hidden="true" className={`size-4 shrink-0 ${erva.ativo ? 'text-lima-500' : 'text-white/70'}`} />
                             <span className="font-semibold">{erva.nome}</span>
-                            {!erva.ativo && <Etiqueta cor="amarelo">inativa</Etiqueta>}
                             {podeGerenciar && (
                               <span className="ml-auto">
                                 <LinkEditar claro onClick={() => setEdicao({ tipo: 'erva', erva })} />

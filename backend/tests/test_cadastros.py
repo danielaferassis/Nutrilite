@@ -5,7 +5,9 @@ from datetime import date, datetime, timezone
 import pytest
 
 from app import calendario, dados_ficticios
-from app.models import Demanda, Erva, Secador, Usuario
+from sqlalchemy import select
+
+from app.models import ApontamentoSecagem, Base, BloqueioSecador, Capacidade, Demanda, Erva, Rendimento, Secador, Usuario
 from tests.conftest import ADMIN_CADASTRO, FONTE_A, PCP, TODOS_OS_DIAS, demanda, lote
 
 
@@ -251,3 +253,63 @@ def test_rendimento_um_por_erva(cliente, cadastro):
     resposta = cliente.patch(f"/api/rendimentos/{rendimento_id}", json={"desidratado_por_moido": "1.1"})
     assert float(resposta.json()["desidratado_por_moido"]) == 1.1
     assert {r["erva_id"] for r in cliente.get("/api/rendimentos").json()} == {1, 2}
+
+
+# --- Exclusão de erva e secador (só os nunca usados) ---
+
+
+@pytest.fixture
+def apontamentos(cadastro):
+    # A exclusão confere os apontamentos do Infinity; a tabela não vem no banco padrão dos testes
+    Base.metadata.create_all(cadastro.get_bind(), tables=[ApontamentoSecagem.__table__])
+
+
+def test_exclusao_exige_permissao_e_registro_existente(cliente, cadastro):
+    cliente.logar(PCP)
+    assert cliente.delete("/api/ervas/2").status_code == 403
+    assert cliente.delete("/api/secadores/1").status_code == 403
+    cliente.logar(ADMIN_CADASTRO)
+    assert cliente.delete("/api/ervas/999").status_code == 404
+    assert cliente.delete("/api/secadores/999").status_code == 404
+
+
+def test_exclui_erva_nunca_usada_com_capacidade_e_rendimento(cliente, cadastro, apontamentos):
+    cliente.logar(ADMIN_CADASTRO)
+
+    assert cliente.delete("/api/ervas/1").status_code == 204
+
+    assert cadastro.get(Erva, 1) is None
+    # A configuração da erva sai junto
+    assert cadastro.scalars(select(Capacidade).where(Capacidade.erva_id == 1)).all() == []
+    assert cadastro.scalars(select(Rendimento).where(Rendimento.erva_id == 1)).all() == []
+
+
+def test_recusa_excluir_erva_com_historico(cliente, cadastro, apontamentos):
+    demanda(cadastro)
+    cliente.logar(ADMIN_CADASTRO)
+
+    resposta = cliente.delete("/api/ervas/1")
+
+    assert resposta.status_code == 409
+    assert "1 demanda(s)" in resposta.json()["detail"]
+    assert "inativo" in resposta.json()["detail"]
+    assert cadastro.get(Erva, 1) is not None
+
+
+def test_exclui_secador_nunca_usado_e_recusa_com_bloqueio(cliente, cadastro, apontamentos):
+    cliente.logar(ADMIN_CADASTRO)
+    cadastro.add(Secador(id=2, codigo="SEC-2", nome="Secador sintético 2"))
+    cadastro.add(
+        BloqueioSecador(
+            secador_id=1, inicio=date(2026, 12, 1), fim=date(2026, 12, 2), motivo="Manutenção", criado_por_id=PCP
+        )
+    )
+    cadastro.commit()
+
+    assert cliente.delete("/api/secadores/2").status_code == 204
+    assert cadastro.get(Secador, 2) is None
+
+    resposta = cliente.delete("/api/secadores/1")
+    assert resposta.status_code == 409
+    assert "1 bloqueio(s)" in resposta.json()["detail"]
+    assert cadastro.get(Secador, 1) is not None

@@ -96,6 +96,36 @@ const rendimentoParaApi = (f: FormErva) => ({
   desidratado_por_moido: decimalOuNulo(f.desidratado_por_moido),
 });
 
+/**
+ * Exclusão de erva ou secador. O backend só aceita se o registro nunca foi
+ * usado; senão responde 409 com o motivo, e a orientação é deixar inativo.
+ */
+async function excluirCadastro(
+  feedback: ReturnType<typeof useFeedback>,
+  opcoes: { caminho: string; nome: string; tipo: 'erva' | 'secador'; aoExcluir: () => void }
+) {
+  const artigo = opcoes.tipo === 'erva' ? 'a erva' : 'o secador';
+  const ok = await feedback.confirmar({
+    titulo: `Excluir ${opcoes.nome}?`,
+    mensagem:
+      `${artigo[0].toUpperCase()}${artigo.slice(1)} sai do cadastro junto com as capacidades` +
+      (opcoes.tipo === 'erva' ? ' e o rendimento dela' : ' dele') +
+      '.\n\nSó é possível se nunca foi usado em demanda, previsão, recebimento, bloqueio, apontamento ou plano. ' +
+      'Nesses casos, deixe inativo: sai do planejamento sem perder o histórico.',
+    rotuloConfirmar: 'Excluir',
+    perigo: true,
+  });
+  if (!ok) return;
+  try {
+    await apiFetch(opcoes.caminho, { method: 'DELETE' });
+    logger.info(`Cadastro excluído: ${opcoes.caminho}`);
+    opcoes.aoExcluir();
+    feedback.sucesso(opcoes.tipo === 'erva' ? 'Erva excluída' : 'Secador excluído', `${opcoes.nome} saiu do cadastro.`);
+  } catch (err) {
+    feedback.erro(`Não foi possível excluir ${artigo}`, err);
+  }
+}
+
 export function FormularioErva({
   erva,
   rendimento,
@@ -184,7 +214,16 @@ export function FormularioErva({
           <Input label="Kg desidratado para 1 kg moído" type="number" min="0.0001" step="0.0001" placeholder="ex.: 1,1"
             value={form.desidratado_por_moido} onChange={alterar('desidratado_por_moido')} />
         </Ajuda>
-        <Botoes salvando={salvando} aoCancelar={aoCancelar} />
+        <Botoes
+          salvando={salvando}
+          aoCancelar={aoCancelar}
+          extra={erva && (
+            <Button type="button" variant="danger" icone={Trash2}
+              onClick={() => excluirCadastro(feedback, { caminho: `/ervas/${erva.id}`, nome: erva.nome, tipo: 'erva', aoExcluir: aoSalvar })}>
+              Excluir
+            </Button>
+          )}
+        />
       </form>
     </Moldura>
   );
@@ -256,7 +295,16 @@ export function FormularioSecador({ secador, aoSalvar, aoCancelar }: PropsFormul
             />
           </Ajuda>
         </div>
-        <Botoes salvando={salvando} aoCancelar={aoCancelar} />
+        <Botoes
+          salvando={salvando}
+          aoCancelar={aoCancelar}
+          extra={secador && (
+            <Button type="button" variant="danger" icone={Trash2}
+              onClick={() => excluirCadastro(feedback, { caminho: `/secadores/${secador.id}`, nome: secador.codigo, tipo: 'secador', aoExcluir: aoSalvar })}>
+              Excluir
+            </Button>
+          )}
+        />
       </form>
     </Moldura>
   );

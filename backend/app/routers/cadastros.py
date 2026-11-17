@@ -3,8 +3,10 @@
 Leitura só exige login: a Fonte fornecedora também escolhe a erva da
 previsão. Escrita exige `cadastro.gerenciar`.
 
-- Erva e secador não são removidos: saem do planejamento com `ativo=false`.
-  Demandas, previsões e recebimentos apontam para eles.
+- Erva e secador saem do planejamento com `ativo=false`. Só podem ser
+  excluídos se nunca foram usados (nenhuma demanda, previsão, recebimento,
+  apontamento, bloqueio ou plano); senão a exclusão é recusada (409), para
+  não apagar histórico. A capacidade e o rendimento deles saem junto.
 - Capacidade pode ser removida: sem a linha, a erva não opera naquele secador.
 - Parâmetro vazio é gravado como nulo ("não informado"), nunca como zero.
   A simulação acusa PARAM_AUSENTE.
@@ -15,13 +17,25 @@ previsão. Escrita exige `cadastro.gerenciar`.
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.acesso import get_usuario_atual, requer_permissao
 from app.database import get_db
 from app.texto import normalizar
-from app.models import Capacidade, Erva, Rendimento, Secador, Usuario
+from app.models import (
+    ApontamentoSecagem,
+    BloqueioSecador,
+    Capacidade,
+    Demanda,
+    Erva,
+    PlanoAlocacao,
+    PrevisaoOferta,
+    Recebimento,
+    Rendimento,
+    Secador,
+    Usuario,
+)
 from app.schemas import (
     CapacidadeCreate,
     CapacidadeRead,
@@ -84,6 +98,23 @@ def _aplicar(registro, campos: dict) -> None:
         setattr(registro, campo, valor)
 
 
+def _recusar_se_usado(nome: str, usos: list[tuple[str, int]]) -> None:
+    """409 se o registro já foi usado em algo que é histórico; desativar é o caminho."""
+    usados = [f"{qtd} {rotulo}" for rotulo, qtd in usos if qtd]
+    if usados:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Não dá para excluir {nome}: já tem {', '.join(usados)}. "
+                "Deixe inativo para tirar do planejamento sem perder o histórico."
+            ),
+        )
+
+
+def _contar(db: Session, modelo, condicao) -> int:
+    return db.scalar(select(func.count()).select_from(modelo).where(condicao)) or 0
+
+
 # --- Ervas ---
 
 
@@ -124,6 +155,28 @@ def update_erva(
     db.refresh(erva)
     log.info("Erva %s atualizada por %s: %s", erva.id, usuario.id, sorted(campos))
     return erva
+
+
+@router.delete("/ervas/{erva_id}", status_code=204)
+def delete_erva(erva_id: int, usuario: Usuario = Depends(pode_gerenciar), db: Session = Depends(get_db)):
+    erva = _get_or_404(Erva, erva_id, "Erva não encontrada", db)
+    _recusar_se_usado(
+        f"a erva {erva.nome}",
+        [
+            ("demanda(s)", _contar(db, Demanda, Demanda.erva_id == erva.id)),
+            ("previsão(ões)", _contar(db, PrevisaoOferta, PrevisaoOferta.erva_id == erva.id)),
+            ("recebimento(s)", _contar(db, Recebimento, Recebimento.erva_id == erva.id)),
+            ("apontamento(s) do Infinity", _contar(db, ApontamentoSecagem, ApontamentoSecagem.erva_id == erva.id)),
+            # Plano guarda o código como texto: conta mesmo assim, é histórico
+            ("linha(s) em planos salvos", _contar(db, PlanoAlocacao, PlanoAlocacao.erva == erva.codigo)),
+        ],
+    )
+    # Configuração dela sai junto: capacidades nos secadores e rendimento
+    db.execute(delete(Capacidade).where(Capacidade.erva_id == erva.id))
+    db.execute(delete(Rendimento).where(Rendimento.erva_id == erva.id))
+    db.delete(erva)
+    db.commit()
+    log.info("Erva %s (%s) excluída por %s", erva_id, erva.codigo, usuario.id)
 
 
 # --- Secadores ---
@@ -169,6 +222,25 @@ def update_secador(
     db.refresh(secador)
     log.info("Secador %s atualizado por %s: %s", secador.id, usuario.id, sorted(campos))
     return secador
+
+
+@router.delete("/secadores/{secador_id}", status_code=204)
+def delete_secador(
+    secador_id: int, usuario: Usuario = Depends(pode_gerenciar), db: Session = Depends(get_db)
+):
+    secador = _get_or_404(Secador, secador_id, "Secador não encontrado", db)
+    _recusar_se_usado(
+        f"o secador {secador.codigo}",
+        [
+            ("bloqueio(s)", _contar(db, BloqueioSecador, BloqueioSecador.secador_id == secador.id)),
+            ("apontamento(s) do Infinity", _contar(db, ApontamentoSecagem, ApontamentoSecagem.secador_id == secador.id)),
+            ("linha(s) em planos salvos", _contar(db, PlanoAlocacao, PlanoAlocacao.secador == secador.codigo)),
+        ],
+    )
+    db.execute(delete(Capacidade).where(Capacidade.secador_id == secador.id))
+    db.delete(secador)
+    db.commit()
+    log.info("Secador %s (%s) excluído por %s", secador_id, secador.codigo, usuario.id)
 
 
 # --- Capacidades (erva × secador) ---

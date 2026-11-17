@@ -282,4 +282,60 @@ describe('MatrizCapacidade', () => {
     await waitFor(() => expect(card('Com parâmetro vazio')).toHaveTextContent('0de 4'));
     await waitFor(() => expect(card('Não operam')).toHaveTextContent('3de 4'));
   });
+
+  describe('inativos e exclusão', () => {
+    const ERVA_INATIVA = { id: 3, codigo: 'ERVA-C', nome: 'Erva C', ativo: false, regime_horas_dia: null, espera_maxima_dias: null };
+
+    it('esconde a erva inativa, avisa quantas são e reativa num clique', async () => {
+      const usuario = userEvent.setup();
+      const { chamadas } = renderizarTela(
+        <MatrizCapacidade />,
+        rotas({
+          'GET /ervas': [ERVA_A, ERVA_B, ERVA_INATIVA],
+          'PATCH /ervas/3': (corpo: object) => ({ ...ERVA_INATIVA, ...corpo }),
+        }),
+        GERENCIAR
+      );
+
+      await screen.findByText('Erva A');
+      // Fora da matriz, mas com aviso dizendo qual é
+      expect(screen.queryByRole('button', { name: 'Reativar' })).not.toBeInTheDocument();
+      expect(screen.getByText(/1 erva\(s\) inativa\(s\) fora da matriz: Erva C/)).toBeInTheDocument();
+
+      await usuario.click(screen.getByRole('button', { name: 'Mostrar para reativar ou excluir' }));
+      await usuario.click(await screen.findByRole('button', { name: 'Reativar' }));
+
+      await screen.findByText('Erva C reativado');
+      expect(escritas(chamadas)).toEqual([
+        { metodo: 'PATCH', caminho: '/ervas/3', busca: '', corpo: { ativo: true } },
+      ]);
+    });
+
+    it('exclui a erva depois de confirmar', async () => {
+      const usuario = userEvent.setup();
+      const { chamadas } = renderizarTela(<MatrizCapacidade />, rotas({ 'DELETE /ervas/2': null }), GERENCIAR);
+
+      await screen.findByText('Erva B');
+      await usuario.click(within(screen.getByText('Erva B').closest('td')!).getByText('editar'));
+      await usuario.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Excluir' }));
+      await usuario.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Excluir' }));
+
+      await screen.findByText('Erva excluída');
+      expect(escritas(chamadas)).toEqual([{ metodo: 'DELETE', caminho: '/ervas/2', busca: '', corpo: undefined }]);
+    });
+
+    it('mostra o motivo quando a exclusão é recusada (erva já usada)', async () => {
+      const usuario = userEvent.setup();
+      const motivo = 'Não dá para excluir a erva Erva A: já tem 1 demanda(s). Deixe inativo para tirar do planejamento sem perder o histórico.';
+      renderizarTela(<MatrizCapacidade />, rotas({ 'DELETE /ervas/1': new Resposta(409, { detail: motivo }) }), GERENCIAR);
+
+      await screen.findByText('Erva A');
+      await usuario.click(within(screen.getByText('Erva A').closest('td')!).getByText('editar'));
+      await usuario.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Excluir' }));
+      await usuario.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Excluir' }));
+
+      expect(await screen.findByText('Não foi possível excluir a erva')).toBeInTheDocument();
+      expect(screen.getByText(motivo)).toBeInTheDocument();
+    });
+  });
 });
