@@ -37,7 +37,13 @@ export function instalarApiFalsa(rotas: Rotas) {
       const url = new URL(entrada, 'http://localhost');
       const metodo = init?.method ?? 'GET';
       const caminho = url.pathname.replace(/^\/api/, '');
-      const corpo = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+      // JSON vira objeto; envio de arquivo (FormData) vira { campo: valor }, com o File no campo
+      const corpo =
+        typeof init?.body === 'string'
+          ? JSON.parse(init.body)
+          : init?.body instanceof FormData
+            ? Object.fromEntries(init.body.entries())
+            : undefined;
       chamadas.push({ metodo, caminho, busca: url.search, corpo });
 
       const chave = `${metodo} ${caminho}`;

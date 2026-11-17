@@ -9,6 +9,7 @@ import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { Erva, Origem, Previsao } from '../tipos';
 import ItemList from './ItemList';
+import ImportacaoPrevisoes from './ImportacaoPrevisoes';
 import { Alerta, Button, Card, Etiqueta, Input, Select } from './ui';
 
 const FORM_VAZIO = { erva_id: '', origem: '' as Origem | '', kg_fresco: '', data_chegada: '', observacao: '' };
@@ -117,7 +118,7 @@ export default function EntradaPrevisoes() {
   const linhas = (previsoes.dados ?? []).map((p) => ({
     id: `#${p.id}`,
     erva: p.erva.nome,
-    origem: ROTULO_ORIGEM[p.origem],
+    origem: p.talhao ? `${ROTULO_ORIGEM[p.origem]} · ${p.talhao}` : ROTULO_ORIGEM[p.origem],
     chegada: formatarData(p.data_chegada),
     qtde: formatarKg(p.kg_fresco),
     fonte: p.criado_por.nome,
@@ -175,12 +176,15 @@ export default function EntradaPrevisoes() {
           )}
         </Card>
 
-        <Card className="flex flex-col items-center justify-center p-8 text-center bg-gray-50 border-dashed">
-          <h3 className="font-medium mb-2">Importação em Lote via Excel/CSV</h3>
-          <p className="text-sm text-gray-500 mb-6">
-            Aguardando o formato oficial da planilha S&OP. Por enquanto use o registo manual.
-          </p>
-          <Button variant="secondary" disabled>Selecionar Ficheiro</Button>
+        <Card className="bg-gray-50 border-dashed">
+          {podeGerenciarTodas ? (
+            <ImportacaoPrevisoes ervas={ervas.dados ?? []} aoImportar={previsoes.recarregar} />
+          ) : (
+            <div className="text-center p-4">
+              <h3 className="font-medium mb-2">Importar planilha de programação</h3>
+              <p className="text-sm text-gray-500">A importação da planilha é feita pelo PCP.</p>
+            </div>
+          )}
         </Card>
       </div>
 

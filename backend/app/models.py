@@ -507,6 +507,9 @@ class PrevisaoOferta(Base):
     )
     data_chegada: Mapped[date] = mapped_column(Date)
     kg_fresco: Mapped[Decimal] = mapped_column(KG)
+    # Talhão da fazenda, quando a previsão veio da planilha de programação. A
+    # reimportação só sincroniza previsões com talhão: as manuais (NULL) ficam intactas.
+    talhao: Mapped[str | None] = mapped_column(String(50))
     observacao: Mapped[str | None] = mapped_column(String(500))
     criado_por_id: Mapped[int] = mapped_column(
         INTEGER(unsigned=True),

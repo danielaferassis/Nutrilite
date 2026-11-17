@@ -16,6 +16,7 @@ from app.routers import (
     items,
     planos,
     previsoes,
+    previsoes_importacao,
     recebimentos,
     simulacoes,
     usuarios,
@@ -37,6 +38,8 @@ app.include_router(grupos.router, prefix="/api")
 app.include_router(funcionalidades.router, prefix="/api")
 app.include_router(importacoes.router, prefix="/api")
 app.include_router(demandas.router, prefix="/api")
+# Antes de previsoes: /previsoes/importacao não pode cair em /previsoes/{previsao_id}
+app.include_router(previsoes_importacao.router, prefix="/api")
 app.include_router(previsoes.router, prefix="/api")
 app.include_router(simulacoes.router, prefix="/api")
 app.include_router(planos.router, prefix="/api")

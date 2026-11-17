@@ -154,6 +154,17 @@ Só a regra; os valores da tabela oficial **não** entram no repositório (são 
 - "Hoje" (data futura de recebimento, chegada atrasada) é o dia no fuso da fazenda (`FUSO_FAZENDA`, padrão `America/Fortaleza`), não o do servidor em UTC.
 - IDs de demanda e lote saem como texto (`"12"`): é o `id` da tabela.
 
+## Importação da planilha de programação (`/api/previsoes/importacao`)
+
+A fazenda mantém a planilha "Programação Produção Ervas" (.xlsx): uma aba por erva e ano, uma linha por dia e uma coluna por **talhão**, com os kg previstos. A importação transforma cada célula preenchida numa previsão (`LotePrevisto` para o motor), com o talhão guardado em `previsao_oferta.talhao`. O motor não muda.
+
+- **Leitura** (`app/importacao/programacao_ervas.py`): acha o cabeçalho pela coluna "Mês", os talhões na linha acima e a erva na linha acima deles; para na linha "TOTAL". Ignora "Dia da Semana" (a planilha tem rótulos trocados: o dia vem da data), "Semana" e "Total Semana". Célula vazia ou 0 = nada previsto; texto aceita o formato brasileiro (`1.234,5`).
+- **Prévia** (`POST …/previa`): devolve o que seria criado, alterado e removido, avisos e erros por célula (ex.: `G5: Valor não numérico`). Não grava nada. Sugere a erva pelo texto acima dos talhões ou pelo nome da aba.
+- **Aplicar** (`POST …/importacao`): recalcula e grava tudo numa transação. Com qualquer erro de célula, nada é gravado.
+- **Sincronização** (por erva + origem, no período de datas da aba): chave = talhão + data. Linha nova → cria; kg diferente → altera; previsão com talhão que sumiu da planilha → remove. Previsão **já recebida** nunca é alterada nem removida (vira aviso), e previsão **sem talhão** (cadastrada à mão) nunca entra na comparação.
+- Permissão `previsao.gerenciar` (PCP). Testes com planilhas fictícias montadas no próprio teste: nenhuma planilha real entra no repositório.
+- **A confirmar com a fazenda:** se os valores são kg de erva **fresca** (hoje assumido), se Procompete e P&D usam o mesmo modelo (a origem é escolhida na importação) e qual aba usar entre a previsão e o "Budget".
+
 ## Plano salvo (`/api/planos`)
 
 `POST /api/planos` recebe o mesmo pedido da simulação (mais `observacao`), roda o motor no servidor e grava o resultado como **rascunho**. O cliente nunca envia o resultado pronto.

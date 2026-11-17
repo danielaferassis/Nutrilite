@@ -392,6 +392,7 @@ class RendimentoRead(RendimentoCreate):
 # Mesma precisão da coluna Numeric(12, 3): evita o banco arredondar calado
 Kg = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=3)]
 Observacao = Annotated[str | None, Field(default=None, max_length=500)]
+Talhao = Annotated[str | None, Field(default=None, max_length=50)]
 
 
 class ErvaResumo(BaseModel):
@@ -451,6 +452,7 @@ class PrevisaoCreate(BaseModel):
     origem: Origem
     data_chegada: date
     kg_fresco: Kg
+    talhao: Talhao
     observacao: Observacao
 
 
@@ -461,6 +463,7 @@ class PrevisaoUpdate(BaseModel):
     origem: Origem | None = None
     data_chegada: date | None = None
     kg_fresco: Kg | None = None
+    talhao: Talhao
     observacao: Observacao
 
     _valida_nao_nulos = field_validator("erva_id", "origem", "data_chegada", "kg_fresco")(_nao_nulo)
@@ -474,12 +477,47 @@ class PrevisaoRead(BaseModel):
     origem: Origem
     data_chegada: date
     kg_fresco: Decimal
+    talhao: str | None
     observacao: str | None
     # Com recebimento, a previsão fica travada (a tela esconde editar/excluir)
     recebida: bool
     criado_por: UsuarioResumo
     criado_em: UtcDatetime
     atualizado_em: UtcDatetime
+
+
+# --- Importação da planilha de programação (previsões por talhão) ---
+
+
+class LinhaImportacaoPrevisao(BaseModel):
+    """Uma previsão que a importação cria, altera ou remove."""
+
+    talhao: str
+    data_chegada: date
+    kg_fresco: Decimal | None  # kg novo (None ao remover)
+    kg_atual: Decimal | None = None  # kg que está no sistema (alterar/remover)
+    previsao_id: int | None = None  # previsão existente (alterar/remover)
+
+
+class ImportacaoPrevisoesRead(BaseModel):
+    """Prévia (nada gravado) ou resultado (gravado) da importação."""
+
+    aplicada: bool
+    abas: list[str]
+    aba: str
+    erva_na_planilha: str | None  # texto acima dos talhões, ex.: "Camomila"
+    erva_sugerida_id: int | None  # erva cadastrada que bate com a aba
+    erva_id: int | None  # erva usada na comparação (None = falta escolher)
+    origem: Origem
+    talhoes: list[str]
+    de: date | None  # período da aba: só ele é sincronizado
+    ate: date | None
+    total_kg: Decimal  # soma das previsões da aba
+    criar: list[LinhaImportacaoPrevisao]
+    alterar: list[LinhaImportacaoPrevisao]
+    remover: list[LinhaImportacaoPrevisao]
+    avisos: list[str]  # o que não será mexido e por quê
+    erros: list[ImportacaoErroRead]  # com erro, nada é gravado
 
 
 # --- Simulação ---

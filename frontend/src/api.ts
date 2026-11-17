@@ -57,10 +57,12 @@ export const query = (params: Record<string, string | number | boolean | null | 
 
 export const apiFetch = async <T = any>(endpoint: string, options?: RequestInit): Promise<T> => {
   try {
+    // Com arquivo (FormData) o navegador monta o Content-Type com o boundary do multipart
+    const json = !(options?.body instanceof FormData);
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...(json ? { 'Content-Type': 'application/json' } : {}),
         ...(options?.headers || {})
       },
     });

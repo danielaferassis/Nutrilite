@@ -109,10 +109,45 @@ export interface Previsao {
   origem: Origem;
   data_chegada: string;
   kg_fresco: string;
+  /** Talhão da fazenda, quando veio da planilha de programação. */
+  talhao: string | null;
   observacao: string | null;
   /** Já tem recebimento: não pode mais ser alterada nem removida. */
   recebida: boolean;
   criado_por: UsuarioResumo;
+}
+
+/** Previsão que a importação da planilha cria, altera ou remove. */
+export interface LinhaImportacaoPrevisao {
+  talhao: string;
+  data_chegada: string;
+  /** kg novo (null ao remover). */
+  kg_fresco: string | null;
+  /** kg que está no sistema (alterar/remover). */
+  kg_atual: string | null;
+  previsao_id: number | null;
+}
+
+/** Prévia (aplicada = false) ou resultado da importação da planilha de programação. */
+export interface ImportacaoPrevisoes {
+  aplicada: boolean;
+  abas: string[];
+  aba: string;
+  erva_na_planilha: string | null;
+  erva_sugerida_id: number | null;
+  /** Erva usada na comparação; null = falta escolher. */
+  erva_id: number | null;
+  origem: Origem;
+  talhoes: string[];
+  de: string | null;
+  ate: string | null;
+  total_kg: string;
+  criar: LinhaImportacaoPrevisao[];
+  alterar: LinhaImportacaoPrevisao[];
+  remover: LinhaImportacaoPrevisao[];
+  avisos: string[];
+  /** Com erro, nada é gravado. */
+  erros: { linha: number | null; coluna: string | null; mensagem: string }[];
 }
 
 export interface Bloqueio {
