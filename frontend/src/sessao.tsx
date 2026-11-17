@@ -1,3 +1,4 @@
+import { Leaf } from 'lucide-react';
 import { ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 import { apiFetch, textoDoErro } from './api';
@@ -29,7 +30,16 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
   );
 
   if (erro) return <div className="p-8 text-red-700">Não foi possível carregar a sessão: {erro}</div>;
-  if (!sessao) return <div className="p-8 text-gray-500">Carregando…</div>;
+  if (!sessao) {
+    return (
+      <div role="status" className="flex min-h-screen flex-col items-center justify-center gap-3 bg-fundo text-suave">
+        <span className="flex size-12 animate-pulse items-center justify-center rounded-xl bg-gradient-to-br from-lima-500 to-verde-700 text-white">
+          <Leaf aria-hidden="true" className="size-6" />
+        </span>
+        <span className="text-sm">Carregando…</span>
+      </div>
+    );
+  }
   return <Sessao.Provider value={{ sessao, pode }}>{children}</Sessao.Provider>;
 }
 

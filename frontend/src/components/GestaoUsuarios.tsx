@@ -8,7 +8,7 @@ import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { Grupo, Usuario } from '../tipos';
 import ItemList from './ItemList';
-import { Alerta, Button, Card, Etiqueta, Input } from './ui';
+import { Alerta, Button, Card, Etiqueta, Input, PageHeader } from './ui';
 
 interface Formulario {
   nome: string;
@@ -102,15 +102,14 @@ export default function GestaoUsuarios() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#211E16]">Usuários</h1>
-        <p className="text-sm text-gray-500">
-          Cadastro de quem acessa o sistema. O que cada um pode fazer vem dos grupos a que pertence.
-        </p>
-      </div>
+      <PageHeader
+        secao="Administração"
+        titulo="Usuários"
+        descricao="Cadastro de quem acessa o sistema. O que cada um pode fazer vem dos grupos a que pertence."
+      />
 
       <Card>
-        <h2 className="text-lg font-semibold text-[#211E16] mb-4">
+        <h2 className="text-lg font-semibold text-tinta mb-4">
           {editandoId === null ? 'Novo usuário' : `Editar usuário: ${form.nome}`}
         </h2>
         <form onSubmit={salvar} className="space-y-4">
@@ -144,17 +143,17 @@ export default function GestaoUsuarios() {
           </div>
 
           <fieldset>
-            <legend className="text-sm font-medium text-[#211E16] mb-2">Grupos</legend>
+            <legend className="text-sm font-medium text-tinta mb-2">Grupos</legend>
             {grupos.erro && <Alerta>{grupos.erro}</Alerta>}
             {grupos.dados?.length === 0 && (
-              <p className="text-sm text-gray-500">Nenhum grupo cadastrado.</p>
+              <p className="text-sm text-suave">Nenhum grupo cadastrado.</p>
             )}
             <div className="flex flex-wrap gap-x-6 gap-y-2">
               {(grupos.dados ?? []).map((g) => (
-                <label key={g.id} className="flex items-center gap-2 text-sm text-[#211E16]">
+                <label key={g.id} className="flex items-center gap-2 text-sm text-tinta">
                   <input
                     type="checkbox"
-                    className="accent-[#006F44]"
+                    className="accent-verde-700"
                     checked={form.grupo_ids.includes(g.id)}
                     onChange={() => alternarGrupo(g.id)}
                   />
@@ -165,16 +164,16 @@ export default function GestaoUsuarios() {
             </div>
           </fieldset>
 
-          <label className="flex items-center gap-2 text-sm text-[#211E16]">
+          <label className="flex items-center gap-2 text-sm text-tinta">
             <input
               type="checkbox"
-              className="accent-[#006F44]"
+              className="accent-verde-700"
               checked={form.ativo}
               disabled={editandoASiMesmo}
               onChange={(e) => setForm({ ...form, ativo: e.target.checked })}
             />
             Ativo (pode entrar no sistema)
-            {editandoASiMesmo && <span className="text-gray-500">— você não pode desativar o próprio usuário</span>}
+            {editandoASiMesmo && <span className="text-suave">— você não pode desativar o próprio usuário</span>}
           </label>
 
           <div className="flex gap-2">
@@ -200,7 +199,7 @@ export default function GestaoUsuarios() {
                 {u.grupos.map((g) => <Etiqueta key={g.id} cor="azul">{g.nome}</Etiqueta>)}
               </div>
             ) : (
-              <span className="text-gray-400">Sem grupo</span>
+              <span className="text-suave/70">Sem grupo</span>
             ),
             situacao: u.ativo ? <Etiqueta cor="verde">Ativo</Etiqueta> : <Etiqueta>Inativo</Etiqueta>,
             login: u.ultimo_login ? formatarDataHora(u.ultimo_login) : 'Nunca',
@@ -213,7 +212,8 @@ export default function GestaoUsuarios() {
               </div>
             ),
           }))}
-          vazio={usuarios.carregando ? 'Carregando…' : 'Nenhum usuário cadastrado.'}
+          carregando={usuarios.carregando}
+          vazio="Nenhum usuário cadastrado."
         />
       </Card>
     </div>

@@ -27,7 +27,7 @@ function Lista({ titulo, linhas, kg }: { titulo: string; linhas: LinhaImportacao
   return (
     <details className="text-sm">
       <summary className="cursor-pointer font-medium">{titulo} ({linhas.length})</summary>
-      <ul className="mt-1 max-h-40 overflow-auto pl-4 text-gray-600">
+      <ul className="mt-1 max-h-40 overflow-auto pl-4 text-suave">
         {linhas.map((l) => (
           <li key={`${l.talhao}-${l.data_chegada}`}>
             {formatarData(l.data_chegada)} · {l.talhao} · {kg(l)}
@@ -127,13 +127,13 @@ export default function ImportacaoPrevisoes({ ervas, aoImportar }: { ervas: Erva
     <div className="space-y-4">
       <div>
         <h3 className="font-medium">Importar planilha de programação</h3>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-suave">
           Planilha da fazenda (.xlsx), uma aba por erva e uma coluna por talhão. Você vê o que muda antes de confirmar.
         </p>
       </div>
 
       <label className="block text-sm">
-        <span className="font-medium text-[#211E16]">Arquivo</span>
+        <span className="font-medium text-tinta">Arquivo</span>
         <input
           type="file"
           accept=".xlsx"
@@ -160,7 +160,7 @@ export default function ImportacaoPrevisoes({ ervas, aoImportar }: { ervas: Erva
             </Select>
           </div>
 
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-suave">
             {previa.erva_na_planilha && <>Na planilha: <strong>{previa.erva_na_planilha}</strong> · </>}
             {previa.talhoes.length} talhão(ões)
             {previa.de && previa.ate && <> · {formatarData(previa.de)} a {formatarData(previa.ate)}</>}
@@ -190,7 +190,7 @@ export default function ImportacaoPrevisoes({ ervas, aoImportar }: { ervas: Erva
                 <Etiqueta cor="azul">Alterar: {previa.alterar.length}</Etiqueta>
                 <Etiqueta cor="vermelho">Remover: {previa.remover.length}</Etiqueta>
               </div>
-              {mudancas === 0 && <p className="text-sm text-gray-500">Nada muda: as previsões já estão iguais à planilha.</p>}
+              {mudancas === 0 && <p className="text-sm text-suave">Nada muda: as previsões já estão iguais à planilha.</p>}
               <Lista titulo="Criar" linhas={previa.criar} kg={(l) => formatarKg(l.kg_fresco!)} />
               <Lista titulo="Alterar" linhas={previa.alterar} kg={(l) => `${formatarKg(l.kg_atual!)} → ${formatarKg(l.kg_fresco!)}`} />
               <Lista titulo="Remover" linhas={previa.remover} kg={(l) => formatarKg(l.kg_atual!)} />

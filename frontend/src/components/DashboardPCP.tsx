@@ -1,15 +1,13 @@
 import { query } from '../api';
-import { ROTULO_ORIGEM, formatarData, formatarKg, formatarNumero, hojeIso } from '../formatar';
+import { ROTULO_ORIGEM, formatarData, formatarKg, formatarPct, hojeIso } from '../formatar';
 import { useApi } from '../hooks';
 import { confiabilidadePorOrigem, naoChegaram } from '../indicadores';
 import { useSessao } from '../sessao';
 import { Cronograma, Demanda, PlanoDetalhe, PlanoResumo, Previsao } from '../tipos';
 import ItemList from './ItemList';
-import { Card } from './ui';
+import { Card, Etiqueta, KpiCard, PageHeader } from './ui';
 
 const JANELA_DIAS = 30;
-
-const formatarPct = (valor: number | null) => (valor === null ? 'n/a' : `${formatarNumero(valor)}%`);
 
 export default function DashboardPCP() {
   const { pode } = useSessao();
@@ -48,41 +46,38 @@ export default function DashboardPCP() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-[#211E16]">Dashboard PCP</h1>
+      <PageHeader
+        secao="Visão geral"
+        titulo="Dashboard PCP"
+        descricao={`O plano em vigor hoje, o que vem nos próximos ${JANELA_DIAS} dias e como as fontes vêm entregando.`}
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <p className="text-sm font-semibold text-[#211E16] mb-1">Plano vigente</p>
-          {vigente ? (
-            <>
-              <p className="text-2xl font-bold text-[#006F44]">v{vigente.versao}</p>
-              <p className="text-xs text-gray-500">{formatarData(vigente.inicio)} a {formatarData(vigente.fim)}</p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-500 mt-2">Nenhum plano aprovado cobre hoje.</p>
-          )}
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-[#211E16] mb-1">Demandas (próx. {JANELA_DIAS} dias)</p>
-          <p className="text-2xl font-bold text-[#211E16]">{demandas.dados?.length ?? '—'}</p>
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-[#211E16] mb-1">Previsões (próx. {JANELA_DIAS} dias)</p>
-          <p className="text-2xl font-bold text-[#211E16]">{previsoes.dados?.length ?? '—'}</p>
-        </Card>
-        <Card className={pendencias ? 'border-red-200' : ''}>
-          <p className={`text-sm font-semibold mb-1 ${pendencias ? 'text-red-800' : 'text-[#211E16]'}`}>
-            Pendências do plano vigente
-          </p>
-          <p className={`text-2xl font-bold ${pendencias ? 'text-red-700' : 'text-[#211E16]'}`}>{pendencias ?? '—'}</p>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          titulo="Plano vigente"
+          valor={vigente ? `v${vigente.versao}` : '—'}
+          detalhe={vigente ? `${formatarData(vigente.inicio)} a ${formatarData(vigente.fim)}` : 'Nenhum plano aprovado cobre hoje.'}
+        />
+        <KpiCard
+          titulo={`Demandas (próx. ${JANELA_DIAS} dias)`}
+          valor={demandas.dados?.length ?? '—'}
+        />
+        <KpiCard
+          titulo={`Previsões (próx. ${JANELA_DIAS} dias)`}
+          valor={previsoes.dados?.length ?? '—'}
+        />
+        <KpiCard
+          titulo="Pendências do plano vigente"
+          valor={<span className={pendencias ? 'text-red-700' : undefined}>{pendencias ?? '—'}</span>}
+          extra={pendencias ? <Etiqueta cor="vermelho">atenção</Etiqueta> : undefined}
+        />
       </div>
 
       {chegadas.dados && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
             <h2 className="text-lg font-semibold mb-1">Confiabilidade das fontes</h2>
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-suave mb-3">
               Previsões com data nos últimos {JANELA_DIAS} dias. Aderência = recebido ÷ previsto; pontualidade =
               chegou até a data prevista.
             </p>
@@ -123,10 +118,7 @@ export default function DashboardPCP() {
           <h2 className="text-lg font-semibold mb-3">Ocupação planejada no plano vigente</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {ocupacao.map(([secador, pct]) => (
-              <Card key={secador}>
-                <p className="text-sm font-semibold text-[#211E16] mb-1">{secador}</p>
-                <p className="text-2xl font-bold text-[#006F44]">{pct === null ? 'n/a' : `${formatarNumero(pct)}%`}</p>
-              </Card>
+              <KpiCard key={secador} titulo={secador} valor={formatarPct(pct)} progresso={pct} />
             ))}
           </div>
         </div>

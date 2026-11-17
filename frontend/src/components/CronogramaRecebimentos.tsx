@@ -26,7 +26,7 @@ import {
 } from '../tipos';
 import ItemList from './ItemList';
 import { Cronograma } from './ResultadoPlano';
-import { Alerta, Button, Card, Etiqueta, EtiquetaCor, Input, Select } from './ui';
+import { Alerta, Button, Card, Etiqueta, EtiquetaCor, Input, PageHeader, Select } from './ui';
 
 const COR_SITUACAO: Record<SituacaoChegada, EtiquetaCor> = {
   recebida: 'verde',
@@ -68,7 +68,7 @@ function LinhaDoTempo({
     const { i, f } = recorte(inicio, fim);
     return diasEntre(i, f) + 1;
   };
-  if (planos.length === 0) return <p className="text-sm text-gray-500">Nenhum plano aprovado no período.</p>;
+  if (planos.length === 0) return <p className="text-sm text-suave">Nenhum plano aprovado no período.</p>;
   return (
     <div className="space-y-2">
       {planos.map((p) => {
@@ -81,11 +81,11 @@ function LinhaDoTempo({
         return (
           <div key={p.id} className="flex items-center gap-3 text-xs">
             <span className="w-10 font-semibold">v{p.versao}</span>
-            <div className="relative flex-1 h-6 bg-gray-100 rounded">
+            <div className="relative flex-1 h-6 bg-fundo rounded">
               {aprovado ? (
                 <>
                   <div
-                    className="absolute h-6 rounded border border-[#006F44] px-2 flex items-center whitespace-nowrap overflow-hidden text-[#006F44]"
+                    className="absolute h-6 rounded border border-verde-700 px-2 flex items-center whitespace-nowrap overflow-hidden text-verde-700"
                     style={posicao(p.inicio, p.fim)}
                     title={`${ROTULO_STATUS[p.status]}: ${rotulo}`}
                   >
@@ -95,7 +95,7 @@ function LinhaDoTempo({
                     <div
                       key={t.inicio}
                       data-testid={`vigente-v${p.versao}`}
-                      className="absolute h-6 rounded bg-[#006F44] text-white px-2 flex items-center whitespace-nowrap overflow-hidden"
+                      className="absolute h-6 rounded bg-verde-700 text-white px-2 flex items-center whitespace-nowrap overflow-hidden"
                       style={posicao(t.inicio, t.fim)}
                       title={`Vale de ${formatarData(t.inicio)} a ${formatarData(t.fim)}`}
                     >
@@ -252,7 +252,7 @@ export default function CronogramaRecebimentos() {
             {formatarData(r.data_recebimento)}: {formatarKg(r.kg_fresco)}
             {podeRegistrar && (
               <>
-                <button className="text-xs text-[#006F44] hover:underline" onClick={() => corrigir(r)}>
+                <button className="text-xs text-verde-700 hover:underline" onClick={() => corrigir(r)}>
                   corrigir
                 </button>
                 <button className="text-xs text-red-600 hover:underline" onClick={() => desfazer(r.id)}>
@@ -264,7 +264,7 @@ export default function CronogramaRecebimentos() {
         ))
       : '—',
     desvio: c.desvio_kg === null ? '—' : (
-      <span className={Number(c.desvio_kg) < 0 ? 'text-red-700' : 'text-[#006F44]'}>
+      <span className={Number(c.desvio_kg) < 0 ? 'text-red-700' : 'text-verde-700'}>
         {Number(c.desvio_kg) > 0 ? '+' : ''}{formatarKg(c.desvio_kg)}
       </span>
     ),
@@ -312,19 +312,17 @@ export default function CronogramaRecebimentos() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-end flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[#211E16]">Cronograma e Recebimentos</h1>
-          <p className="text-sm text-gray-500">
-            O que os planos aprovados mandam secar e o que de fato chegou. O recebido substitui o previsto nas
-            próximas simulações.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Input label="De" type="date" value={periodo.de} onChange={(e) => setPeriodo({ ...periodo, de: e.target.value })} />
-          <Input label="Até" type="date" value={periodo.ate} onChange={(e) => setPeriodo({ ...periodo, ate: e.target.value })} />
-        </div>
-      </div>
+      <PageHeader
+        secao="Planejamento"
+        titulo="Cronograma e Recebimentos"
+        descricao="O que os planos aprovados mandam secar e o que de fato chegou. O recebido substitui o previsto nas próximas simulações."
+        acoes={
+          <div className="flex gap-3">
+            <Input label="De" type="date" value={periodo.de} onChange={(e) => setPeriodo({ ...periodo, de: e.target.value })} />
+            <Input label="Até" type="date" value={periodo.ate} onChange={(e) => setPeriodo({ ...periodo, ate: e.target.value })} />
+          </div>
+        }
+      />
 
       {cronograma.erro && <Alerta>{cronograma.erro}</Alerta>}
 
@@ -359,7 +357,7 @@ export default function CronogramaRecebimentos() {
             </div>
 
             {form && (
-              <form onSubmit={registrar} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end mb-6 p-4 bg-gray-50 rounded">
+              <form onSubmit={registrar} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end mb-6 p-4 bg-fundo rounded">
                 <p className="md:col-span-5 text-sm font-semibold">
                   {form.corrigindo
                     ? `Corrigir recebimento de ${form.corrigindo.erva.nome} (${ROTULO_ORIGEM[form.corrigindo.origem]})`

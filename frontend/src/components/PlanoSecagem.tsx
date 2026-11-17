@@ -17,7 +17,7 @@ import { useSessao } from '../sessao';
 import { PlanoDetalhe, PlanoResumo, ResultadoSimulacao, StatusPlano } from '../tipos';
 import ItemList from './ItemList';
 import ResultadoPlano from './ResultadoPlano';
-import { Alerta, Button, Card, Etiqueta, EtiquetaCor, Input } from './ui';
+import { Alerta, Button, Card, Etiqueta, EtiquetaCor, Input, PageHeader } from './ui';
 
 const COR_STATUS: Record<StatusPlano, EtiquetaCor> = {
   rascunho: 'cinza',
@@ -166,12 +166,11 @@ export default function PlanoSecagem() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#211E16]">Plano de Secagem</h1>
-        <p className="text-sm text-gray-500">
-          Cruza demandas, previsões e capacidade dos secadores e aponta conflitos antes de a erva chegar.
-        </p>
-      </div>
+      <PageHeader
+        secao="Planejamento"
+        titulo="Plano de Secagem"
+        descricao="Cruza demandas, previsões e capacidade dos secadores e aponta conflitos antes de a erva chegar."
+      />
 
       {podeSimular && (
         <Card>
@@ -184,7 +183,7 @@ export default function PlanoSecagem() {
                 onChange={(e) => setObservacao(e.target.value)} />
             </div>
             <fieldset>
-              <legend className="text-sm font-medium text-[#211E16] mb-2">Dias de operação da fábrica</legend>
+              <legend className="text-sm font-medium text-tinta mb-2">Dias de operação da fábrica</legend>
               <div className="flex flex-wrap gap-4">
                 {DIAS_SEMANA.map((rotulo, dia) => (
                   <label key={dia} className="flex items-center gap-1 text-sm">
@@ -220,7 +219,7 @@ export default function PlanoSecagem() {
             <h2 className="text-lg font-semibold">Plano v{plano.versao}</h2>
             <Etiqueta cor={COR_STATUS[plano.status]}>{ROTULO_STATUS[plano.status]}</Etiqueta>
           </div>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-suave">
             Criado por {plano.criado_por.nome} em {formatarDataHora(plano.criado_em)}
             {plano.aprovado_por && ` · aprovado por ${plano.aprovado_por.nome} em ${formatarDataHora(plano.aprovado_em!)}`}
             {' · dias de operação: '}
@@ -237,7 +236,8 @@ export default function PlanoSecagem() {
         <ItemList
           colunas={['Versão', 'Horizonte', 'Status', 'Viável', 'Criado', 'Aprovado', '']}
           dados={linhas}
-          vazio={planos.carregando ? 'Carregando…' : 'Nenhum plano salvo.'}
+          carregando={planos.carregando}
+          vazio="Nenhum plano salvo."
         />
       </Card>
     </div>

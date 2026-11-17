@@ -9,7 +9,7 @@ import { useSessao } from '../sessao';
 import { ErroImportacao, Importacao, StatusImportacao } from '../tipos';
 import ItemList from './ItemList';
 import PainelOEE from './PainelOEE';
-import { Alerta, Button, Card, Etiqueta, EtiquetaCor } from './ui';
+import { Alerta, Button, Card, Etiqueta, EtiquetaCor, PageHeader } from './ui';
 
 const TIPO = 'infinity_csv';
 // Enquanto alguma importação estiver na fila, a lista se atualiza sozinha
@@ -129,13 +129,11 @@ export default function ImportacaoInfinity() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#211E16]">Importação Infinity</h1>
-        <p className="text-sm text-gray-500">
-          Apontamentos de secagem exportados do Infinity: cada linha é uma carga de um secador. Eles alimentam os
-          indicadores de OEE e a aderência ao plano.
-        </p>
-      </div>
+      <PageHeader
+        secao="Cadastros e dados"
+        titulo="Importação Infinity"
+        descricao="Apontamentos de secagem exportados do Infinity: cada linha é uma carga de um secador. Eles alimentam os indicadores de OEE e a aderência ao plano."
+      />
 
       {podeVerIndicadores && <PainelOEE />}
 
@@ -144,7 +142,7 @@ export default function ImportacaoInfinity() {
           <Card>
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
               <label className="block text-sm">
-                <span className="font-medium text-[#211E16]">Export do Infinity (.csv ou .xlsx)</span>
+                <span className="font-medium text-tinta">Export do Infinity (.csv ou .xlsx)</span>
                 <input
                   type="file"
                   accept=".csv,.xlsx"
@@ -157,7 +155,7 @@ export default function ImportacaoInfinity() {
                 {enviando ? 'Enviando…' : 'Enviar'}
               </Button>
             </div>
-            <p className="text-xs text-gray-500 mt-3">
+            <p className="text-xs text-suave mt-3">
               Cada secador precisa ter o <strong>código no Infinity</strong> (texto da coluna Processo) informado no
               cadastro, em Matriz de Capacidade. Linhas repetidas, no arquivo ou já importadas, são ignoradas. Com
               qualquer erro de linha, nada do arquivo é gravado.
@@ -170,7 +168,8 @@ export default function ImportacaoInfinity() {
             <ItemList
               colunas={['ID', 'Arquivo', 'Enviado', 'Situação', 'Resultado', '']}
               dados={linhas}
-              vazio={importacoes.carregando ? 'Carregando…' : 'Nenhum arquivo do Infinity enviado ainda.'}
+              carregando={importacoes.carregando}
+              vazio="Nenhum arquivo do Infinity enviado ainda."
             />
             {erros && (
               <div className="mt-4">

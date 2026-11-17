@@ -27,7 +27,7 @@ function Moldura({ titulo, children }: { titulo: string; children: ReactNode }) 
     <div ref={ref}>
       <Card>
         <h2 className="text-lg font-semibold">{titulo}</h2>
-        <p className="text-xs text-gray-500 mb-4">{AVISO_VAZIO}</p>
+        <p className="text-xs text-suave mb-4">{AVISO_VAZIO}</p>
         {children}
       </Card>
     </div>
@@ -219,7 +219,7 @@ export function FormularioSecador({ secador, aoSalvar, aoCancelar }: PropsFormul
             value={form.codigo_infinity}
             onChange={alterar('codigo_infinity')}
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-suave mt-1">
             Liga os apontamentos importados do Infinity a este secador. Vazio: os apontamentos dele não são importados.
           </p>
         </div>

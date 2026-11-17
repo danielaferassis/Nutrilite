@@ -1,13 +1,19 @@
 import { ReactNode } from 'react';
 
+import { SkeletonTabela } from './ui';
+
 interface ItemListProps {
   colunas: string[];
   // Cada linha vira uma <tr>, na ordem das chaves (pode ter botões, etiquetas...)
   dados: Record<string, ReactNode>[];
   vazio?: string;
+  /** Primeira carga: mostra o esqueleto no lugar da tabela vazia. */
+  carregando?: boolean;
 }
 
-export default function ItemList({ colunas, dados, vazio = 'Nenhum registro.' }: ItemListProps) {
+export default function ItemList({ colunas, dados, vazio = 'Nenhum registro.', carregando = false }: ItemListProps) {
+  // Recarregar com dados já na tela não pisca: o esqueleto é só para a primeira carga
+  if (carregando && dados.length === 0) return <SkeletonTabela />;
   return (
     <div className="overflow-x-auto -mx-1 px-1">
       <table className="w-full text-sm text-left tabular-nums">

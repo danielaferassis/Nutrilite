@@ -9,7 +9,7 @@ import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { Demanda, Erva, Estagio } from '../tipos';
 import ItemList from './ItemList';
-import { Alerta, Button, Card, Input, Select } from './ui';
+import { Alerta, Button, Card, Input, PageHeader, Select } from './ui';
 
 const FORM_VAZIO = {
   erva_id: '',
@@ -131,19 +131,18 @@ export default function GestaoDemandas() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-[#211E16]">Gestão de Demandas</h1>
-          <p className="text-sm text-gray-500">
-            Metas de produção com prazo. A conversão para kg de erva fresca é feita na simulação.
-          </p>
-        </div>
-        {podeGerenciar && (
-          <Button variant="primary" onClick={() => (mostrarForm ? fecharForm() : setMostrarForm(true))}>
-            {mostrarForm ? 'Cancelar' : '+ Nova Demanda'}
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        secao="Planejamento"
+        titulo="Gestão de Demandas"
+        descricao="Metas de produção com prazo. A conversão para kg de erva fresca é feita na simulação."
+        acoes={
+          podeGerenciar && (
+            <Button variant="primary" onClick={() => (mostrarForm ? fecharForm() : setMostrarForm(true))}>
+              {mostrarForm ? 'Cancelar' : '+ Nova Demanda'}
+            </Button>
+          )
+        }
+      />
 
       {mostrarForm && (
         <Card>
@@ -202,7 +201,8 @@ export default function GestaoDemandas() {
         <ItemList
           colunas={['ID', 'Erva', 'Quantidade', 'Reserva', 'Prazo', 'Prioridade', 'Cadastrada por', '']}
           dados={linhas}
-          vazio={demandas.carregando ? 'Carregando…' : 'Nenhuma demanda cadastrada.'}
+          carregando={demandas.carregando}
+          vazio="Nenhuma demanda cadastrada."
         />
       </Card>
     </div>

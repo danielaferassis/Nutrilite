@@ -22,7 +22,7 @@ export function Cronograma({ alocacoes }: { alocacoes: Alocacao[] }) {
   // linhas (lotes/demandas). A ordem das linhas é a ordem em que entraram.
   const celula = (dia: string, secador: string) => {
     const doDia = alocacoes.filter((a) => a.dia === dia && a.secador === secador);
-    if (doDia.length === 0) return <span className="text-gray-400">livre</span>;
+    if (doDia.length === 0) return <span className="text-suave/70">livre</span>;
     const ervas = [...new Set(doDia.map((a) => a.erva))];
     return (
       <div className="space-y-1">
@@ -31,9 +31,9 @@ export function Cronograma({ alocacoes }: { alocacoes: Alocacao[] }) {
           const kg = daErva.reduce((soma, a) => soma + a.kg_fresco, 0);
           const horas = daErva.reduce((soma, a) => soma + a.horas_secagem + a.horas_setup, 0);
           return (
-            <div key={erva} className={i > 0 ? 'pt-1 border-t border-dashed border-[#C7C8CA]' : ''}>
-              <div className="font-semibold text-[#006F44]">{i > 0 && '↳ '}{erva}</div>
-              <div className="text-xs text-gray-600">{formatarKg(kg)} · {formatarHoras(horas)}</div>
+            <div key={erva} className={i > 0 ? 'pt-1 border-t border-dashed border-borda' : ''}>
+              <div className="font-semibold text-verde-700">{i > 0 && '↳ '}{erva}</div>
+              <div className="text-xs text-suave">{formatarKg(kg)} · {formatarHoras(horas)}</div>
             </div>
           );
         })}
@@ -41,7 +41,7 @@ export function Cronograma({ alocacoes }: { alocacoes: Alocacao[] }) {
     );
   };
 
-  if (alocacoes.length === 0) return <p className="text-sm text-gray-500">Nenhuma alocação.</p>;
+  if (alocacoes.length === 0) return <p className="text-sm text-suave">Nenhuma alocação.</p>;
   return (
     <ItemList
       colunas={['Dia', ...secadores]}
@@ -126,7 +126,7 @@ export default function ResultadoPlano({
         ) : (
           <Etiqueta cor="vermelho">Com pendências</Etiqueta>
         )}
-        <span className="text-sm text-gray-600">
+        <span className="text-sm text-suave">
           {formatarData(resultado.inicio)} a {formatarData(resultado.fim)}
         </span>
         <div className="ml-auto flex flex-wrap gap-2">
@@ -167,10 +167,10 @@ export default function ResultadoPlano({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {Object.entries(ocupacao).map(([secador, pct]) => (
             <Card key={secador}>
-              <p className="text-sm font-semibold text-[#211E16] mb-1">Ocupação {secador}</p>
+              <p className="text-sm font-semibold text-tinta mb-1">Ocupação {secador}</p>
               {/* null = sem dia disponível no horizonte: "não aplicável", nunca 0% */}
-              <p className="text-2xl font-bold text-[#006F44]">{pct === null ? 'n/a' : `${formatarNumero(pct)}%`}</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-2xl font-bold text-verde-700">{pct === null ? 'n/a' : `${formatarNumero(pct)}%`}</p>
+              <p className="text-xs text-suave">
                 {formatarHoras(kpis.horas_ocupadas?.[secador] ?? 0)} de{' '}
                 {formatarHoras(kpis.horas_disponiveis?.[secador] ?? 0)} disponíveis
               </p>
@@ -204,7 +204,7 @@ export default function ResultadoPlano({
       )}
 
       {resultado.alocacoes.length > 0 && (
-        <details className="bg-[#FFFFFF] border border-[#C7C8CA] rounded-lg p-5">
+        <details className="bg-white border border-borda rounded-lg p-5">
           <summary className="font-semibold cursor-pointer">Detalhe das alocações</summary>
           <div className="mt-4">
             <ItemList

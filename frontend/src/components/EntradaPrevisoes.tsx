@@ -10,7 +10,7 @@ import { useSessao } from '../sessao';
 import { Erva, Origem, Previsao } from '../tipos';
 import ItemList from './ItemList';
 import ImportacaoPrevisoes from './ImportacaoPrevisoes';
-import { Alerta, Button, Card, Etiqueta, Input, Select } from './ui';
+import { Alerta, Button, Card, Etiqueta, Input, PageHeader, Select } from './ui';
 
 const FORM_VAZIO = { erva_id: '', origem: '' as Origem | '', kg_fresco: '', data_chegada: '', observacao: '' };
 type FormPrevisao = typeof FORM_VAZIO;
@@ -127,12 +127,11 @@ export default function EntradaPrevisoes() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#211E16]">Entrada de Previsões (S&OP)</h1>
-        <p className="text-sm text-gray-500">
-          Lotes de erva fresca previstos. A data de chegada não é reagendável: o que não for secado a tempo é perda.
-        </p>
-      </div>
+      <PageHeader
+        secao="Planejamento"
+        titulo="Entrada de Previsões (S&OP)"
+        descricao="Lotes de erva fresca previstos. A data de chegada não é reagendável: o que não for secado a tempo é perda."
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
@@ -172,17 +171,17 @@ export default function EntradaPrevisoes() {
               )}
             </form>
           ) : (
-            <p className="text-sm text-gray-500">Seu perfil só consulta as previsões.</p>
+            <p className="text-sm text-suave">Seu perfil só consulta as previsões.</p>
           )}
         </Card>
 
-        <Card className="bg-gray-50 border-dashed">
+        <Card className="bg-fundo border-dashed">
           {podeGerenciarTodas ? (
             <ImportacaoPrevisoes ervas={ervas.dados ?? []} aoImportar={previsoes.recarregar} />
           ) : (
             <div className="text-center p-4">
               <h3 className="font-medium mb-2">Importar planilha de programação</h3>
-              <p className="text-sm text-gray-500">A importação da planilha é feita pelo PCP.</p>
+              <p className="text-sm text-suave">A importação da planilha é feita pelo PCP.</p>
             </div>
           )}
         </Card>
@@ -205,7 +204,8 @@ export default function EntradaPrevisoes() {
         <ItemList
           colunas={['ID', 'Matéria Prima', 'Origem', 'Chegada', 'Quantidade (fresco)', 'Cadastrada por', '']}
           dados={linhas}
-          vazio={previsoes.carregando ? 'Carregando…' : 'Nenhuma previsão cadastrada.'}
+          carregando={previsoes.carregando}
+          vazio="Nenhuma previsão cadastrada."
         />
       </Card>
     </div>

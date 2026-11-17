@@ -12,10 +12,10 @@ const JANELA_DIAS = 30;
 
 function Indicador({ titulo, valor, detalhe }: { titulo: string; valor: string; detalhe: string }) {
   return (
-    <div className="rounded-lg border border-[#C7C8CA] bg-white p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{titulo}</p>
-      <p className="text-2xl font-bold text-[#006F44]">{valor}</p>
-      <p className="text-xs text-gray-500">{detalhe}</p>
+    <div className="rounded-lg border border-borda bg-white p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-suave">{titulo}</p>
+      <p className="text-2xl font-bold text-verde-700">{valor}</p>
+      <p className="text-xs text-suave">{detalhe}</p>
     </div>
   );
 }
@@ -38,7 +38,7 @@ export default function PainelOEE() {
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4">
         <div>
           <h2 className="font-semibold">Indicadores de OEE e aderência ao plano</h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-suave">
             Com os apontamentos importados. A qualidade não é informada pelo Infinity: o OEE mostrado é
             disponibilidade × performance.
           </p>

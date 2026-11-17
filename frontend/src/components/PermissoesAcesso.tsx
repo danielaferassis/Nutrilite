@@ -6,7 +6,7 @@ import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { Funcionalidade, Grupo } from '../tipos';
-import { Alerta, Button, Card, Etiqueta } from './ui';
+import { Alerta, Button, Card, Etiqueta, PageHeader, SkeletonTabela } from './ui';
 
 // grupo_id → ids das funcionalidades marcadas
 type Marcacoes = Record<number, number[]>;
@@ -116,50 +116,49 @@ export default function PermissoesAcesso() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#211E16]">Permissões de Acesso</h1>
-        <p className="text-sm text-gray-500">
-          Marque o que cada grupo pode fazer. O usuário recebe a soma das permissões dos grupos ativos a que pertence.
-        </p>
-      </div>
+      <PageHeader
+        secao="Administração"
+        titulo="Permissões de Acesso"
+        descricao="Marque o que cada grupo pode fazer. O usuário recebe a soma das permissões dos grupos ativos a que pertence."
+      />
 
       {grupos.erro && <Alerta>{grupos.erro}</Alerta>}
       {funcionalidades.erro && <Alerta>{funcionalidades.erro}</Alerta>}
 
       <Card>
         {carregando && !listaGrupos.length ? (
-          <p className="text-sm text-gray-500">Carregando…</p>
+          <SkeletonTabela linhas={6} />
         ) : !listaGrupos.length ? (
-          <p className="text-sm text-gray-500">Nenhum grupo cadastrado. Cadastre um grupo na tela Grupos.</p>
+          <p className="text-sm text-suave">Nenhum grupo cadastrado. Cadastre um grupo na tela Grupos.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="border-b border-[#C7C8CA] text-xs font-semibold">
+              <thead className="border-b border-borda text-xs font-semibold">
                 <tr>
                   <th className="py-3 px-4">Funcionalidade</th>
                   {listaGrupos.map((g) => (
                     <th key={g.id} className="py-3 px-4 text-center whitespace-nowrap">
                       {g.nome}
-                      {!g.ativo && <div className="font-normal text-gray-500">inativo</div>}
+                      {!g.ativo && <div className="font-normal text-suave">inativo</div>}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {porModulo.map(([modulo, lista]) => [
-                  <tr key={`m-${modulo}`} className="bg-gray-50">
-                    <td colSpan={listaGrupos.length + 1} className="py-2 px-4 text-xs font-semibold uppercase text-gray-600">
+                  <tr key={`m-${modulo}`} className="bg-fundo">
+                    <td colSpan={listaGrupos.length + 1} className="py-2 px-4 text-xs font-semibold uppercase text-suave">
                       {modulo}
                     </td>
                   </tr>,
                   ...lista.map((f) => (
-                    <tr key={f.id} className="border-b border-[#C7C8CA]/30 hover:bg-gray-50">
+                    <tr key={f.id} className="border-b border-borda hover:bg-fundo">
                       <td className="py-2 px-4">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-[#211E16]">{f.nome}</span>
+                          <span className="font-medium text-tinta">{f.nome}</span>
                           {!f.ativo && <Etiqueta>inativa</Etiqueta>}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-suave">
                           <code>{f.codigo}</code>
                           {f.descricao && ` — ${f.descricao}`}
                         </div>
@@ -168,7 +167,7 @@ export default function PermissoesAcesso() {
                         <td key={g.id} className="py-2 px-4 text-center">
                           <input
                             type="checkbox"
-                            className="accent-[#006F44] w-4 h-4"
+                            className="accent-verde-700 w-4 h-4"
                             aria-label={`${f.nome} para ${g.nome}`}
                             checked={(marcadas[g.id] ?? []).includes(f.id)}
                             onChange={() => alternar(g.id, f.id)}

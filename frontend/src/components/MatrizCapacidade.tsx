@@ -5,7 +5,7 @@ import { useApi } from '../hooks';
 import { useSessao } from '../sessao';
 import { Capacidade, Erva, Rendimento, Secador } from '../tipos';
 import { FormularioCapacidade, FormularioErva, FormularioSecador } from './FormulariosCadastro';
-import { Alerta, Button, Card, Etiqueta } from './ui';
+import { Alerta, Button, Card, Etiqueta, PageHeader } from './ui';
 
 // Campo nulo = não informado. Nunca mostrar como zero: o motor gera PARAM_AUSENTE
 const valor = (v: string | number | null, formatar: (x: string | number) => string) =>
@@ -15,15 +15,15 @@ const valor = (v: string | number | null, formatar: (x: string | number) => stri
 function Linha({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-1.5">
-      <dt className="text-gray-500">{rotulo}</dt>
-      <dd className="text-right font-medium text-[#211E16]">{children}</dd>
+      <dt className="text-suave">{rotulo}</dt>
+      <dd className="text-right font-medium text-tinta">{children}</dd>
     </div>
   );
 }
 
 function Parametros({ cap }: { cap: Capacidade }) {
   return (
-    <dl className="text-xs divide-y divide-[#C7C8CA]/40">
+    <dl className="text-xs divide-y divide-borda">
       <Linha rotulo="Modo">
         {cap.modo === null ? <span className="text-amber-700">não informado</span> : cap.modo === 'continuo' ? 'Contínuo' : 'Por carga'}
       </Linha>
@@ -40,7 +40,7 @@ function Parametros({ cap }: { cap: Capacidade }) {
         {valor(cap.setup_diario_h, formatarHoras)}
       </Linha>
       <Linha rotulo="Prioridade">
-        {cap.prioridade ?? <span className="font-normal text-gray-400">sem preferência</span>}
+        {cap.prioridade ?? <span className="font-normal text-suave/70">sem preferência</span>}
       </Linha>
     </dl>
   );
@@ -55,7 +55,7 @@ function LinkEditar({ onClick, children = 'editar' }: { onClick: () => void; chi
   return (
     <button
       type="button"
-      className="text-xs font-semibold text-[#006F44] rounded px-1.5 py-0.5 hover:bg-[#006F44]/10"
+      className="text-xs font-semibold text-verde-700 rounded px-1.5 py-0.5 hover:bg-verde-50"
       onClick={onClick}
     >
       {children}
@@ -93,24 +93,23 @@ export default function MatrizCapacidade() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-end flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[#211E16]">Matriz de Capacidade</h1>
-          <p className="text-sm text-gray-500">
-            Parâmetros de cada erva em cada secador. Campo não informado aparece como pendência na simulação.
-          </p>
-        </div>
-        {podeGerenciar && (
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={mostrarInativos} onChange={(e) => setMostrarInativos(e.target.checked)} />
-              Mostrar inativos
-            </label>
-            <Button variant="secondary" onClick={() => setEdicao({ tipo: 'secador', secador: null })}>+ Novo secador</Button>
-            <Button onClick={() => setEdicao({ tipo: 'erva', erva: null })}>+ Nova erva</Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        secao="Cadastros e dados"
+        titulo="Matriz de Capacidade"
+        descricao="Parâmetros de cada erva em cada secador. Campo não informado aparece como pendência na simulação."
+        acoes={
+          podeGerenciar && (
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-verde-700" checked={mostrarInativos} onChange={(e) => setMostrarInativos(e.target.checked)} />
+                Mostrar inativos
+              </label>
+              <Button variant="secondary" onClick={() => setEdicao({ tipo: 'secador', secador: null })}>+ Novo secador</Button>
+              <Button onClick={() => setEdicao({ tipo: 'erva', erva: null })}>+ Nova erva</Button>
+            </div>
+          )
+        }
+      />
       {erro && <Alerta>{erro}</Alerta>}
 
       {/* key: trocar de registro recomeça o formulário com os valores dele */}
@@ -130,12 +129,12 @@ export default function MatrizCapacidade() {
       <Card className="overflow-x-auto">
         <table className="w-full text-sm text-left border-separate border-spacing-0">
           <thead>
-            <tr className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              <th className="py-3 px-3 border-b border-[#C7C8CA] w-56">Erva</th>
+            <tr className="text-xs font-semibold uppercase tracking-wide text-suave">
+              <th className="py-3 px-3 border-b border-borda w-56">Erva</th>
               {(secadores.dados ?? []).map((s) => (
-                <th key={s.id} className="py-3 px-3 border-b border-[#C7C8CA] min-w-56">
+                <th key={s.id} className="py-3 px-3 border-b border-borda min-w-56">
                   <div className="flex items-center gap-2 normal-case tracking-normal">
-                    <span className="text-sm font-bold text-[#211E16]">{s.codigo}</span>
+                    <span className="text-sm font-bold text-tinta">{s.codigo}</span>
                     {!s.ativo && <Etiqueta cor="amarelo">inativo</Etiqueta>}
                     {podeGerenciar && (
                       <span className="ml-auto">
@@ -143,7 +142,7 @@ export default function MatrizCapacidade() {
                       </span>
                     )}
                   </div>
-                  <div className="text-xs font-normal normal-case tracking-normal text-gray-500">{s.nome}</div>
+                  <div className="text-xs font-normal normal-case tracking-normal text-suave">{s.nome}</div>
                 </th>
               ))}
             </tr>
@@ -153,10 +152,10 @@ export default function MatrizCapacidade() {
               const rend = rendimento(erva.id);
               return (
                 <tr key={erva.id} className="align-top">
-                  <td className="p-3 border-b border-[#C7C8CA]/50">
-                    <div className="rounded-lg bg-[#F4F5F2] p-3">
+                  <td className="p-3 border-b border-borda">
+                    <div className="rounded-lg bg-fundo p-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-[#211E16]">{erva.nome}</span>
+                        <span className="font-semibold text-tinta">{erva.nome}</span>
                         {!erva.ativo && <Etiqueta cor="amarelo">inativa</Etiqueta>}
                         {podeGerenciar && (
                           <span className="ml-auto">
@@ -167,7 +166,7 @@ export default function MatrizCapacidade() {
                       <div className="mt-1 mb-2">
                         <Etiqueta>{erva.codigo}</Etiqueta>
                       </div>
-                      <dl className="text-xs divide-y divide-[#C7C8CA]/40 border-t border-[#C7C8CA]/40">
+                      <dl className="text-xs divide-y divide-borda border-t border-borda">
                         <Linha rotulo="Regime">{valor(erva.regime_horas_dia, (x) => `${formatarNumero(x)} h/dia`)}</Linha>
                         <Linha rotulo="Espera máx.">{valor(erva.espera_maxima_dias, (x) => `${x} dias`)}</Linha>
                         <Linha rotulo="Fresco/desidratado">
@@ -183,21 +182,21 @@ export default function MatrizCapacidade() {
                     const cap = capacidade(erva.id, s.id);
                     const editar = () => setEdicao({ tipo: 'capacidade', erva, secador: s, capacidade: cap });
                     return (
-                      <td key={s.id} className="p-3 border-b border-[#C7C8CA]/50">
+                      <td key={s.id} className="p-3 border-b border-borda">
                         {cap ? (
-                          <div className="rounded-lg border border-[#C7C8CA] bg-white shadow-sm">
+                          <div className="rounded-lg border border-borda bg-white shadow-sm">
                             <div className="px-3 py-1">
                               <Parametros cap={cap} />
                             </div>
                             {podeGerenciar && (
-                              <div className="flex justify-end border-t border-[#C7C8CA]/60 px-2 py-1">
+                              <div className="flex justify-end border-t border-borda px-2 py-1">
                                 <LinkEditar onClick={editar} />
                               </div>
                             )}
                           </div>
                         ) : (
                           // Sem capacidade cadastrada: o motor não aloca a erva neste secador
-                          <div className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[#C7C8CA] p-3">
+                          <div className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-borda p-3">
                             <Etiqueta>não opera</Etiqueta>
                             {podeGerenciar && <LinkEditar onClick={editar}>cadastrar</LinkEditar>}
                           </div>
@@ -209,7 +208,7 @@ export default function MatrizCapacidade() {
               );
             })}
             {ervas.dados?.length === 0 && (
-              <tr><td className="py-6 px-4 text-gray-500" colSpan={99}>Nenhuma erva cadastrada.</td></tr>
+              <tr><td className="py-6 px-4 text-suave" colSpan={99}>Nenhuma erva cadastrada.</td></tr>
             )}
           </tbody>
         </table>

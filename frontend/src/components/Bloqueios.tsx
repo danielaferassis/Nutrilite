@@ -9,7 +9,7 @@ import { logger } from '../logger';
 import { useSessao } from '../sessao';
 import { Bloqueio, Secador } from '../tipos';
 import ItemList from './ItemList';
-import { Alerta, Button, Card, Input, Select } from './ui';
+import { Alerta, Button, Card, Input, PageHeader, Select } from './ui';
 
 const FORM_VAZIO = { secador_id: '', inicio: '', fim: '', motivo: '' };
 type FormBloqueio = typeof FORM_VAZIO;
@@ -93,12 +93,11 @@ export default function Bloqueios() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#211E16]">Bloqueios de Secador</h1>
-        <p className="text-sm text-gray-500">
-          Manutenções e feriados. Nesses dias o secador não recebe erva e não conta como hora disponível.
-        </p>
-      </div>
+      <PageHeader
+        secao="Planejamento"
+        titulo="Bloqueios de Secador"
+        descricao="Manutenções e feriados. Nesses dias o secador não recebe erva e não conta como hora disponível."
+      />
 
       {podeGerenciar && (
         <Card>
@@ -146,7 +145,8 @@ export default function Bloqueios() {
               </div>
             ) : null,
           }))}
-          vazio={bloqueios.carregando ? 'Carregando…' : 'Nenhum bloqueio cadastrado.'}
+          carregando={bloqueios.carregando}
+          vazio="Nenhum bloqueio cadastrado."
         />
       </Card>
     </div>

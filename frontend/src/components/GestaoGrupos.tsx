@@ -6,7 +6,7 @@ import { useApi } from '../hooks';
 import { logger } from '../logger';
 import { Grupo } from '../tipos';
 import ItemList from './ItemList';
-import { Alerta, Button, Card, Etiqueta, Input } from './ui';
+import { Alerta, Button, Card, Etiqueta, Input, PageHeader } from './ui';
 
 interface Formulario {
   nome: string;
@@ -84,15 +84,14 @@ export default function GestaoGrupos() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#211E16]">Grupos</h1>
-        <p className="text-sm text-gray-500">
-          Perfis de acesso (ex.: PCP/Gestor, Fonte fornecedora). Grupo inativo não concede permissão a ninguém.
-        </p>
-      </div>
+      <PageHeader
+        secao="Administração"
+        titulo="Grupos"
+        descricao="Perfis de acesso (ex.: PCP/Gestor, Fonte fornecedora). Grupo inativo não concede permissão a ninguém."
+      />
 
       <Card>
-        <h2 className="text-lg font-semibold text-[#211E16] mb-4">
+        <h2 className="text-lg font-semibold text-tinta mb-4">
           {editandoId === null ? 'Novo grupo' : `Editar grupo: ${form.nome}`}
         </h2>
         <form onSubmit={salvar} className="space-y-4">
@@ -114,10 +113,10 @@ export default function GestaoGrupos() {
             </div>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-[#211E16]">
+          <label className="flex items-center gap-2 text-sm text-tinta">
             <input
               type="checkbox"
-              className="accent-[#006F44]"
+              className="accent-verde-700"
               checked={form.ativo}
               onChange={(e) => setForm({ ...form, ativo: e.target.checked })}
             />
@@ -141,7 +140,7 @@ export default function GestaoGrupos() {
           colunas={['Nome', 'Descrição', 'Permissões', 'Situação', '']}
           dados={(grupos.dados ?? []).map((g) => ({
             nome: g.nome,
-            descricao: g.descricao ?? <span className="text-gray-400">—</span>,
+            descricao: g.descricao ?? <span className="text-suave/70">—</span>,
             permissoes: g.funcionalidades.length,
             situacao: g.ativo ? <Etiqueta cor="verde">Ativo</Etiqueta> : <Etiqueta>Inativo</Etiqueta>,
             acoes: (
@@ -151,7 +150,8 @@ export default function GestaoGrupos() {
               </div>
             ),
           }))}
-          vazio={grupos.carregando ? 'Carregando…' : 'Nenhum grupo cadastrado.'}
+          carregando={grupos.carregando}
+          vazio="Nenhum grupo cadastrado."
         />
       </Card>
     </div>
