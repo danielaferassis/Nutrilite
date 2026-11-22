@@ -36,13 +36,13 @@ export default function Login() {
     >
       <FundoLogin />
 
-      <div className="relative w-full max-w-sm animate-surge">
-        <div className="relative overflow-hidden rounded-xl border border-verde-700/15 bg-white p-8 shadow-[0_1px_2px_rgb(33_30_22/0.05),0_20px_50px_-16px_rgb(20_50_30/0.25)] ring-4 ring-white/60">
+      <div className="relative w-full max-w-md animate-surge">
+        <div className="relative overflow-hidden rounded-xl border border-verde-700/15 bg-white p-10 shadow-[0_1px_2px_rgb(33_30_22/0.05),0_20px_50px_-16px_rgb(20_50_30/0.25)] ring-4 ring-white/60">
           {/* Faixa da marca no topo: separa o cartão do fundo claro sem pesar */}
           <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-verde-700 via-verde-600 to-lima-500" />
           <div className="mb-7 flex flex-col items-center gap-2 text-center">
             <h1 aria-label="Nutrilite PCP" className="flex flex-col items-center gap-2">
-              <LogoCompleto altura={46} />
+              <LogoCompleto altura={52} />
               <span className="text-sm font-semibold uppercase tracking-[0.3em] text-suave">PCP</span>
             </h1>
           </div>
