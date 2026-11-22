@@ -3,8 +3,12 @@
 
 import type { Chegada, Origem } from './tipos';
 
+const chaveDe = (c: { origem: Origem; erva: string }) => `${c.origem}|${c.erva}`;
+
+/** Por origem × erva: kg de ervas diferentes não se somam. */
 export interface ConfiabilidadeOrigem {
   origem: Origem;
+  erva: string;
   /** Previsões com data já vencida (até hoje). */
   previsoes: number;
   kgPrevisto: number;
@@ -23,21 +27,24 @@ const pct = (parte: number, total: number) => (total > 0 ? (100 * parte) / total
  * (não tem previsto para comparar).
  */
 export function confiabilidadePorOrigem(chegadas: Chegada[], de: string, hoje: string) {
-  const porOrigem = new Map<Origem, ConfiabilidadeOrigem>();
+  const porOrigem = new Map<string, ConfiabilidadeOrigem>();
   for (const c of chegadas) {
     if (!c.data_prevista || !c.kg_previsto || c.data_prevista < de || c.data_prevista > hoje) continue;
-    const item = porOrigem.get(c.origem) ?? {
-      origem: c.origem, previsoes: 0, kgPrevisto: 0, kgRecebido: 0, aderenciaPct: null, pontualidadePct: null,
+    const chave = chaveDe({ origem: c.origem, erva: c.erva.nome });
+    const item = porOrigem.get(chave) ?? {
+      origem: c.origem, erva: c.erva.nome, previsoes: 0, kgPrevisto: 0, kgRecebido: 0, aderenciaPct: null, pontualidadePct: null,
     };
     item.previsoes += 1;
     item.kgPrevisto += Number(c.kg_previsto);
     item.kgRecebido += Number(c.kg_recebido);
-    porOrigem.set(c.origem, item);
+    porOrigem.set(chave, item);
   }
-  return [...porOrigem.values()].map((item) => {
+  const ordenados = [...porOrigem.values()].sort((a, b) => chaveDe(a).localeCompare(chaveDe(b)));
+  return ordenados.map((item) => {
     const pontuais = chegadas.filter(
       (c) =>
         c.origem === item.origem &&
+        c.erva.nome === item.erva &&
         c.data_prevista && c.data_prevista >= de && c.data_prevista <= hoje &&
         c.recebimentos.some((r) => r.data_recebimento <= c.data_prevista!)
     ).length;

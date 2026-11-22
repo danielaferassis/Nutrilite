@@ -16,9 +16,13 @@ const indicadores = (extra = {}) => ({
   qualidade_pct: null,
   oee_pct: null,
   oee_sem_qualidade_pct: 20.8,
-  kg_planejado: 800,
-  kg_apontado: 600,
+  horas_planejadas: 8,
+  horas_cumpridas: 6,
   aderencia_pct: 75,
+  por_erva: [
+    { erva: 'ERVA-A', kg_planejado: 800, kg_apontado: 600, aderencia_pct: 75 },
+    { erva: 'ERVA-B', kg_planejado: 0, kg_apontado: 100, aderencia_pct: null },
+  ],
   ...extra,
 });
 
@@ -44,7 +48,12 @@ describe('PainelOEE', () => {
     expect(await screen.findByRole('region', { name: 'Disponibilidade' })).toHaveTextContent('25%');
     expect(screen.getByText('não informada')).toBeInTheDocument();
     expect(screen.getAllByText('20,8%').length).toBeGreaterThan(0);
-    expect(screen.getByText(/600 kg de 800 kg planejados/)).toBeInTheDocument();
+    expect(screen.getByText(/6 ?h cumpridas de 8 ?h planejadas/)).toBeInTheDocument();
+    // Kg só por erva (QA M4): nada soma ervas diferentes
+    const tabelaErvas = screen.getByText('Aderência por erva').parentElement!;
+    expect(screen.getByText('ERVA-A', { selector: 'span' }).closest('tr')).toHaveTextContent('600 kg800 kg75%');
+    expect(screen.getByText('ERVA-B', { selector: 'span' }).closest('tr')).toHaveTextContent('n/a');
+    expect(tabelaErvas).not.toHaveTextContent('700 kg');
     expect(screen.getByText(/ficaram fora da performance/)).toBeInTheDocument();
     // Secador sem dados: "n/a", nunca 0%
     const linhaSec2 = screen.getByText('SEC-2').closest('tr')!;

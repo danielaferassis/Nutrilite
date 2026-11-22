@@ -102,6 +102,7 @@ export default function DashboardPCP() {
 
   const colunasConfiabilidade: Coluna<ConfiabilidadeOrigem>[] = [
     { titulo: 'Origem', valor: (c) => <span className="font-semibold text-tinta">{ROTULO_ORIGEM[c.origem]}</span>, texto: (c) => ROTULO_ORIGEM[c.origem] },
+    { titulo: 'Erva', valor: (c) => c.erva, texto: (c) => c.erva, filtro: 'opcoes' },
     { titulo: 'Previsões', valor: (c) => c.previsoes, ordenar: (c) => c.previsoes, alinhar: 'direita' },
     { titulo: 'Previsto', valor: (c) => formatarKg(c.kgPrevisto), ordenar: (c) => c.kgPrevisto, alinhar: 'direita' },
     { titulo: 'Recebido', valor: (c) => formatarKg(c.kgRecebido), ordenar: (c) => c.kgRecebido, alinhar: 'direita' },
@@ -286,7 +287,7 @@ export default function DashboardPCP() {
               rotulo="Confiabilidade das fontes"
               colunas={colunasConfiabilidade}
               linhas={confiabilidade}
-              chave={(c) => c.origem}
+              chave={(c) => `${c.origem}|${c.erva}`}
               filtravel={false}
               vazio="Nenhuma previsão vencida no período."
             />

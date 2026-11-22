@@ -780,6 +780,13 @@ class CronogramaRead(BaseModel):
 # --- Indicadores da secagem (OEE e aderência; regras em app/indicadores.py) ---
 
 
+class AderenciaErva(BaseModel):
+    erva: str  # Erva.codigo
+    kg_planejado: float
+    kg_apontado: float
+    aderencia_pct: float | None  # horas cumpridas ÷ planejadas da erva; None = nada planejado
+
+
 class Indicadores(BaseModel):
     """Percentuais com 1 casa; None = não aplicável (denominador zero ou dado ausente)."""
 
@@ -792,9 +799,10 @@ class Indicadores(BaseModel):
     qualidade_pct: float | None  # sempre None: o Infinity não traz refugo
     oee_pct: float | None  # sempre None enquanto não houver qualidade
     oee_sem_qualidade_pct: float | None  # disponibilidade × performance
-    kg_planejado: float
-    kg_apontado: float
-    aderencia_pct: float | None
+    horas_planejadas: float  # secagem + setup do plano que vale em cada dia
+    horas_cumpridas: float  # dessas, as cumpridas com a erva planejada
+    aderencia_pct: float | None  # horas cumpridas ÷ horas planejadas
+    por_erva: list[AderenciaErva]  # kg só se comparam dentro da mesma erva
 
 
 class IndicadoresSecador(Indicadores):

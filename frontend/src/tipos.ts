@@ -108,8 +108,21 @@ export interface Indicadores {
   oee_pct: number | null;
   /** Disponibilidade × performance. */
   oee_sem_qualidade_pct: number | null;
+  /** Secagem + setup do plano que vale em cada dia (só até hoje). */
+  horas_planejadas: number;
+  /** Dessas horas, as cumpridas com a erva planejada (até 100% de cada erva). */
+  horas_cumpridas: number;
+  /** Horas cumpridas ÷ planejadas. */
+  aderencia_pct: number | null;
+  /** Kg só se comparam dentro da mesma erva. */
+  por_erva: AderenciaErva[];
+}
+
+export interface AderenciaErva {
+  erva: string;
   kg_planejado: number;
   kg_apontado: number;
+  /** null = nada planejado da erva. */
   aderencia_pct: number | null;
 }
 

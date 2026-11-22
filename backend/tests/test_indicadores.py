@@ -9,10 +9,17 @@ from decimal import Decimal
 
 import pytest
 
+from app import calendario
 from app.models import ApontamentoSecagem, Base, BloqueioSecador
 from tests.conftest import CONSULTA, FONTE_A, GESTOR, PCP, TODOS_OS_DIAS, lote
 
 DIA = date(2026, 12, 1)  # terça-feira
+HOJE = date(2026, 12, 31)  # os dias dos testes já passaram (só conta até hoje)
+
+
+@pytest.fixture(autouse=True)
+def hoje_fixo(monkeypatch):
+    monkeypatch.setattr(calendario, "hoje", lambda: HOJE)
 
 
 @pytest.fixture
@@ -70,9 +77,11 @@ def test_aderencia_ao_plano_aprovado(cliente, banco):
 
     secador = consultar(cliente).json()["secadores"][0]
 
-    assert secador["kg_planejado"] == planejado
-    assert secador["kg_apontado"] == 600.0
-    assert secador["aderencia_pct"] == round(100 * 600 / planejado, 1)
+    (erva,) = secador["por_erva"]
+    assert (erva["kg_planejado"], erva["kg_apontado"]) == (planejado, 600.0)
+    assert secador["aderencia_pct"] == erva["aderencia_pct"] == round(100 * 600 / planejado, 1)
+    horas_plano = sum(float(a["horas_secagem"]) + float(a["horas_setup"]) for a in plano["alocacoes"])
+    assert secador["horas_planejadas"] == round(horas_plano, 2)
 
 
 def test_dia_fora_da_operacao_do_plano_e_bloqueio_nao_contam_como_disponiveis(cliente, banco):
@@ -124,3 +133,85 @@ def test_carga_sem_tempo_padrao_fica_fora_da_performance(cliente, banco):
 def test_exige_permissao_e_periodo_valido(cliente, banco):
     assert consultar(cliente, usuario=FONTE_A).status_code == 403
     assert consultar(cliente, de=DIA, ate=DIA - timedelta(days=1)).status_code == 422
+
+
+# --- Aderência por erva (QA M4) e dias futuros (QA M5) ---
+
+
+def aprovar_plano(cliente, banco, kg=800):
+    lote(banco, data_chegada=DIA, kg_fresco=Decimal(kg))
+    cliente.logar(PCP)
+    plano = cliente.post(
+        "/api/planos", json={"inicio": str(DIA), "fim": str(DIA), "dias_operacao": TODOS_OS_DIAS}
+    ).json()
+    cliente.logar(GESTOR)
+    cliente.post(f"/api/planos/{plano['id']}/aprovar")
+    return plano
+
+
+def test_outra_erva_no_lugar_da_planejada_nao_cumpre_o_plano(cliente, banco):
+    """O cenário do QA: planejado erva 1, apontado a mesma quantidade da erva 2 → era 100%."""
+    plano = aprovar_plano(cliente, banco)
+    planejado = sum(float(a["kg_fresco"]) for a in plano["alocacoes"])
+    carga(banco, kg=planejado, minutos=360, erva_id=2)
+
+    secador = consultar(cliente).json()["secadores"][0]
+
+    assert secador["aderencia_pct"] == 0.0
+    assert [(e["erva"], e["kg_planejado"], e["kg_apontado"], e["aderencia_pct"]) for e in secador["por_erva"]] == [
+        ("ERVA-A", planejado, 0.0, 0.0),
+        ("ERVA-B", 0.0, planejado, None),  # nada planejado: não aplicável
+    ]
+
+
+def test_secar_a_mais_nao_passa_de_100(cliente, banco):
+    plano = aprovar_plano(cliente, banco)
+    planejado = sum(float(a["kg_fresco"]) for a in plano["alocacoes"])
+    carga(banco, kg=planejado * 2, minutos=600)
+
+    corpo = consultar(cliente).json()
+
+    assert corpo["total"]["aderencia_pct"] == 100.0
+    assert corpo["total"]["por_erva"][0]["kg_apontado"] == planejado * 2
+
+
+def test_dias_futuros_nao_contam(cliente, banco, monkeypatch):
+    """O cenário do QA: período de 7 dias consultado no 1º dia → disponibilidade de 1 dia só."""
+    monkeypatch.setattr(calendario, "hoje", lambda: DIA)
+    carga(banco, kg=600, minutos=360)
+
+    corpo = consultar(cliente, ate=DIA + timedelta(days=6)).json()
+
+    secador = corpo["secadores"][0]
+    assert secador["horas_disponiveis"] == 24.0
+    assert secador["disponibilidade_pct"] == 25.0
+    assert "Os dias depois de hoje (01/12/2026) não entram nos indicadores" in corpo["avisos"]
+
+
+def test_plano_de_dia_futuro_nao_conta_na_aderencia(cliente, banco, monkeypatch):
+    aprovar_plano(cliente, banco)
+    monkeypatch.setattr(calendario, "hoje", lambda: DIA - timedelta(days=1))
+
+    corpo = consultar(cliente, de=DIA - timedelta(days=1), ate=DIA).json()
+
+    assert corpo["total"]["horas_planejadas"] == 0
+    assert corpo["total"]["aderencia_pct"] is None
+
+
+def test_periodo_todo_no_futuro_fica_sem_dado(cliente, banco, monkeypatch):
+    monkeypatch.setattr(calendario, "hoje", lambda: DIA - timedelta(days=1))
+
+    corpo = consultar(cliente).json()
+
+    assert corpo["total"]["horas_disponiveis"] == 0
+    assert corpo["total"]["disponibilidade_pct"] is None
+    assert corpo["dias"] == []
+
+
+def test_sem_apontamentos_disponibilidade_fica_sem_dado_e_nao_zero(cliente, banco):
+    corpo = consultar(cliente).json()
+
+    assert corpo["secadores"][0]["horas_disponiveis"] == 24.0
+    assert corpo["secadores"][0]["disponibilidade_pct"] is None
+    assert corpo["total"]["disponibilidade_pct"] is None
+    assert any(a.startswith("Nenhum apontamento do Infinity no período") for a in corpo["avisos"])

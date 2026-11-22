@@ -1,4 +1,4 @@
-import { Activity, CalendarRange, CircleCheckBig, Gauge, ShieldQuestion, Target, Timer } from 'lucide-react';
+import { Activity, CalendarRange, CircleCheckBig, Gauge, ShieldQuestion, Sprout, Target, Timer } from 'lucide-react';
 import { useState } from 'react';
 
 import { query } from '../api';
@@ -107,7 +107,7 @@ export default function PainelOEE() {
                 valor={formatarPct(dados.total.aderencia_pct)}
                 progresso={dados.total.aderencia_pct ?? 0}
                 tom={tomPorFaixa(dados.total.aderencia_pct)}
-                detalhe={`${formatarKg(dados.total.kg_apontado)} de ${formatarKg(dados.total.kg_planejado)} planejados`}
+                detalhe={`${formatarHoras(dados.total.horas_cumpridas)} cumpridas de ${formatarHoras(dados.total.horas_planejadas)} planejadas`}
               />
             </section>
           </div>
@@ -131,11 +131,35 @@ export default function PainelOEE() {
                 { titulo: 'Disponibilidade', valor: (s) => <CelulaPct pct={s.disponibilidade_pct} /> },
                 { titulo: 'Performance', valor: (s) => <CelulaPct pct={s.performance_pct} /> },
                 { titulo: 'OEE (sem qualidade)', valor: (s) => <CelulaPct pct={s.oee_sem_qualidade_pct} /> },
-                { titulo: 'Apontado / planejado', valor: (s) => `${formatarKg(s.kg_apontado)} / ${formatarKg(s.kg_planejado)}` },
+                { titulo: 'Horas cumpridas / planejadas', valor: (s) => `${formatarHoras(s.horas_cumpridas)} / ${formatarHoras(s.horas_planejadas)}` },
                 { titulo: 'Aderência', valor: (s) => <CelulaPct pct={s.aderencia_pct} /> },
               ]}
             />
           </div>
+
+          {(dados.total.por_erva ?? []).length > 0 && (
+            <div>
+              <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-tinta">
+                <Sprout aria-hidden="true" className="size-4 text-verde-700" />
+                Aderência por erva
+              </h3>
+              <Tabela
+                linhas={dados.total.por_erva ?? []}
+                chave={(e) => e.erva}
+                filtravel={false}
+                colunas={[
+                  { titulo: 'Erva', valor: (e) => <span className="font-semibold text-tinta">{e.erva}</span> },
+                  { titulo: 'Seco (apontado)', valor: (e) => formatarKg(e.kg_apontado) },
+                  { titulo: 'Planejado', valor: (e) => formatarKg(e.kg_planejado) },
+                  { titulo: 'Aderência', valor: (e) => <CelulaPct pct={e.aderencia_pct} /> },
+                ]}
+              />
+              <p className="mt-2 text-xs text-suave">
+                Cada erva só cumpre o próprio plano, até 100% por secador e dia: secar outra erva no lugar não conta, e
+                secar a mais num dia não compensa outro. A aderência geral pesa cada erva pelas horas planejadas.
+              </p>
+            </div>
+          )}
 
           {dados.dias.length > 0 && (
             <details className="group rounded-lg border border-borda">
@@ -154,7 +178,7 @@ export default function PainelOEE() {
                     { titulo: 'Horas', valor: (d) => formatarHoras(d.horas_apontadas), ordenar: (d) => d.horas_apontadas },
                     { titulo: 'Disponibilidade', valor: (d) => <CelulaPct pct={d.disponibilidade_pct} /> },
                     { titulo: 'Performance', valor: (d) => <CelulaPct pct={d.performance_pct} /> },
-                    { titulo: 'Apontado / planejado', valor: (d) => `${formatarKg(d.kg_apontado)} / ${formatarKg(d.kg_planejado)}` },
+                    { titulo: 'Ervas', valor: (d) => (d.por_erva ?? []).map((e) => `${e.erva}: ${formatarKg(e.kg_apontado)} / ${formatarKg(e.kg_planejado)}`).join(' · ') || '—' },
                     { titulo: 'Aderência', valor: (d) => <CelulaPct pct={d.aderencia_pct} /> },
                   ]}
                 />

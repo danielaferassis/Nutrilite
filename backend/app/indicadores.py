@@ -12,7 +12,15 @@ e o plano aprovado que vale em cada dia (app/vigencia.py).
   capacidade erva × secador. Carga sem esse parâmetro fica de fora e é contada.
 - Qualidade: None ("não informada"). O Infinity não traz refugo.
 - OEE = A × P × Q. Sem qualidade, fica None; `oee_sem_qualidade` = A × P.
-- Aderência = kg apontados ÷ kg planejados (alocações do plano que vale no dia).
+- Aderência ao plano, por erva e sem somar kg de ervas diferentes: em cada
+  secador × dia, cada erva planejada vale as horas que o plano reservou para
+  ela (secagem + setup), e essas horas contam como cumpridas na proporção do
+  que foi seco *daquela erva* (até 100%). Aderência = horas cumpridas ÷ horas
+  planejadas. Secar outra erva no lugar não cumpre nada; secar a mais não
+  compensa outro dia. Os kg aparecem só por erva (`por_erva`).
+- Só contam os dias até hoje: dia futuro não tem disponibilidade nem plano a
+  cumprir. Sem nenhum apontamento no período, disponibilidade e OEE ficam None
+  ("sem apontamentos"), não 0%: não dá para distinguir parada de falta de dado.
 
 Regra do projeto: denominador zero ou parâmetro ausente → None, nunca 0.
 Percentuais com 1 casa.
@@ -26,10 +34,12 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import calendario
 from app.models import (
     ApontamentoSecagem,
     BloqueioSecador,
     Capacidade,
+    Erva,
     ModoCapacidade,
     Plano,
     PlanoAlocacao,
@@ -51,21 +61,39 @@ class Acumulado:
     horas_reais_com_padrao: float = 0.0  # tempo real dessas mesmas cargas
     cargas: int = 0
     cargas_sem_padrao: int = 0
-    kg_apontado: float = 0.0
-    kg_planejado: float = 0.0
+    horas_planejadas: float = 0.0  # secagem + setup das alocações do plano
+    horas_cumpridas: float = 0.0  # parte dessas horas cumprida com a erva planejada
     dias_disponiveis: int = 0
+    # Por erva (código): kg só se comparam dentro da mesma erva
+    kg_planejado: dict[str, float] = field(default_factory=lambda: defaultdict(float))
+    kg_apontado: dict[str, float] = field(default_factory=lambda: defaultdict(float))
+    horas_planejadas_erva: dict[str, float] = field(default_factory=lambda: defaultdict(float))
+    horas_cumpridas_erva: dict[str, float] = field(default_factory=lambda: defaultdict(float))
 
     def somar(self, outro: "Acumulado") -> None:
         for campo in self.__dataclass_fields__:
-            setattr(self, campo, getattr(self, campo) + getattr(outro, campo))
+            atual, extra = getattr(self, campo), getattr(outro, campo)
+            if isinstance(atual, dict):
+                for chave, valor in extra.items():
+                    atual[chave] += valor
+            else:
+                setattr(self, campo, atual + extra)
+
+    def fechar_dia(self) -> None:
+        """Horas cumpridas do dia: cada erva planejada, na proporção do que foi seco dela."""
+        for erva, horas in self.horas_planejadas_erva.items():
+            cumprido = min(1.0, self.kg_apontado.get(erva, 0.0) / self.kg_planejado[erva])
+            self.horas_cumpridas_erva[erva] += horas * cumprido
+            self.horas_cumpridas += horas * cumprido
 
 
 def _pct(numerador: float, denominador: float) -> float | None:
     return round(100 * numerador / denominador, 1) if denominador else None
 
 
-def indicadores(acc: Acumulado) -> dict:
-    disponibilidade = _pct(acc.horas_apontadas, acc.horas_disponiveis)
+def indicadores(acc: Acumulado, com_apontamentos: bool = True) -> dict:
+    # Sem nenhum apontamento no período: "sem dado", não 0% (parada ou falta de importação?)
+    disponibilidade = _pct(acc.horas_apontadas, acc.horas_disponiveis) if com_apontamentos else None
     performance = _pct(acc.horas_padrao, acc.horas_reais_com_padrao)
     sem_qualidade = (
         round(disponibilidade * performance / 100, 1)
@@ -82,9 +110,20 @@ def indicadores(acc: Acumulado) -> dict:
         "qualidade_pct": None,  # o Infinity não traz refugo
         "oee_pct": None,  # sem qualidade não há OEE completo
         "oee_sem_qualidade_pct": sem_qualidade,
-        "kg_planejado": round(acc.kg_planejado, 3),
-        "kg_apontado": round(acc.kg_apontado, 3),
-        "aderencia_pct": _pct(acc.kg_apontado, acc.kg_planejado),
+        "horas_planejadas": round(acc.horas_planejadas, 2),
+        "horas_cumpridas": round(acc.horas_cumpridas, 2),
+        "aderencia_pct": _pct(acc.horas_cumpridas, acc.horas_planejadas),
+        "por_erva": [
+            {
+                "erva": erva,
+                "kg_planejado": round(acc.kg_planejado.get(erva, 0.0), 3),
+                "kg_apontado": round(acc.kg_apontado.get(erva, 0.0), 3),
+                "aderencia_pct": _pct(
+                    acc.horas_cumpridas_erva.get(erva, 0.0), acc.horas_planejadas_erva.get(erva, 0.0)
+                ),
+            }
+            for erva in sorted(set(acc.kg_planejado) | set(acc.kg_apontado))
+        ],
     }
 
 
@@ -92,6 +131,7 @@ def indicadores(acc: Acumulado) -> dict:
 class Resultado:
     por_dia: dict[tuple[int, date], Acumulado] = field(default_factory=dict)
     avisos: list[str] = field(default_factory=list)
+    com_apontamentos: bool = False
 
 
 def _dias(de: date, ate: date):
@@ -101,25 +141,35 @@ def _dias(de: date, ate: date):
         dia += timedelta(days=1)
 
 
-def calcular(db: Session, de: date, ate: date, secadores: list[Secador]) -> Resultado:
+def calcular(
+    db: Session, de: date, ate: date, secadores: list[Secador], hoje: date | None = None
+) -> Resultado:
     ids = [s.id for s in secadores]
     por_codigo = {s.codigo: s.id for s in secadores}
     resultado = Resultado()
     acc = resultado.por_dia
+    hoje = hoje or calendario.hoje()
+    ultimo = min(ate, hoje)  # dia futuro não tem o que medir
+    if ate > hoje:
+        resultado.avisos.append(
+            f"Os dias depois de hoje ({hoje:%d/%m/%Y}) não entram nos indicadores"
+        )
+    if ultimo < de:
+        return resultado
     for secador in secadores:
-        for dia in _dias(de, ate):
+        for dia in _dias(de, ultimo):
             acc[(secador.id, dia)] = Acumulado()
 
     # Plano que vale em cada dia: dias de operação e kg planejados
     planos = db.scalars(
         select(Plano).where(
-            Plano.status == StatusPlano.APROVADO, Plano.inicio <= ate, Plano.fim >= de
+            Plano.status == StatusPlano.APROVADO, Plano.inicio <= ultimo, Plano.fim >= de
         )
     ).all()
-    vigentes = vigente_por_dia(planos, de, ate)
+    vigentes = vigente_por_dia(planos, de, ultimo)
     bloqueios = db.scalars(
         select(BloqueioSecador).where(
-            BloqueioSecador.secador_id.in_(ids), BloqueioSecador.inicio <= ate, BloqueioSecador.fim >= de
+            BloqueioSecador.secador_id.in_(ids), BloqueioSecador.inicio <= ultimo, BloqueioSecador.fim >= de
         )
     ).all()
     for (secador_id, dia), a in acc.items():
@@ -136,39 +186,47 @@ def calcular(db: Session, de: date, ate: date, secadores: list[Secador]) -> Resu
             select(PlanoAlocacao).where(
                 PlanoAlocacao.plano_id.in_({p.id for p in vigentes.values()}),
                 PlanoAlocacao.dia >= de,
-                PlanoAlocacao.dia <= ate,
+                PlanoAlocacao.dia <= ultimo,
             )
         ).all()
         for alocacao in alocacoes:
             secador_id = por_codigo.get(alocacao.secador)
             if secador_id is None or vigentes[alocacao.dia].id != alocacao.plano_id:
                 continue
-            acc[(secador_id, alocacao.dia)].kg_planejado += float(alocacao.kg_fresco)
+            a = acc[(secador_id, alocacao.dia)]
+            horas = float(alocacao.horas_secagem) + float(alocacao.horas_setup)
+            a.kg_planejado[alocacao.erva] += float(alocacao.kg_fresco)
+            a.horas_planejadas_erva[alocacao.erva] += horas
+            a.horas_planejadas += horas
 
     # O que de fato foi seco
     capacidades = {
         (c.erva_id, c.secador_id): c
         for c in db.scalars(select(Capacidade).where(Capacidade.secador_id.in_(ids)))
     }
+    codigo_da_erva = dict(db.execute(select(Erva.id, Erva.codigo)).all())
     apontamentos = db.scalars(
         select(ApontamentoSecagem).where(
             ApontamentoSecagem.secador_id.in_(ids),
             ApontamentoSecagem.data >= de,
-            ApontamentoSecagem.data <= ate,
+            ApontamentoSecagem.data <= ultimo,
         )
     ).all()
+    resultado.com_apontamentos = bool(apontamentos)
     for ap in apontamentos:
         a = acc[(ap.secador_id, ap.data)]
         horas = float(ap.duracao_min) / 60
         a.cargas += 1
         a.horas_apontadas += horas
-        a.kg_apontado += float(ap.quantidade_kg)
+        a.kg_apontado[codigo_da_erva[ap.erva_id]] += float(ap.quantidade_kg)
         padrao = _tempo_padrao(capacidades.get((ap.erva_id, ap.secador_id)), ap.quantidade_kg)
         if padrao is None:
             a.cargas_sem_padrao += 1
         else:
             a.horas_padrao += padrao
             a.horas_reais_com_padrao += horas
+    for a in acc.values():
+        a.fechar_dia()
 
     sem_padrao = sum(a.cargas_sem_padrao for a in acc.values())
     if sem_padrao:
@@ -177,7 +235,9 @@ def calcular(db: Session, de: date, ate: date, secadores: list[Secador]) -> Resu
             "ficaram fora da performance"
         )
     if not apontamentos:
-        resultado.avisos.append("Nenhum apontamento do Infinity no período")
+        resultado.avisos.append(
+            "Nenhum apontamento do Infinity no período: disponibilidade e OEE ficam sem dado (n/a)"
+        )
     if not planos:
         resultado.avisos.append("Nenhum plano aprovado no período: sem aderência ao plano")
     return resultado
@@ -200,14 +260,15 @@ def resumo(resultado: Resultado, secadores: list[Secador]) -> tuple[list[dict], 
     dias = []
     for (secador_id, dia), a in sorted(resultado.por_dia.items(), key=lambda x: (x[0][1], x[0][0])):
         por_secador[secador_id].somar(a)
-        if a.cargas or a.kg_planejado:
-            dias.append({"dia": dia, "secador_id": secador_id, **indicadores(a)})
+        if a.cargas or a.horas_planejadas:
+            dias.append({"dia": dia, "secador_id": secador_id, **indicadores(a, resultado.com_apontamentos)})
     total = Acumulado()
     for a in por_secador.values():
         total.somar(a)
     secadores_ordenados = sorted(secadores, key=lambda s: s.codigo)
+    com = resultado.com_apontamentos
     return (
-        [{"secador": s, **indicadores(por_secador[s.id])} for s in secadores_ordenados],
+        [{"secador": s, **indicadores(por_secador[s.id], com)} for s in secadores_ordenados],
         dias,
-        indicadores(total),
+        indicadores(total, com),
     )
