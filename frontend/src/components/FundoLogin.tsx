@@ -1,10 +1,11 @@
 import { CSSProperties } from 'react';
 
 /*
- * Fundo animado do login, em tom sóbrio: linhas finas de onda que correm de lado
- * (como fios de vento) e poucas folhas pequenas caindo devagar. Só SVG + CSS
- * (keyframes onda, cai e balanca em index.css), sem biblioteca. Quem pede menos
- * movimento vê as linhas paradas e sem folhas.
+ * Fundo animado do login, claro e discreto ("névoa"): off-white com leve tom de
+ * sálvia, granulado fino, linhas finas de onda que correm de lado (como fios de
+ * vento) e folhas verdes caindo devagar. Só SVG + CSS (keyframes onda, cai e
+ * balanca em index.css), sem biblioteca. Quem pede menos movimento vê as linhas
+ * paradas e sem folhas.
  */
 
 // Um período de onda em 1440 px; repetido duas vezes, o translateX(-50%) emenda sem salto
@@ -22,32 +23,43 @@ const LINHAS = Array.from({ length: 9 }, (_, i) => ({
 }));
 
 // Pseudoaleatório determinístico (parte fracionária de um seno grande): espalha sem alinhar
-const FOLHAS = Array.from({ length: 9 }, (_, i) => {
+const FOLHAS = Array.from({ length: 16 }, (_, i) => {
   const r = (n: number) => {
     const x = Math.sin((i + 1) * 12.9898 + n * 78.233) * 43758.5453;
     return x - Math.floor(x);
   };
   return {
     esquerda: `${Math.round(r(1) * 100)}%`,
-    tamanho: 10 + Math.round(r(2) * 7),
+    tamanho: 12 + Math.round(r(2) * 9),
     queda: 22 + r(3) * 14,
     // Atraso negativo: ao abrir a tela as folhas já estão no meio da queda
     atraso: -r(4) * 30,
     balanco: 4 + r(5) * 3,
     giro: Math.round(r(6) * 360),
-    cor: i % 3 === 0 ? 'text-lima-500/25' : 'text-white/15',
+    cor: i % 3 === 0 ? 'text-lima-500/55' : 'text-verde-700/30',
   };
 });
+
+// Ruído fractal em SVG, repetido como textura
+const GRAO =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E" +
+  "%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E" +
+  "%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.6'/%3E%3C/svg%3E\")";
+
+/** Fundo da tela de login: gradiente claro com toques de lima e verde nos cantos */
+export const FUNDO_LOGIN =
+  'radial-gradient(ellipse 80% 60% at 75% 0%, rgb(132 189 0 / .07), transparent 60%), ' +
+  'radial-gradient(ellipse 70% 60% at 10% 100%, rgb(0 111 68 / .08), transparent 60%), ' +
+  'linear-gradient(160deg, #f7f8f4, #edf1ea 55%, #e6ece3)';
 
 export default function FundoLogin() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-      {/* Luz suave no alto e sombra na base: profundidade sem chamar atenção */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_-10%,rgb(132_189_0/0.12),transparent_55%)]" />
-      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/20 to-transparent" />
+      {/* Granulado fino: tira o aspecto "chapado" do gradiente */}
+      <div className="absolute inset-0 opacity-50 mix-blend-soft-light" style={{ backgroundImage: GRAO }} />
 
       {/* Linhas de onda */}
-      <div className="absolute inset-x-0 bottom-[8vh] h-[38vh]">
+      <div className="absolute inset-x-0 bottom-[8vh] h-[38vh] opacity-55">
         {LINHAS.map((l) => (
           <svg
             key={l.duracao}
@@ -56,7 +68,7 @@ export default function FundoLogin() {
             className="absolute inset-y-0 left-0 h-full w-[200%] animate-onda motion-reduce:animate-none"
             style={{ animationDuration: l.duracao }}
           >
-            <path d={l.d} fill="none" stroke="white" strokeOpacity={l.opacidade} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+            <path d={l.d} fill="none" stroke="var(--color-verde-700)" strokeOpacity={l.opacidade} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
           </svg>
         ))}
       </div>

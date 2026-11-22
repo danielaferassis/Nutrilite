@@ -3,7 +3,7 @@ import { FormEvent, useState } from 'react';
 
 import { apiFetch, textoDoErro } from '../api';
 import { logger } from '../logger';
-import FundoLogin from './FundoLogin';
+import FundoLogin, { FUNDO_LOGIN } from './FundoLogin';
 import { Alerta, Button, Input, LogoCompleto } from './ui';
 
 export default function Login() {
@@ -30,11 +30,14 @@ export default function Login() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#002f1d] via-verde-900 to-[#005c39] px-4 py-12">
+    <div
+      className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12"
+      style={{ background: FUNDO_LOGIN }}
+    >
       <FundoLogin />
 
       <div className="relative w-full max-w-sm animate-surge">
-        <div className="rounded-xl border border-white/10 bg-white p-8 shadow-[0_24px_60px_-12px_rgb(0_0_0/0.45)]">
+        <div className="rounded-xl border border-borda bg-white p-8 shadow-[0_1px_2px_rgb(33_30_22/0.05),0_20px_50px_-16px_rgb(20_50_30/0.22)]">
           <div className="mb-7 flex flex-col items-center gap-2 text-center">
             <h1 aria-label="Nutrilite PCP" className="flex flex-col items-center gap-2">
               <LogoCompleto altura={46} />
