@@ -371,16 +371,18 @@ class CapacidadeRead(CapacidadeCreate):
 
 
 class RendimentoCreate(BaseModel):
+    """Rendimentos ≥ 1: não se tira mais produto do que a matéria-prima (1 = sem perda)."""
+
     erva_id: int = Field(gt=0)
-    fresco_por_desidratado: RazaoCad | None = Field(default=None, gt=0)
-    desidratado_por_moido: RazaoCad | None = Field(default=None, gt=0)
+    fresco_por_desidratado: RazaoCad | None = Field(default=None, ge=1)
+    desidratado_por_moido: RazaoCad | None = Field(default=None, ge=1)
 
 
 class RendimentoUpdate(BaseModel):
     """Atualização parcial. Null volta a ser "não informado". A erva não muda."""
 
-    fresco_por_desidratado: RazaoCad | None = Field(default=None, gt=0)
-    desidratado_por_moido: RazaoCad | None = Field(default=None, gt=0)
+    fresco_por_desidratado: RazaoCad | None = Field(default=None, ge=1)
+    desidratado_por_moido: RazaoCad | None = Field(default=None, ge=1)
 
 
 class RendimentoRead(RendimentoCreate):

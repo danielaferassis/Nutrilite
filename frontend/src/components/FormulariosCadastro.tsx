@@ -206,12 +206,12 @@ export function FormularioErva({
         <div className="hidden md:block" />
 
         <Grupo titulo="Rendimento (cálculo reverso da demanda)" />
-        <Ajuda texto="Quantos kg de erva fresca viram 1 kg de desidratado.">
-          <Input label="Kg de fresco para 1 kg desidratado" type="number" min="0.0001" step="0.0001" placeholder="ex.: 6,5"
+        <Ajuda texto="Quantos kg de erva fresca viram 1 kg de desidratado (1 ou mais: a secagem só tira água).">
+          <Input label="Kg de fresco para 1 kg desidratado" type="number" min="1" step="0.0001" placeholder="ex.: 6,5"
             value={form.fresco_por_desidratado} onChange={alterar('fresco_por_desidratado')} />
         </Ajuda>
-        <Ajuda texto="Quantos kg de desidratado viram 1 kg de moído (produto acabado).">
-          <Input label="Kg desidratado para 1 kg moído" type="number" min="0.0001" step="0.0001" placeholder="ex.: 1,1"
+        <Ajuda texto="Quantos kg de desidratado viram 1 kg de moído (produto acabado; 1 = sem perda na moagem).">
+          <Input label="Kg desidratado para 1 kg moído" type="number" min="1" step="0.0001" placeholder="ex.: 1,1"
             value={form.desidratado_por_moido} onChange={alterar('desidratado_por_moido')} />
         </Ajuda>
         <Botoes

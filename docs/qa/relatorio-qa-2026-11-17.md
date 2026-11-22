@@ -38,6 +38,7 @@ Feitas na mesma branch, com teste de regressão. Cada teste foi rodado contra o 
 | M4: aderência soma ervas diferentes | **Corrigido.** Em cada secador × dia, cada erva planejada vale as horas do plano e cumpre na proporção do que foi seco **dela** (até 100%); aderência = horas cumpridas ÷ planejadas. Kg só por erva (`por_erva` e tabela "Aderência por erva"). A "Confiabilidade das fontes" do Painel do PCP, que somava kg de ervas na origem, passou a ser por origem × erva. | `test_indicadores.py`, `PainelOEE.test.tsx` e `indicadores.test.ts` |
 | M5: OEE conta dias futuros | **Corrigido.** Só contam os dias até hoje (disponibilidade e plano), com aviso; sem nenhum apontamento no período, disponibilidade e OEE ficam `None` (n/a), não 0%. | `test_indicadores.py` |
 | M7: lote vira oferta em dois planos seguidos | **Corrigido.** O lote que chegou antes do início entra só com o saldo: sai dele o que o plano aprovado que vale em cada dia já destinou a secar antes do início (recebimento herda o destinado à previsão; lote sem saldo sai). Premissa: o plano aprovado foi cumprido, porque o Infinity não diz de qual lote veio a carga. | `test_simulacoes.py` |
+| M8: rendimento menor que 1 | **Corrigido.** A API exige os dois rendimentos ≥ 1 (1 = sem perda) e o formulário usa `min="1"`. Valor já gravado não é alterado. | `test_cadastros.py` |
 | Rota de exemplo `/api/items` | **Removida.** O front não a usava; a tabela continua, porque só muda por migration. | `test_rotas_protegidas.py` |
 
 **Testes para pegar problemas semelhantes:**
