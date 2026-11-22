@@ -474,7 +474,12 @@ def _calcular_kpis(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> d
     Saldo não alocado = necessidade de fresco não coberta até o prazo, das
     demandas que vencem até o `fim`. A cobrir após o horizonte = o mesmo para
     as demandas que vencem depois do `fim` (informativo, não é pendência).
-    Os dois ficam separados por erva: kg de ervas diferentes não se somam.
+    Perda = kg de erva fresca dos lotes que venceram sem secador até o `fim`
+    (as pendências CAPACIDADE_EXCEDIDA). Toda erva com oferta aparece, com 0
+    quando nada se perde; o % é sobre a oferta da erva no horizonte (oferta
+    zero → None). Lote que vence depois do `fim` não conta: o próximo plano
+    ainda pode secá-lo.
+    Todos ficam separados por erva: kg de ervas diferentes não se somam.
     """
     horas_disponiveis = {
         s.codigo: HORAS_DIA
@@ -501,6 +506,14 @@ def _calcular_kpis(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> d
         elif falta > _EPS:
             a_cobrir_depois[n.erva] += falta
 
+    oferta: dict[str, float] = defaultdict(float)
+    for lote in entrada.lotes:
+        oferta[lote.erva] += lote.kg_fresco
+    perdido: dict[str, float] = {erva: 0.0 for erva in oferta}
+    for p in resultado.pendencias:
+        if p.tipo == TipoPendencia.CAPACIDADE_EXCEDIDA and p.lote_id is not None and p.erva in perdido:
+            perdido[p.erva] += p.kg or 0.0
+
     return {
         "horas_ocupadas": {s: round(h, 3) for s, h in horas_ocupadas.items()},
         "horas_disponiveis": horas_disponiveis,
@@ -510,4 +523,9 @@ def _calcular_kpis(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> d
         },
         "saldo_nao_alocado_kg": {e: round(kg, 3) for e, kg in sorted(saldo.items())},
         "a_cobrir_apos_horizonte_kg": {e: round(kg, 3) for e, kg in sorted(a_cobrir_depois.items())},
+        "kg_perdido": {e: round(kg, 3) for e, kg in sorted(perdido.items())},
+        "perda_pct": {
+            e: round(100 * kg / oferta[e], 1) if oferta[e] > _EPS else None
+            for e, kg in sorted(perdido.items())
+        },
     }

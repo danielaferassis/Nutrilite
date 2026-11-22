@@ -254,6 +254,10 @@ export interface Kpis {
   saldo_nao_alocado_kg?: Record<string, number>;
   /** Demandas que vencem depois do fim: o que ainda falta (informativo, não é pendência). */
   a_cobrir_apos_horizonte_kg?: Record<string, number>;
+  /** Erva fresca que vence sem secador no horizonte, por erva (0 = sem perda). */
+  kg_perdido?: Record<string, number>;
+  /** Perda sobre a oferta da erva no horizonte; null = sem oferta. */
+  perda_pct?: Record<string, number | null>;
 }
 
 export interface ResultadoSimulacao {

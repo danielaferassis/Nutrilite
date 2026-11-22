@@ -211,6 +211,23 @@ def test_invariantes_do_plano(semente):
     for erva, kg in kpis["saldo_nao_alocado_kg"].items():
         assert kg >= 0, msg
 
+    # Perda: fecha com as pendências e fica dentro da oferta de cada erva
+    oferta = defaultdict(float)
+    perdido_erva = defaultdict(float)
+    for lote in entrada.lotes:
+        if lote.erva not in incompletas:
+            oferta[lote.erva] += lote.kg_fresco
+            perdido_erva[lote.erva] += perdido[lote.id]
+    assert set(kpis["kg_perdido"]) == set(oferta), f"{msg}: toda erva com oferta aparece na perda"
+    for erva, kg in kpis["kg_perdido"].items():
+        assert math.isclose(kg, perdido_erva[erva], abs_tol=1e-3), f"{msg}: perda de {erva} não fecha"
+        assert 0 <= kg <= oferta[erva] + EPS, msg
+        pct = kpis["perda_pct"][erva]
+        if oferta[erva] > EPS:
+            assert 0 <= pct <= 100, f"{msg}: perda {pct}%"
+        else:
+            assert pct is None, f"{msg}: perda sem oferta deve ser None"
+
 
 @pytest.mark.parametrize("semente", SEMENTES)
 def test_lote_perdido_nao_cede_secador_para_erva_que_podia_esperar(semente):

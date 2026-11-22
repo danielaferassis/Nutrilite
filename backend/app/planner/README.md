@@ -89,6 +89,8 @@ KPIs (`resultado.kpis`):
 | `ocupacao_planejada_pct` | por secador: ocupadas ÷ disponíveis × 100; `None` se não há dia disponível |
 | `saldo_nao_alocado_kg` | por erva: kg de fresco das demandas com prazo até o `fim` não cobertos até o prazo |
 | `a_cobrir_apos_horizonte_kg` | por erva: o que ainda falta para as demandas que vencem depois do `fim` (informativo; o próximo plano cobre) |
+| `kg_perdido` | por erva com oferta: kg de erva fresca dos lotes que vencem sem secador até o `fim` (soma das `CAPACIDADE_EXCEDIDA`); `0` quando nada se perde |
+| `perda_pct` | por erva: `kg_perdido` ÷ oferta da erva no horizonte; oferta zero → `None` |
 
 ### Prioridade entre secadores (`Capacidade.prioridade`)
 
@@ -224,7 +226,7 @@ docker compose exec backend pytest tests/planner -v
 - nada em dia bloqueado ou sem operação;
 - todo lote é seco ou declarado perdido;
 - a demanda não recebe além da necessidade nem depois do prazo;
-- os KPIs fecham com as alocações;
+- os KPIs fecham com as alocações, e a perda fecha com as pendências `CAPACIDADE_EXCEDIDA`;
 - o resultado é determinístico;
 - lote perdido não cede secador a uma erva que podia esperar.
 

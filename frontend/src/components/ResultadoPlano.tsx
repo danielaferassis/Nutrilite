@@ -2,6 +2,7 @@ import {
   CalendarRange,
   CircleCheck,
   CircleHelp,
+  CircleX,
   Clock,
   Download,
   Info,
@@ -230,6 +231,9 @@ export default function ResultadoPlano({
   const { kpis } = resultado;
   const ocupacao = kpis.ocupacao_planejada_pct ?? {};
   const aCobrirDepois = Object.entries(kpis.a_cobrir_apos_horizonte_kg ?? {});
+  // Perda por erva: kg de ervas diferentes não se somam, então é um cartão por erva
+  const perdas = Object.entries(kpis.kg_perdido ?? {}).filter(([, kg]) => kg > 0);
+  const temOferta = Object.keys(kpis.kg_perdido ?? {}).length > 0;
 
   // Kg secos destinados a cada demanda no plano
   const coberto: Record<string, number> = {};
@@ -360,7 +364,7 @@ export default function ResultadoPlano({
         </Alerta>
       )}
 
-      {(Object.keys(ocupacao).length > 0 || totalDemandas > 0) && (
+      {(Object.keys(ocupacao).length > 0 || totalDemandas > 0 || temOferta) && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Object.entries(ocupacao).map(([secador, pct]) => (
             <KpiCard
@@ -386,6 +390,27 @@ export default function ResultadoPlano({
                   ? 'Há demanda que vence depois do horizonte'
                   : 'Demandas com prazo no horizonte do plano'
               }
+            />
+          )}
+          {perdas.map(([erva, kg]) => (
+            <KpiCard
+              key={`perda-${erva}`}
+              titulo={`Perda ${erva}`}
+              icone={CircleX}
+              valor={formatarKg(kg)}
+              progresso={kpis.perda_pct?.[erva] ?? null}
+              tom="critico"
+              extra={<Etiqueta cor="vermelho">{formatarPct(kpis.perda_pct?.[erva] ?? null)} da oferta</Etiqueta>}
+              detalhe="Erva fresca que vence sem secador no horizonte"
+            />
+          ))}
+          {temOferta && perdas.length === 0 && (
+            <KpiCard
+              titulo="Perda de erva fresca"
+              icone={CircleCheck}
+              valor="0 kg"
+              tom="bom"
+              detalhe="Toda a oferta que vence no horizonte encontra secador"
             />
           )}
         </div>

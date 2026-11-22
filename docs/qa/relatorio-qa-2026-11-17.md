@@ -32,6 +32,7 @@ Feitas na mesma branch, com teste de regressão. Cada teste foi rodado contra o 
 | A5: data errada estica o período | **Corrigido.** Data longe da mediana da aba (ano trocado), fora da ordem no meio da sequência ou desgarrada na primeira/última linha vira erro da célula; o período só usa as datas plausíveis e nada é gravado enquanto houver erro. | `test_importacao_previsoes.py` |
 | A6: número "válido" dá 500 | **Corrigido.** `NaN`/`Infinity` viram "valor não numérico"; a faixa é conferida **depois** do arredondamento (menor que 0,001 kg e acima do teto da coluna são erro da célula). No Infinity, o erro indica linha e coluna, e uma falha imprevista vira erro daquela linha. | `test_importacao_previsoes.py` e `test_importacao_infinity.py` |
 | A7: duplo clique grava duas vezes | **Já resolvido** na modernização do front (`Button` com `carregando` fica desabilitado). Faltava teste: agora há um de duplo clique com a resposta pendente em Previsões, Bloqueios e Recebimentos. | `EntradaPrevisoes`, `Bloqueios` e `CronogramaRecebimentos.test.tsx` |
+| M1: perda não aparece nos KPIs | **Corrigido.** KPIs `kg_perdido` e `perda_pct` por erva (sem somar ervas) e cartão "Perda <erva>" no resultado do plano; sem perda, aparece "0 kg" explícito. | `test_alocacao.py`, invariante em `test_invariantes.py` e `ResultadoPlano.test.tsx` |
 | Rota de exemplo `/api/items` | **Removida.** O front não a usava; a tabela continua, porque só muda por migration. | `test_rotas_protegidas.py` |
 
 **Testes para pegar problemas semelhantes:**

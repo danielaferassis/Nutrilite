@@ -74,6 +74,26 @@ describe('ResultadoPlano', () => {
     expect(screen.queryByText(/vencem depois de/)).not.toBeInTheDocument();
   });
 
+  it('mostra a perda por erva, sem somar ervas diferentes (QA M1)', () => {
+    const kpis = {
+      kg_perdido: { 'ERVA-A': 4500, 'ERVA-B': 0, 'ERVA-C': 120 },
+      perda_pct: { 'ERVA-A': 90, 'ERVA-B': 0, 'ERVA-C': 12.5 },
+    };
+    render(<ResultadoPlano resultado={{ ...RESULTADO, kpis }} />);
+
+    expect(screen.getByText('Perda ERVA-A').closest('div.rounded-xl')).toHaveTextContent('4.500 kg');
+    expect(screen.getByText('Perda ERVA-A').closest('div.rounded-xl')).toHaveTextContent('90% da oferta');
+    expect(screen.getByText('Perda ERVA-C').closest('div.rounded-xl')).toHaveTextContent('120 kg');
+    expect(screen.queryByText('Perda ERVA-B')).not.toBeInTheDocument();
+    expect(screen.queryByText('Perda de erva fresca')).not.toBeInTheDocument();
+  });
+
+  it('sem perda, diz isso explicitamente', () => {
+    render(<ResultadoPlano resultado={{ ...RESULTADO, kpis: { kg_perdido: { 'ERVA-A': 0 }, perda_pct: { 'ERVA-A': 0 } } }} />);
+
+    expect(screen.getByText('Perda de erva fresca').closest('div.rounded-xl')).toHaveTextContent('0 kg');
+  });
+
   describe('exportação', () => {
     afterEach(() => vi.restoreAllMocks());
 

@@ -527,3 +527,38 @@ def test_lote_que_vence_hoje_ocupa_os_dois_secadores_antes_da_erva_que_pode_espe
         (SEG, "SCB03", "PICAO", 240),
         (TER, "SCB01", "SALSA", 240),
     ]
+
+
+# --- Perda (QA M1) ---
+
+
+def test_perda_aparece_nos_kpis_por_erva():
+    """O cenário do QA: lote vencendo sem secador e os KPIs só mostravam saldo 0."""
+    resultado = simular(entrada(
+        capacidades=[CAM_SCB03, AGR_SCB01],
+        bloqueios=[BloqueioSecador("SCB03", inicio=SEG, fim=SEX, motivo="manutenção")],
+        lotes=[
+            lote("L1", "CAMOMILA", SEG, 4500),  # SCB03 parado: vence na terça sem secador
+            lote("L2", "CAMOMILA", SEX, 500),  # vence no sábado, fora do horizonte: não é perda
+            lote("L3", "AGRIAO", TER, 300),  # seco no SCB01
+        ],
+    ))
+
+    assert resultado.kpis["kg_perdido"] == {"AGRIAO": 0, "CAMOMILA": 4500}
+    assert resultado.kpis["perda_pct"] == {"AGRIAO": 0.0, "CAMOMILA": 90.0}
+    perdas = [p for p in resultado.pendencias if p.tipo == TipoPendencia.CAPACIDADE_EXCEDIDA]
+    assert [(p.lote_id, p.kg) for p in perdas] == [("L1", 4500)]
+
+
+def test_sem_oferta_nao_ha_perda_a_mostrar():
+    resultado = simular(entrada(lotes=[]))
+
+    assert resultado.kpis["kg_perdido"] == {}
+    assert resultado.kpis["perda_pct"] == {}
+
+
+def test_lote_de_zero_kg_tem_perda_nao_aplicavel():
+    resultado = simular(entrada(lotes=[lote("L1", "AGRIAO", SEG, 0)]))
+
+    assert resultado.kpis["kg_perdido"] == {"AGRIAO": 0}
+    assert resultado.kpis["perda_pct"] == {"AGRIAO": None}
