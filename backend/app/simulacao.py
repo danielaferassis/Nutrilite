@@ -13,6 +13,13 @@ Regras de recorte do horizonte [inicio, fim]:
 - Recebido substitui previsto: previsão com recebimento sai da entrada, e cada
   recebimento entra como lote com data e kg reais (id "R<n>"). Chegada não
   prevista também entra.
+- Lote que chegou antes do `inicio` entra só com o saldo: sai dele o que o
+  plano aprovado que vale em cada dia (app/vigencia.py) já destinou a secar
+  nos dias antes do `inicio`. Sem isso, em dois planos seguidos o mesmo kg
+  viraria oferta duas vezes. Premissa: o plano aprovado foi cumprido; os
+  apontamentos do Infinity não dizem de qual lote veio a carga. Recebimento
+  de uma previsão herda o que o plano destinou à previsão. Lote sem saldo
+  sai da entrada.
 
 - Bloqueios: os que tocam o horizonte, de secadores ativos.
 
@@ -21,7 +28,8 @@ PARAM_AUSENTE ("erva não cadastrada") em vez de o plano ignorá-los calado.
 """
 
 import logging
-from dataclasses import asdict
+from collections import defaultdict
+from dataclasses import asdict, replace
 from datetime import date, timedelta
 
 from sqlalchemy import func, select
@@ -42,13 +50,17 @@ from app.models import (
     Capacidade,
     Demanda,
     Erva,
+    Plano,
+    PlanoAlocacao,
     PrevisaoOferta,
     Recebimento,
     Rendimento,
     Secador,
+    StatusPlano,
 )
 from app.planner import simular
-from app.planner.types import EntradaPlanejamento, ResultadoPlano, TipoPendencia
+from app.planner.types import EntradaPlanejamento, LotePrevisto, ResultadoPlano, TipoPendencia
+from app.vigencia import vigente_por_dia
 
 log = logging.getLogger(__name__)
 
@@ -118,6 +130,13 @@ def montar_entrada(
         "Entrada %s a %s: %s demandas, %s lotes previstos, %s recebidos, %s capacidades",
         inicio, fim, len(demandas), len(lotes), len(recebimentos), len(capacidades),
     )
+    lotes_motor = _descontar_ja_planejado(
+        db,
+        primeira_chegada,
+        inicio,
+        [para_lote(p) for p in lotes],
+        [(para_lote_recebido(r), r.previsao_id) for r in recebimentos],
+    )
     return EntradaPlanejamento(
         inicio=inicio,
         fim=fim,
@@ -125,11 +144,64 @@ def montar_entrada(
         secadores=[para_secador(s) for s in secadores],
         capacidades=[para_capacidade(c) for c in capacidades],
         rendimentos=[para_rendimento(r) for r in rendimentos],
-        lotes=[para_lote(p) for p in lotes] + [para_lote_recebido(r) for r in recebimentos],
+        lotes=lotes_motor,
         demandas=[para_demanda(d) for d in demandas],
         bloqueios=[para_bloqueio(b) for b in bloqueios],
         dias_operacao=dias_operacao,
     )
+
+
+def _descontar_ja_planejado(
+    db: Session,
+    de: date,
+    inicio: date,
+    previstos: list[LotePrevisto],
+    recebidos: list[tuple[LotePrevisto, int | None]],
+) -> list[LotePrevisto]:
+    """Tira de cada lote o kg que o plano aprovado vigente já secava antes do `inicio`."""
+    if de >= inicio:
+        return previstos + [lote for lote, _ in recebidos]
+    ontem = inicio - timedelta(days=1)
+    planos = db.scalars(
+        select(Plano).where(
+            Plano.status == StatusPlano.APROVADO, Plano.inicio <= ontem, Plano.fim >= de
+        )
+    ).all()
+    vigentes = vigente_por_dia(planos, de, ontem)
+    planejado: dict[str, float] = defaultdict(float)  # lote_id do plano → kg
+    if vigentes:
+        for alocacao in db.scalars(
+            select(PlanoAlocacao).where(
+                PlanoAlocacao.plano_id.in_({p.id for p in vigentes.values()}),
+                PlanoAlocacao.dia >= de,
+                PlanoAlocacao.dia <= ontem,
+            )
+        ):
+            if vigentes.get(alocacao.dia) is not None and vigentes[alocacao.dia].id == alocacao.plano_id:
+                planejado[alocacao.lote_id] += float(alocacao.kg_fresco)
+    if not planejado:
+        return previstos + [lote for lote, _ in recebidos]
+
+    resultado: list[LotePrevisto] = []
+
+    def abater(lote: LotePrevisto, chave: str) -> None:
+        descontado = min(lote.kg_fresco, planejado.get(chave, 0.0))
+        planejado[chave] = planejado.get(chave, 0.0) - descontado
+        saldo = round(lote.kg_fresco - descontado, 3)
+        if descontado:
+            log.info("Lote %s: %.3f kg já estavam no plano aprovado antes de %s", lote.id, descontado, inicio)
+        if saldo > 0:
+            resultado.append(replace(lote, kg_fresco=saldo) if descontado else lote)
+
+    for lote in previstos:
+        abater(lote, lote.id)
+    for lote, previsao_id in recebidos:
+        abater(lote, lote.id)  # plano feito depois do recebimento
+        if previsao_id is not None and resultado and resultado[-1].id == lote.id:
+            # plano feito antes do recebimento: as alocações apontam para a previsão
+            ultimo = resultado.pop()
+            abater(ultimo, str(previsao_id))
+    return resultado
 
 
 def executar(

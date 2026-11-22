@@ -8,9 +8,9 @@ from decimal import Decimal
 
 import pytest
 
-from app.models import Capacidade, ModoCapacidade, Secador
+from app.models import Capacidade, ModoCapacidade, PrevisaoOferta, Recebimento, Secador
 from app.simulacao import montar_entrada
-from tests.conftest import FONTE_A, PCP, TODOS_OS_DIAS, demanda, lote
+from tests.conftest import FONTE_A, GESTOR, PCP, TODOS_OS_DIAS, demanda, lote
 
 
 def simular(cliente, **campos):
@@ -153,3 +153,79 @@ def test_entrada_inclui_lote_que_ainda_espera_no_inicio(cadastro):
 
     assert [lote.data_chegada for lote in entrada.lotes] == [date(2026, 11, 28)]
     assert entrada.bloqueios == []
+
+
+
+# --- Lote em dois planos seguidos (QA M7) ---
+
+ANTES = date(2026, 11, 30)  # dia do plano anterior; o novo começa em 01/12
+
+
+def plano_do_dia(cliente, dia=ANTES, aprovar=True) -> dict:
+    cliente.logar(PCP)
+    plano = cliente.post(
+        "/api/planos", json={"inicio": str(dia), "fim": str(dia), "dias_operacao": TODOS_OS_DIAS}
+    ).json()
+    if aprovar:
+        cliente.logar(GESTOR)
+        assert cliente.post(f"/api/planos/{plano['id']}/aprovar").status_code == 200
+    return plano
+
+
+def kg_no_plano(plano: dict, lote_id: str) -> float:
+    return sum(float(a["kg_fresco"]) for a in plano["alocacoes"] if a["lote_id"] == lote_id)
+
+
+def entrada_seguinte(cadastro):
+    return montar_entrada(cadastro, date(2026, 12, 1), date(2026, 12, 7), frozenset(TODOS_OS_DIAS))
+
+
+def test_lote_seco_em_parte_no_plano_anterior_entra_so_com_o_saldo(cliente, cadastro):
+    lote(cadastro, data_chegada=ANTES, kg_fresco=Decimal(5000))  # não cabe num dia
+    anterior = plano_do_dia(cliente)
+    seco = kg_no_plano(anterior, "1")
+    assert 0 < seco < 5000
+
+    (restante,) = entrada_seguinte(cadastro).lotes
+
+    assert (restante.id, restante.kg_fresco) == ("1", pytest.approx(5000 - seco))
+
+
+def test_lote_todo_seco_no_plano_anterior_sai_da_entrada(cliente, cadastro):
+    lote(cadastro, data_chegada=ANTES, kg_fresco=Decimal(500))
+    assert kg_no_plano(plano_do_dia(cliente), "1") == 500
+
+    assert entrada_seguinte(cadastro).lotes == []
+
+
+def test_rascunho_nao_desconta(cliente, cadastro):
+    lote(cadastro, data_chegada=ANTES, kg_fresco=Decimal(500))
+    plano_do_dia(cliente, aprovar=False)
+
+    assert [lote.kg_fresco for lote in entrada_seguinte(cadastro).lotes] == [500]
+
+
+def test_recebimento_herda_o_que_o_plano_destinou_a_previsao(cliente, cadastro):
+    lote(cadastro, data_chegada=ANTES, kg_fresco=Decimal(5000))
+    seco = kg_no_plano(plano_do_dia(cliente), "1")
+    # A erva chegou depois de aprovado o plano, com um pouco menos que o previsto
+    previsao = cadastro.get(PrevisaoOferta, 1)
+    cadastro.add(Recebimento(
+        previsao_id=previsao.id, erva_id=1, origem=previsao.origem, data_recebimento=ANTES,
+        kg_fresco=Decimal(4800), registrado_por_id=PCP,
+    ))
+    cadastro.commit()
+
+    (restante,) = entrada_seguinte(cadastro).lotes
+
+    assert (restante.id, restante.kg_fresco) == ("R1", pytest.approx(4800 - seco))
+
+
+def test_simular_de_novo_o_mesmo_periodo_nao_desconta(cliente, cadastro):
+    """Só o que o plano destinou a dias *antes* do início sai do lote."""
+    lote(cadastro, data_chegada=ANTES, kg_fresco=Decimal(500))
+    plano_do_dia(cliente)
+
+    entrada = montar_entrada(cadastro, ANTES, date(2026, 12, 6), frozenset(TODOS_OS_DIAS))
+
+    assert [lote.kg_fresco for lote in entrada.lotes] == [500]
