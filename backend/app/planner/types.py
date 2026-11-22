@@ -216,7 +216,7 @@ class ResultadoPlano:
     necessidades: list[NecessidadeFresca] = field(default_factory=list)
     alocacoes: list[Alocacao] = field(default_factory=list)
     pendencias: list[Pendencia] = field(default_factory=list)
-    # Ex.: {"ocupacao_planejada_pct": {...}, "saldo_nao_alocado_kg": {...}}.
+    # Ex.: {"ocupacao_planejada_pct": {...}, "nao_atendido_no_prazo_kg": {...}}.
     # Valores None = "não aplicável" (denominador zero), nunca 0.
     kpis: dict[str, object] = field(default_factory=dict)
 

@@ -49,7 +49,7 @@ export const ROTULO_PENDENCIA: Record<TipoPendencia, string> = {
   param_ausente: 'Parâmetro ausente',
   capacidade_excedida: 'Capacidade excedida',
   atraso: 'Atraso',
-  saldo_nao_alocado: 'Saldo não alocado',
+  saldo_nao_alocado: 'Falta de oferta',
 };
 
 // date.weekday() do Python: 0 = segunda … 6 = domingo

@@ -147,7 +147,8 @@ def test_cenario_kpis(cenario):
     # SCB01: 24 + 24 + 24 h. SCB03: (8 + 4) + (2 + 10) h.
     assert cenario.kpis["horas_ocupadas"] == {"SCB01": 72, "SCB03": 24}
     assert cenario.kpis["ocupacao_planejada_pct"] == {"SCB01": 60.0, "SCB03": 20.0}
-    assert cenario.kpis["saldo_nao_alocado_kg"] == {"AGRIAO": 1000, "CAMOMILA": 0}
+    assert cenario.kpis["nao_atendido_no_prazo_kg"] == {"AGRIAO": 1000, "CAMOMILA": 0}
+    assert cenario.kpis["falta_de_oferta_kg"] == {}  # a oferta existe, só chegou tarde
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +166,7 @@ def test_plano_que_cabe_e_viavel():
 
     assert resultado.viavel
     assert sum(a.kg_fresco for a in resultado.alocacoes) == 800
-    assert resultado.kpis["saldo_nao_alocado_kg"] == {"CAMOMILA": 0}
+    assert resultado.kpis["nao_atendido_no_prazo_kg"] == {"CAMOMILA": 0}
 
 
 def test_troca_de_erva_cobra_limpeza_da_anterior_no_primeiro_dia_da_nova():
@@ -303,9 +304,17 @@ def test_necessidade_sem_oferta_gera_saldo_nao_alocado():
         entrada(demandas=[Demanda("D1", "AGRIAO", 50, Estagio.DESIDRATADO, prazo=SEX)])
     )
 
+    # Os 500 kg ficam só no ATRASO (efeito); a falta de oferta é a causa, sem kg (QA M3)
+    [atraso] = pendencias(resultado, TipoPendencia.ATRASO)
     [saldo] = pendencias(resultado, TipoPendencia.SALDO_NAO_ALOCADO)
-    assert (saldo.erva, saldo.kg) == ("AGRIAO", 500)
-    assert resultado.kpis["saldo_nao_alocado_kg"] == {"AGRIAO": 500}
+    assert (atraso.demanda_id, atraso.kg) == ("D1", 500)
+    assert (saldo.erva, saldo.kg) == ("AGRIAO", None)
+    assert saldo.mensagem == (
+        "Faltam 500.0 kg de oferta de AGRIAO fresca no horizonte (necessidade 500.0 kg, "
+        "oferta prevista 0.0 kg): explica o atraso da(s) demanda(s) D1 acima"
+    )
+    assert resultado.kpis["nao_atendido_no_prazo_kg"] == {"AGRIAO": 500}
+    assert resultado.kpis["falta_de_oferta_kg"] == {"AGRIAO": 500}
 
 
 def test_capacidade_por_carga_usa_cargas_inteiras():
@@ -333,7 +342,7 @@ def test_ocupacao_sem_dia_disponivel_e_nao_aplicavel():
     resultado = simular(entrada(inicio=SAB, fim=date(2026, 11, 8)))
 
     assert resultado.kpis["ocupacao_planejada_pct"] == {"SCB01": None, "SCB03": None}
-    assert resultado.kpis["saldo_nao_alocado_kg"] == {}
+    assert resultado.kpis["nao_atendido_no_prazo_kg"] == {}
 
 
 # --- Troca de erva no mesmo secador no mesmo dia (PCP, 21/10/2026) ---
@@ -441,7 +450,7 @@ def test_o_que_falta_da_demanda_depois_do_fim_e_informativo():
     assert resultado.viavel
     assert pendencias(resultado, TipoPendencia.ATRASO) == []
     assert resultado.kpis["a_cobrir_apos_horizonte_kg"] == {"CAMOMILA": 400}
-    assert resultado.kpis["saldo_nao_alocado_kg"] == {}
+    assert resultado.kpis["nao_atendido_no_prazo_kg"] == {}
 
 
 def test_demanda_depois_do_fim_sem_oferta_nao_gera_saldo_nao_alocado():
@@ -470,7 +479,7 @@ def test_demanda_do_horizonte_continua_igual_ao_lado_de_uma_futura():
         destino[a.demanda_id] = destino.get(a.demanda_id, 0) + a.kg_fresco
     # Mesma prioridade: o prazo mais próximo é atendido primeiro
     assert destino == {"D-agora": 600, "D-depois": 200}
-    assert resultado.kpis["saldo_nao_alocado_kg"] == {"CAMOMILA": 0}
+    assert resultado.kpis["nao_atendido_no_prazo_kg"] == {"CAMOMILA": 0}
     assert resultado.kpis["a_cobrir_apos_horizonte_kg"] == {"CAMOMILA": 400}
 
 

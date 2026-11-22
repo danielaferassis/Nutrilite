@@ -33,6 +33,8 @@ Feitas na mesma branch, com teste de regressão. Cada teste foi rodado contra o 
 | A6: número "válido" dá 500 | **Corrigido.** `NaN`/`Infinity` viram "valor não numérico"; a faixa é conferida **depois** do arredondamento (menor que 0,001 kg e acima do teto da coluna são erro da célula). No Infinity, o erro indica linha e coluna, e uma falha imprevista vira erro daquela linha. | `test_importacao_previsoes.py` e `test_importacao_infinity.py` |
 | A7: duplo clique grava duas vezes | **Já resolvido** na modernização do front (`Button` com `carregando` fica desabilitado). Faltava teste: agora há um de duplo clique com a resposta pendente em Previsões, Bloqueios e Recebimentos. | `EntradaPrevisoes`, `Bloqueios` e `CronogramaRecebimentos.test.tsx` |
 | M1: perda não aparece nos KPIs | **Corrigido.** KPIs `kg_perdido` e `perda_pct` por erva (sem somar ervas) e cartão "Perda <erva>" no resultado do plano; sem perda, aparece "0 kg" explícito. | `test_alocacao.py`, invariante em `test_invariantes.py` e `ResultadoPlano.test.tsx` |
+| M2: KPI e pendência com o mesmo nome | **Corrigido.** O KPI virou `nao_atendido_no_prazo_kg` (soma dos `ATRASO` da erva); a pendência aparece na tela como "Falta de oferta". | `test_alocacao.py`, `test_simulacoes.py` e invariante |
+| M3: mesmos kg em duas pendências | **Corrigido.** Os kg ficam só no `ATRASO` (efeito); o `SALDO_NAO_ALOCADO` é a causa, sem `kg`, com a falta e as demandas afetadas na mensagem, e o número vai no KPI `falta_de_oferta_kg`. | `test_alocacao.py`, `test_simulacoes.py` e invariante |
 | Rota de exemplo `/api/items` | **Removida.** O front não a usava; a tabela continua, porque só muda por migration. | `test_rotas_protegidas.py` |
 
 **Testes para pegar problemas semelhantes:**

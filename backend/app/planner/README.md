@@ -76,7 +76,7 @@ Guloso, dia a dia, do `inicio` ao `fim` do horizonte:
    - ela vai para o secador livre com **menor `prioridade` cadastrada** na capacidade erva × secador. Sem prioridade (ou em empate), vai para o de **maior capacidade líquida no dia**: os kg que ele consegue secar, já descontados os setups, sem limitar ao saldo do lote. Continuar a campanha sai mais barato que trocar de erva.
    - **Troca de erva no mesmo dia** (PCP, 21/10): se a erva **encerra a campanha** no secador (secou todo o saldo e fez a limpeza) e sobram horas, o secador continua livre no dia, com as horas restantes, e outra erva pode entrar pagando o próprio setup inicial. Campanha que fica aberta (a erva tem lote chegando depois) segura o secador até o dia seguinte.
 3. Os kg secos saem dos lotes que vencem primeiro e vão para as demandas ainda no prazo, por maior prioridade e prazo mais próximo. O que sobra fica na alocação sem demanda (`demanda_id=None`).
-4. No fim: demanda não coberta até o prazo → `ATRASO`; necessidade maior que a oferta prevista no horizonte → `SALDO_NAO_ALOCADO` (por erva). As duas só valem para demandas com prazo **até o `fim`**. A demanda que vence depois também recebe kg secos (mesma ordem: prioridade, depois prazo), e o que falta para ela vai para o KPI `a_cobrir_apos_horizonte_kg`, sem pendência: a oferta para ela ainda pode chegar depois do horizonte.
+4. No fim: demanda não coberta até o prazo → `ATRASO`; necessidade maior que a oferta prevista no horizonte → `SALDO_NAO_ALOCADO` (por erva). Os kg ficam só nos `ATRASO` (o efeito, por demanda); o `SALDO_NAO_ALOCADO` é a causa, sem `kg`, e a mensagem diz quanto falta e quais demandas ele explica. As duas só valem para demandas com prazo **até o `fim`**. A demanda que vence depois também recebe kg secos (mesma ordem: prioridade, depois prazo), e o que falta para ela vai para o KPI `a_cobrir_apos_horizonte_kg`, sem pendência: a oferta para ela ainda pode chegar depois do horizonte.
 
 A regra do PCP por código de secador (SCB03 maiores volumes, SCB01 picão, SCB02 menores volumes) **não** está fixa no código. Ela é cadastrada na tabela de capacidade (veja "Prioridade entre secadores" abaixo).
 
@@ -87,7 +87,8 @@ KPIs (`resultado.kpis`):
 | `horas_ocupadas` | por secador: horas de secagem + setup planejadas |
 | `horas_disponiveis` | por secador: 24 h × dias disponíveis (operação sem bloqueio) |
 | `ocupacao_planejada_pct` | por secador: ocupadas ÷ disponíveis × 100; `None` se não há dia disponível |
-| `saldo_nao_alocado_kg` | por erva: kg de fresco das demandas com prazo até o `fim` não cobertos até o prazo |
+| `nao_atendido_no_prazo_kg` | por erva: kg de fresco das demandas com prazo até o `fim` não cobertos até o prazo (a soma dos `ATRASO` da erva). Antes se chamava `saldo_nao_alocado_kg`, nome que confundia com a pendência |
+| `falta_de_oferta_kg` | por erva, só onde há `SALDO_NAO_ALOCADO`: necessidade com prazo no horizonte − oferta prevista. É a causa de parte dos atrasos: **não somar** com `nao_atendido_no_prazo_kg` |
 | `a_cobrir_apos_horizonte_kg` | por erva: o que ainda falta para as demandas que vencem depois do `fim` (informativo; o próximo plano cobre) |
 | `kg_perdido` | por erva com oferta: kg de erva fresca dos lotes que vencem sem secador até o `fim` (soma das `CAPACIDADE_EXCEDIDA`); `0` quando nada se perde |
 | `perda_pct` | por erva: `kg_perdido` ÷ oferta da erva no horizonte; oferta zero → `None` |

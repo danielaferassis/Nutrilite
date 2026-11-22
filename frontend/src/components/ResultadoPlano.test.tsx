@@ -38,7 +38,7 @@ const RESULTADO: ResultadoSimulacao = {
   ],
   alocacoes: [alocacao('1', 500), alocacao('2', 100), alocacao('3', 200), alocacao(null, 50)],
   pendencias: [],
-  kpis: { saldo_nao_alocado_kg: { 'ERVA-A': 300 }, a_cobrir_apos_horizonte_kg: { 'ERVA-A': 400 } },
+  kpis: { nao_atendido_no_prazo_kg: { 'ERVA-A': 300 }, a_cobrir_apos_horizonte_kg: { 'ERVA-A': 400 } },
   avisos: [],
 };
 
