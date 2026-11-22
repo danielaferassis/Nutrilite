@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import { Resposta, escritas, renderizarTela } from '../test/apiFalsa';
+import { Resposta, escritas, renderizarTela, respostaPendente } from '../test/apiFalsa';
 import Bloqueios from './Bloqueios';
 
 // Dados fictícios
@@ -71,5 +71,28 @@ describe('Bloqueios', () => {
     await screen.findByText('Manutenção preventiva');
     expect(screen.queryByText('Bloquear')).not.toBeInTheDocument();
     expect(screen.queryByText('Editar')).not.toBeInTheDocument();
+  });
+
+  it('duplo clique em salvar envia uma vez só (QA A7)', async () => {
+    const usuario = userEvent.setup();
+    const pendente = respostaPendente({ ...BLOQUEIO, fim: '2026-12-09' });
+    const { chamadas } = renderizarTela(
+      <Bloqueios />,
+      rotas({ 'PATCH /bloqueios/4': pendente.rota }),
+      ['bloqueio.gerenciar']
+    );
+
+    await usuario.click(await screen.findByText('Editar'));
+    const fim = screen.getByLabelText('Fim (inclusive)');
+    await usuario.clear(fim);
+    await usuario.type(fim, '2026-12-09');
+    const salvar = screen.getByRole('button', { name: /Salvar/ });
+    await usuario.dblClick(salvar);
+    await usuario.click(salvar);
+
+    expect(salvar).toBeDisabled();
+    pendente.responder();
+    await screen.findByText('Bloqueio atualizado');
+    expect(escritas(chamadas)).toHaveLength(1);
   });
 });

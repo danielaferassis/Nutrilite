@@ -136,7 +136,7 @@ def test_erros_por_linha_nao_gravam_nada(banco, tmp_path):
         (3, "Processo", "Processo 'SEC-99-Desconhecido' não está ligado a nenhum secador"),
         (4, "Produto", "Produto 'Erva que não existe' não é uma erva cadastrada"),
         (5, "Quantidade", "Campo obrigatório vazio"),
-        (6, None, "Data inválida"),
+        (6, "Data", "Data inválida"),
         (7, None, "Quantidade e duração não podem ser negativas"),
     ]
     assert apontamentos(banco) == []
@@ -177,3 +177,55 @@ def test_secador_com_codigo_infinity_repetido_responde_409(cliente, banco):
 
     assert resposta.status_code == 409
     assert "já está no secador SEC-1" in resposta.json()["detail"]
+
+
+# --- Números que quebravam o banco e erros sem linha (QA A6) ---
+
+
+@pytest.mark.parametrize(
+    ("campos", "coluna", "mensagem"),
+    [
+        ({"Quantidade": "NaN"}, "Quantidade", "Número inválido"),
+        ({"Quantidade": "Infinity"}, "Quantidade", "Número inválido"),
+        ({"Temperatura": "-inf"}, "Temperatura", "Número inválido"),
+        ({"Quantidade": "1234567890"}, "Quantidade", "Quantidade grande demais"),
+        ({"Duração": "1e7"}, "Duração", "Duração grande demais"),
+        ({"Temperatura": "12345"}, "Temperatura", "Temperatura grande demais"),
+        ({"Hora Inicial": "25:00"}, "Hora Inicial", "Hora inválida"),
+        ({"Data": "31/12/9999", "Hora Inicial": "23:00", "Hora Final": "01:00"}, "Data", "Data inválida"),
+    ],
+)
+def test_valor_fora_da_coluna_vira_erro_da_linha_com_a_coluna(banco, tmp_path, campos, coluna, mensagem):
+    ctx = importar(banco, tmp_path, [linha(), linha(**campos)])
+
+    assert [(e.linha, e.coluna, e.mensagem.split(":")[0]) for e in ctx.erros] == [(3, coluna, mensagem)]
+    assert apontamentos(banco) == []
+
+
+def test_valores_sao_arredondados_para_a_precisao_da_coluna(banco, tmp_path):
+    ctx = importar(banco, tmp_path, [linha(Quantidade="10,0004", Temperatura="60,456", Duração="150,004")])
+
+    assert ctx.total_erros == 0
+    (apontamento,) = apontamentos(banco)
+    assert (apontamento.quantidade_kg, apontamento.temperatura, apontamento.duracao_min) == (
+        Decimal("10.000"), Decimal("60.46"), Decimal("150.00"),
+    )
+
+
+def test_falha_inesperada_numa_linha_aponta_a_linha(banco, tmp_path, monkeypatch):
+    from app.importacao.parsers import infinity
+
+    original = infinity._hora
+
+    def hora_com_bug(valor):
+        if valor == "09:45":
+            raise RuntimeError("bug simulado")  # nem ValueError nem ArithmeticError
+        return original(valor)
+
+    monkeypatch.setattr(infinity, "_hora", hora_com_bug)
+
+    ctx = importar(banco, tmp_path, [linha(), linha(**{"Hora Final": "09:45"})])
+
+    assert [(e.linha, e.mensagem) for e in ctx.erros] == [
+        (3, "Não foi possível ler esta linha; confira os valores"),
+    ]

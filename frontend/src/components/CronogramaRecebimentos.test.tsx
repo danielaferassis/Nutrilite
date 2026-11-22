@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { escritas, renderizarTela } from '../test/apiFalsa';
+import { escritas, renderizarTela, respostaPendente } from '../test/apiFalsa';
 import { capturarDownloads, linhasCsv } from '../test/download';
 import CronogramaRecebimentos from './CronogramaRecebimentos';
 
@@ -121,5 +121,28 @@ describe('CronogramaRecebimentos', () => {
     expect(await screen.findByText('Aprovado (em parte)')).toBeInTheDocument();
     expect(screen.getByTestId('vigente-v1')).toHaveTextContent('01/12/2026 a 03/12/2026');
     expect(screen.getByTestId('vigente-v2')).toHaveTextContent('04/12/2026 a 07/12/2026');
+  });
+
+  it('duplo clique em registrar grava um recebimento só (QA A7)', async () => {
+    const usuario = userEvent.setup();
+    const pendente = respostaPendente({ ...RECEBIMENTO, id: 4, kg_fresco: '300.000' });
+    const { chamadas } = renderizarTela(
+      <CronogramaRecebimentos />,
+      rotas({ 'POST /recebimentos': pendente.rota }),
+      ['recebimento.registrar']
+    );
+
+    await usuario.click(await screen.findByText('Registrar chegada'));
+    await usuario.type(screen.getByLabelText('Kg de erva fresca recebidos'), '300');
+    const registrar = screen.getByRole('button', { name: /^Registrar$/ });
+    await usuario.dblClick(registrar);
+    await usuario.click(registrar);
+
+    expect(registrar).toBeDisabled();
+    pendente.responder();
+    await screen.findByText('Recebimento registrado');
+    expect(escritas(chamadas)).toEqual([
+      expect.objectContaining({ metodo: 'POST', caminho: '/recebimentos', corpo: expect.objectContaining({ kg_fresco: '300' }) }),
+    ]);
   });
 });

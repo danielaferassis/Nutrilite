@@ -36,7 +36,6 @@ pode_importar = requer_permissao("previsao.gerenciar")
 router = APIRouter(prefix="/previsoes/importacao", tags=["previsoes"])
 
 TAMANHO_MAXIMO = 20 * 1024 * 1024  # 20 MB, o mesmo das importações do Infinity
-_KG = Decimal("0.001")  # precisão da coluna kg_fresco
 
 
 async def _ler_arquivo(arquivo: UploadFile) -> bytes:
@@ -85,7 +84,7 @@ def _comparar(
     a_remover: list[PrevisaoOferta] = []
     vistas: set[int] = set()
     for nova in lida.previsoes:
-        kg = nova.kg.quantize(_KG)
+        kg = nova.kg  # já arredondado para a precisão da coluna na leitura
         iguais = por_chave.get((nova.talhao, nova.data), [])
         if not iguais:
             criar.append(LinhaImportacaoPrevisao(talhao=nova.talhao, data_chegada=nova.data, kg_fresco=kg))

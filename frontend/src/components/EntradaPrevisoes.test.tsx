@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import { USUARIO_TESTE, escritas, renderizarTela } from '../test/apiFalsa';
+import { USUARIO_TESTE, escritas, renderizarTela, respostaPendente } from '../test/apiFalsa';
 import EntradaPrevisoes from './EntradaPrevisoes';
 
 // Dados fictícios
@@ -95,5 +95,28 @@ describe('EntradaPrevisoes', () => {
     expect(screen.getByText('Registro manual')).toBeInTheDocument();
     expect(screen.getByLabelText('Quantidade de erva fresca (kg)')).toHaveValue(null);
     expect(escritas(chamadas)).toEqual([]);
+  });
+
+  it('duplo clique em salvar envia uma vez só (QA A7)', async () => {
+    const usuario = userEvent.setup();
+    const pendente = respostaPendente(previsao(1, { data_chegada: '2026-12-04' }));
+    const { chamadas } = renderizarTela(
+      <EntradaPrevisoes />,
+      { 'GET /previsoes': [previsao(1)], 'GET /ervas': ERVAS, 'PATCH /previsoes/1': pendente.rota },
+      ['previsao.gerenciar']
+    );
+
+    await usuario.click(await screen.findByText('Editar'));
+    const data = screen.getByLabelText('Data prevista de chegada');
+    await usuario.clear(data);
+    await usuario.type(data, '2026-12-04');
+    const salvar = screen.getByRole('button', { name: /Salvar alterações/ });
+    await usuario.dblClick(salvar);
+    await usuario.click(salvar);
+
+    expect(salvar).toBeDisabled();
+    pendente.responder();
+    await screen.findByText('Previsão #1 atualizada');
+    expect(escritas(chamadas)).toHaveLength(1);
   });
 });

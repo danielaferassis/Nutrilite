@@ -26,7 +26,7 @@ export class Resposta {
   ) {}
 }
 
-/** Chave "MÉTODO /caminho" → dados devolvidos com 200, uma Resposta ou uma função do corpo enviado. */
+/** Chave "MÉTODO /caminho" → dados devolvidos com 200, uma Resposta ou uma função do corpo enviado (pode ser async). */
 export type Rotas = Record<string, unknown | ((corpo: any) => unknown)>;
 
 export function instalarApiFalsa(rotas: Rotas) {
@@ -51,7 +51,7 @@ export function instalarApiFalsa(rotas: Rotas) {
         return new Response(JSON.stringify({ detail: `Rota não prevista no teste: ${chave}` }), { status: 404 });
       }
       const rota = rotas[chave];
-      let resposta = typeof rota === 'function' ? rota(corpo) : rota;
+      let resposta = typeof rota === 'function' ? await rota(corpo) : rota;
       if (!(resposta instanceof Resposta)) resposta = new Resposta(metodo === 'DELETE' ? 204 : 200, resposta);
       const { status, corpo: dados } = resposta as Resposta;
       return new Response(status === 204 ? null : JSON.stringify(dados), { status });
@@ -87,3 +87,15 @@ export function renderizarTela(tela: ReactElement, rotas: Rotas, permissoes: str
 
 /** Só as chamadas que alteram dados (POST, PATCH, DELETE). */
 export const escritas = (chamadas: Chamada[]) => chamadas.filter((c) => c.metodo !== 'GET');
+
+/**
+ * Resposta que só chega quando o teste chamar `responder`: deixa a tela no meio
+ * do envio, para conferir o que acontece com um segundo clique (ex.: duplo clique).
+ */
+export function respostaPendente(dados: unknown = null) {
+  let responder!: () => void;
+  const pronta = new Promise<unknown>((resolve) => {
+    responder = () => resolve(dados);
+  });
+  return { rota: () => pronta, responder };
+}

@@ -15,6 +15,7 @@ produto, lote, quantidade, horário de início e fim e duração. Vira uma linha
 """
 
 import csv
+import logging
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from io import StringIO
@@ -47,6 +48,16 @@ ROTULO = {campo: nomes[0] for campo, nomes in COLUNAS.items()}
 
 # Até onde procurar o cabeçalho numa planilha (pode haver título antes)
 LINHAS_CABECALHO = 20
+
+# Precisão e teto das colunas numéricas de apontamento_secagem
+# (quantidade_kg Numeric(12,3), duracao_min Numeric(8,2), temperatura Numeric(6,2))
+FAIXAS = {
+    "quantidade": (Decimal("0.001"), Decimal("999999999.999")),
+    "duracao": (Decimal("0.01"), Decimal("999999.99")),
+    "temperatura": (Decimal("0.01"), Decimal("9999.99")),
+}
+
+log = logging.getLogger(__name__)
 
 
 # --- Leitura do arquivo -------------------------------------------------------
@@ -138,9 +149,27 @@ def _numero(valor) -> Decimal:
     if "," in texto:
         texto = texto.replace(".", "").replace(",", ".")
     try:
-        return Decimal(texto)
+        numero = Decimal(texto)
     except InvalidOperation as erro:
         raise ValueError(f"Número inválido: {valor!r}") from erro
+    if not numero.is_finite():  # 'NaN', 'Infinity', float('inf')
+        raise ValueError(f"Número inválido: {valor!r}")
+    return numero
+
+
+def _na_faixa(numero: Decimal, campo: str) -> Decimal:
+    """Arredonda para a precisão da coluna e confere o teto depois de arredondar."""
+    precisao, maximo = FAIXAS[campo]
+    arredondado = numero.quantize(precisao)
+    if abs(arredondado) > maximo:
+        raise ValueError(f"{ROTULO[campo]} grande demais: {numero}")
+    return arredondado
+
+
+class _ErroCampo(Exception):
+    def __init__(self, coluna: str, mensagem: str):
+        super().__init__(mensagem)
+        self.coluna = coluna
 
 
 def _texto(valor, tamanho: int) -> str | None:
@@ -204,23 +233,39 @@ def importar_infinity(ctx: ContextoImportacao) -> int:
             ctx.erro_linha(numero, f"Produto {produto!r} não é uma erva cadastrada", coluna=ROTULO["produto"])
             continue
 
+        def ler(campo: str, conversor):
+            valor = celula(linha, campo)
+            try:
+                return conversor(valor)
+            except (ValueError, ArithmeticError) as erro:  # InvalidOperation, OverflowError…
+                raise _ErroCampo(ROTULO[campo], str(erro) or f"Valor inválido: {valor!r}") from erro
+
         try:
-            dia = _data(celula(linha, "data"))
-            inicio = datetime.combine(dia, _hora(celula(linha, "hora_inicial")))
-            fim = datetime.combine(dia, _hora(celula(linha, "hora_final")))
-            if fim <= inicio:  # carga que passa da meia-noite
-                fim += timedelta(days=1)
-            quantidade = _numero(celula(linha, "quantidade"))
-            bruta = celula(linha, "duracao")
-            duracao = (
-                Decimal((fim - inicio).total_seconds() / 60).quantize(Decimal("0.01"))
-                if bruta in (None, "")
-                else _numero(bruta)
+            dia = ler("data", _data)
+            hora_inicial = ler("hora_inicial", _hora)
+            hora_final = ler("hora_final", _hora)
+            try:
+                inicio = datetime.combine(dia, hora_inicial)
+                fim = datetime.combine(dia, hora_final)
+                if fim <= inicio:  # carga que passa da meia-noite
+                    fim += timedelta(days=1)
+            except OverflowError as erro:  # 31/12/9999 virando o dia
+                raise _ErroCampo(ROTULO["data"], f"Data inválida: {dia:%d/%m/%Y}") from erro
+            quantidade = ler("quantidade", lambda v: _na_faixa(_numero(v), "quantidade"))
+            if celula(linha, "duracao") in (None, ""):
+                duracao = _na_faixa(Decimal((fim - inicio).total_seconds() / 60), "duracao")
+            else:
+                duracao = ler("duracao", lambda v: _na_faixa(_numero(v), "duracao"))
+            temperatura = (
+                None if celula(linha, "temperatura") in (None, "")
+                else ler("temperatura", lambda v: _na_faixa(_numero(v), "temperatura"))
             )
-            temperatura_bruta = celula(linha, "temperatura")
-            temperatura = None if temperatura_bruta in (None, "") else _numero(temperatura_bruta)
-        except ValueError as erro:
-            ctx.erro_linha(numero, str(erro))
+        except _ErroCampo as erro:
+            ctx.erro_linha(numero, str(erro), coluna=erro.coluna)
+            continue
+        except Exception:  # não previsto: aponta a linha em vez de derrubar o arquivo
+            log.exception("Erro inesperado na linha %s do Infinity", numero)
+            ctx.erro_linha(numero, "Não foi possível ler esta linha; confira os valores")
             continue
         if quantidade < 0 or duracao < 0:
             ctx.erro_linha(numero, "Quantidade e duração não podem ser negativas")

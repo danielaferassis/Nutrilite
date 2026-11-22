@@ -4,7 +4,7 @@ As planilhas são montadas aqui, com números fictícios, no mesmo layout da
 "Programação Produção Ervas" da fazenda. Nenhum arquivo real entra no repositório.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from io import BytesIO
 
@@ -297,3 +297,119 @@ def test_pedidos_invalidos(cliente, campos, nome, status):
     resposta = enviar(cliente, planilha({}), nome=nome, **campos)
 
     assert resposta.status_code == status
+
+
+# --- Datas digitadas errado (QA A5) e números que quebravam o banco (QA A6) ---
+
+
+def _erros(lida) -> list[tuple[int, str, str]]:
+    return [(e.linha, e.coluna, e.mensagem) for e in lida.erros]
+
+
+def test_ano_trocado_no_meio_vira_erro_e_nao_estica_o_periodo():
+    dias = [date(2026, 12, 1), date(2026, 12, 2), date(2028, 12, 3), date(2026, 12, 4), date(2026, 12, 5)]
+    conteudo = planilha({("Talhão 01", d): 100 for d in dias}, dias=dias)
+
+    lida = ler_aba(conteudo, "Erva A 2026")
+
+    assert (lida.de, lida.ate) == (date(2026, 12, 1), date(2026, 12, 5))
+    [(linha, coluna, mensagem)] = _erros(lida)
+    assert (linha, coluna) == (6, "B")
+    assert "03/12/2028 fora do período da aba" in mensagem and "confira o ano" in mensagem
+    assert date(2028, 12, 3) not in {p.data for p in lida.previsoes}
+
+
+def test_mes_trocado_no_meio_vira_erro_de_ordem():
+    dias = [date(2026, 12, 1), date(2026, 12, 2), date(2027, 2, 3), date(2026, 12, 4), date(2026, 12, 5)]
+
+    lida = ler_aba(planilha({}, dias=dias), "Erva A 2026")
+
+    assert [(linha, mensagem.split(" (")[0]) for linha, _, mensagem in _erros(lida)] == [
+        (6, "Data 03/02/2027 fora da ordem"),
+    ]
+    assert (lida.de, lida.ate) == (date(2026, 12, 1), date(2026, 12, 5))
+
+
+@pytest.mark.parametrize(
+    ("dias", "linha"),
+    [
+        # última linha: mês trocado para frente (esticaria o período em dois meses)
+        ([date(2026, 12, d) for d in (1, 2, 3, 4)] + [date(2027, 2, 5)], 8),
+        # última linha: fora de ordem
+        ([date(2026, 12, d) for d in (2, 3, 4, 5)] + [date(2026, 11, 1)], 8),
+        # primeira linha: ano anterior perto o bastante da mediana, mas longe da vizinha
+        ([date(2026, 9, 1)] + [date(2026, 12, d) for d in (2, 3, 4, 5)], 4),
+    ],
+)
+def test_data_errada_na_ponta_vira_erro(dias, linha):
+    lida = ler_aba(planilha({}, dias=dias), "Erva A 2026")
+
+    assert [(e.linha, "não segue a sequência" in e.mensagem) for e in lida.erros] == [(linha, True)]
+    assert (lida.ate - lida.de).days <= 4
+
+
+def test_sequencia_normal_de_um_ano_nao_tem_erro():
+    dias = [date(2026, 12, 1) + timedelta(days=k) for k in range(365)]
+
+    lida = ler_aba(planilha({}, dias=dias), "Erva A 2026")
+
+    assert lida.erros == []
+    assert (lida.de, lida.ate) == (dias[0], dias[-1])
+
+
+@pytest.mark.parametrize(
+    ("valor", "mensagem"),
+    [
+        (0.0004, "Quantidade menor que 0,001 kg"),
+        ("0,0004", "Quantidade menor que 0,001 kg"),
+        ("NaN", "Valor não numérico"),
+        ("nan", "Valor não numérico"),
+        ("Infinity", "Valor não numérico"),
+        ("-Infinity", "Valor não numérico"),
+        (1e10, "Quantidade grande demais"),
+        ("1234567890", "Quantidade grande demais"),
+    ],
+)
+def test_numeros_fora_da_coluna_viram_erro_da_celula(valor, mensagem):
+    lida = ler_aba(planilha({("Talhão 01", DIAS[0]): valor}), "Erva A 2026")
+
+    assert [(e.linha, e.coluna, e.mensagem.split(":")[0]) for e in lida.erros] == [(4, "F", mensagem)]
+    assert lida.previsoes == []
+
+
+def test_kg_e_arredondado_para_a_precisao_da_coluna():
+    lida = ler_aba(planilha({("Talhão 01", DIAS[0]): 0.0006, ("Talhão 02", DIAS[0]): "999999999,999"}),
+                   "Erva A 2026")
+
+    assert lida.erros == []
+    assert [p.kg for p in lida.previsoes] == [Decimal("0.001"), Decimal("999999999.999")]
+
+
+def test_ano_trocado_nao_apaga_previsoes_de_outro_ano(cliente, db):
+    """O cenário do QA: uma linha com 2028 removia as previsões de 2027 da mesma erva."""
+    de_2027 = PrevisaoOferta(erva_id=1, origem=Origem.FAZENDA_PROPRIA, data_chegada=date(2027, 6, 1),
+                             kg_fresco=Decimal(70), talhao="Talhão 01", criado_por_id=PCP)
+    db.add(de_2027)
+    db.commit()
+    dias = DIAS[:2] + [date(2028, 12, 3)] + DIAS[3:]
+    conteudo = planilha({("Talhão 01", d): 100 for d in dias}, dias=dias)
+
+    previa = enviar(cliente, conteudo, aba="Erva A 2026", erva_id=1)
+    aplicar = enviar(cliente, conteudo, confirmar=True, aba="Erva A 2026", erva_id=1)
+
+    assert previa.status_code == 200
+    assert previa.json()["ate"] == "2026-12-05" and previa.json()["remover"] == []
+    assert aplicar.status_code == 422
+    assert previsoes(db) == [("Talhão 01", 1, Decimal("70.000"), Origem.FAZENDA_PROPRIA)]
+
+
+@pytest.mark.parametrize("valor", ["NaN", 0.0004, "Infinity"])
+def test_numero_invalido_nao_da_erro_500(cliente, db, valor):
+    conteudo = planilha({("Talhão 01", DIAS[0]): valor})
+
+    previa = enviar(cliente, conteudo, aba="Erva A 2026", erva_id=1)
+    aplicar = enviar(cliente, conteudo, confirmar=True, aba="Erva A 2026", erva_id=1)
+
+    assert previa.status_code == 200 and len(previa.json()["erros"]) == 1
+    assert aplicar.status_code == 422
+    assert previsoes(db) == []

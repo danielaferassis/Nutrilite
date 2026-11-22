@@ -30,6 +30,18 @@ from app.texto import normalizar
 # Até onde procurar o cabeçalho ("Mês") no topo da aba
 LINHAS_CABECALHO = 30
 
+# Uma aba cobre no máximo uma campanha (~1 ano). Data mais longe que isto da
+# mediana das datas da aba é erro de digitação (ex.: 2028 no lugar de 2026):
+# se passasse, esticaria o período sincronizado e apagaria previsões de fora.
+DIAS_MAXIMOS_DA_MEDIANA = 200
+# A primeira e a última data definem o período: separadas da vizinha por mais
+# que isto (a planilha tem uma linha por dia), também são tratadas como erro.
+DIAS_MAXIMOS_NA_PONTA = 31
+
+# Precisão e teto da coluna kg_fresco (Numeric(12, 3))
+KG_PRECISAO = Decimal("0.001")
+KG_MAXIMO = Decimal("999999999.999")
+
 
 class ErroPlanilha(Exception):
     """A aba inteira não pode ser lida (layout desconhecido). Mensagem para o usuário."""
@@ -110,9 +122,12 @@ def _kg(valor: object) -> Decimal:
     if "," in texto:
         texto = texto.replace(".", "").replace(",", ".")
     try:
-        return Decimal(texto)
+        numero = Decimal(texto)
     except InvalidOperation as erro:
         raise ValueError from erro
+    if not numero.is_finite():  # 'NaN', 'Infinity', float('inf')
+        raise ValueError
+    return numero
 
 
 def ler_aba(conteudo: bytes, aba: str) -> AbaLida:
@@ -164,6 +179,10 @@ def ler_aba(conteudo: bytes, aba: str) -> AbaLida:
             erva = str(acima[primeira]).strip()
 
     resultado = AbaLida(aba=aba, erva=erva, talhoes=list(talhoes.values()), de=None, ate=None)
+
+    # 1ª passada: datas de cada linha (a validação do período precisa de todas)
+    linhas_com_data: list[tuple[int, date, dict[int, object]]] = []
+    coluna_datas = get_column_letter(coluna_data + 1)
     datas_vistas: dict[date, int] = {}
     for i in range(cabecalho + 1, len(linhas)):
         linha = linhas[i]
@@ -176,25 +195,30 @@ def ler_aba(conteudo: bytes, aba: str) -> AbaLida:
         bruto = linha[coluna_data] if coluna_data < len(linha) else None
         if bruto in (None, ""):
             if preenchidas:
-                resultado.erros.append(ErroCelula(
-                    numero, get_column_letter(coluna_data + 1), "Linha com valores, mas sem data"
-                ))
+                resultado.erros.append(ErroCelula(numero, coluna_datas, "Linha com valores, mas sem data"))
             continue
         try:
             dia = _data(bruto)
         except ValueError:
-            resultado.erros.append(ErroCelula(
-                numero, get_column_letter(coluna_data + 1), f"Data inválida: {bruto!r}"
-            ))
+            resultado.erros.append(ErroCelula(numero, coluna_datas, f"Data inválida: {bruto!r}"))
             continue
         if dia in datas_vistas:
             resultado.erros.append(ErroCelula(
                 numero,
-                get_column_letter(coluna_data + 1),
+                coluna_datas,
                 f"Data {dia:%d/%m/%Y} repetida (já aparece na linha {datas_vistas[dia]})",
             ))
             continue
         datas_vistas[dia] = numero
+        linhas_com_data.append((numero, dia, preenchidas))
+
+    suspeitas = _datas_suspeitas([dia for _, dia, _ in linhas_com_data])
+
+    # 2ª passada: período e quantidades, só com as datas plausíveis
+    for k, (numero, dia, preenchidas) in enumerate(linhas_com_data):
+        if k in suspeitas:
+            resultado.erros.append(ErroCelula(numero, coluna_datas, suspeitas[k]))
+            continue
         resultado.de = dia if resultado.de is None else min(resultado.de, dia)
         resultado.ate = dia if resultado.ate is None else max(resultado.ate, dia)
 
@@ -207,6 +231,61 @@ def ler_aba(conteudo: bytes, aba: str) -> AbaLida:
                 continue
             if kg < 0:
                 resultado.erros.append(ErroCelula(numero, coluna, f"Quantidade negativa: {kg}"))
-            elif kg > 0:  # zero = nada previsto
-                resultado.previsoes.append(PrevisaoLida(talhoes[j], dia, kg, numero, coluna))
+                continue
+            if kg == 0:
+                continue  # zero = nada previsto
+            arredondado = kg.quantize(KG_PRECISAO)  # faixa conferida depois de arredondar
+            if arredondado == 0:
+                resultado.erros.append(ErroCelula(
+                    numero, coluna, f"Quantidade menor que 0,001 kg: {valor!r}"
+                ))
+            elif arredondado > KG_MAXIMO:
+                resultado.erros.append(ErroCelula(numero, coluna, f"Quantidade grande demais: {valor!r}"))
+            else:
+                resultado.previsoes.append(PrevisaoLida(talhoes[j], dia, arredondado, numero, coluna))
+    resultado.erros.sort(key=lambda e: (e.linha, len(e.coluna), e.coluna))  # ordem do Excel
     return resultado
+
+
+def _datas_suspeitas(datas: list[date]) -> dict[int, str]:
+    """Índice → motivo, para as datas que parecem digitadas errado.
+
+    A planilha vem em ordem cronológica. Duas regras, ambas explicáveis:
+    - longe demais da mediana das datas da aba (ano trocado);
+    - fora da ordem: depois da próxima linha e antes da anterior não bate
+      (mês ou dia trocado no meio de uma sequência);
+    - na primeira e na última linha, que definem o período: fora de ordem ou
+      longe demais da vizinha.
+    """
+    if not datas:
+        return {}
+    ordenadas = sorted(datas)
+    mediana = ordenadas[len(ordenadas) // 2]
+    suspeitas: dict[int, str] = {}
+    for k, dia in enumerate(datas):
+        if abs((dia - mediana).days) > DIAS_MAXIMOS_DA_MEDIANA:
+            suspeitas[k] = (
+                f"Data {dia:%d/%m/%Y} fora do período da aba (as demais estão perto de "
+                f"{mediana:%m/%Y}); confira o ano"
+            )
+    restantes = [k for k in range(len(datas)) if k not in suspeitas]
+    for antes, k, depois in zip(restantes, restantes[1:], restantes[2:]):
+        anterior, proxima = datas[antes], datas[depois]
+        if anterior < proxima and not anterior < datas[k] < proxima:
+            suspeitas[k] = (
+                f"Data {datas[k]:%d/%m/%Y} fora da ordem (fica entre {anterior:%d/%m/%Y} "
+                f"e {proxima:%d/%m/%Y}); confira dia e mês"
+            )
+    restantes = [k for k in restantes if k not in suspeitas]
+    if len(restantes) >= 2:
+        for ponta, vizinha in ((restantes[0], restantes[1]), (restantes[-1], restantes[-2])):
+            primeira = ponta == restantes[0]
+            fora_de_ordem = datas[ponta] >= datas[vizinha] if primeira else datas[ponta] <= datas[vizinha]
+            distancia = abs((datas[ponta] - datas[vizinha]).days)
+            if fora_de_ordem or distancia > DIAS_MAXIMOS_NA_PONTA:
+                suspeitas[ponta] = (
+                    f"Data {datas[ponta]:%d/%m/%Y} não segue a sequência da aba "
+                    f"(a {'próxima' if primeira else 'anterior'} é {datas[vizinha]:%d/%m/%Y}); "
+                    "confira a data"
+                )
+    return suspeitas

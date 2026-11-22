@@ -29,6 +29,9 @@ Feitas na mesma branch, com teste de regressão. Cada teste foi rodado contra o 
 | A3: escalada de privilégio | **Corrigido.** Ninguém concede permissão que não tem. Vale também para **criar** usuário admin e para dar ou reativar funcionalidades de grupo, dois casos que apareceram durante a correção. | `test_acesso_protecoes.py` |
 | A4: sistema sem administrador | **Corrigido**: 409 nos cinco caminhos. | `test_acesso_protecoes.py` |
 | M13: excluir usuário com histórico | **Corrigido**: 409 com "desative-o". | `test_acesso_protecoes.py` |
+| A5: data errada estica o período | **Corrigido.** Data longe da mediana da aba (ano trocado), fora da ordem no meio da sequência ou desgarrada na primeira/última linha vira erro da célula; o período só usa as datas plausíveis e nada é gravado enquanto houver erro. | `test_importacao_previsoes.py` |
+| A6: número "válido" dá 500 | **Corrigido.** `NaN`/`Infinity` viram "valor não numérico"; a faixa é conferida **depois** do arredondamento (menor que 0,001 kg e acima do teto da coluna são erro da célula). No Infinity, o erro indica linha e coluna, e uma falha imprevista vira erro daquela linha. | `test_importacao_previsoes.py` e `test_importacao_infinity.py` |
+| A7: duplo clique grava duas vezes | **Já resolvido** na modernização do front (`Button` com `carregando` fica desabilitado). Faltava teste: agora há um de duplo clique com a resposta pendente em Previsões, Bloqueios e Recebimentos. | `EntradaPrevisoes`, `Bloqueios` e `CronogramaRecebimentos.test.tsx` |
 | Rota de exemplo `/api/items` | **Removida.** O front não a usava; a tabela continua, porque só muda por migration. | `test_rotas_protegidas.py` |
 
 **Testes para pegar problemas semelhantes:**
@@ -36,7 +39,7 @@ Feitas na mesma branch, com teste de regressão. Cada teste foi rodado contra o 
 - **Invariantes do motor** (`tests/planner/test_invariantes.py`): 300 cenários aleatórios × 2 testes. No motor antigo, 78 deles falharam.
 - **Varredura das rotas** (`tests/test_rotas_protegidas.py`): exige 401 sem sessão e permissão específica em toda rota que altera dados.
 
-A suíte passou de 285 para 1.006 testes no backend.
+A suíte passou de 285 para 1.006 testes no backend (1.043 depois do A5–A7).
 
 ---
 
