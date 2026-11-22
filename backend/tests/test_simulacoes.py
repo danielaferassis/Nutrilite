@@ -96,7 +96,12 @@ def test_demanda_sem_oferta_gera_atraso_e_saldo(cliente, cadastro):
     resposta = simular(cliente)
 
     assert sorted(tipos(resposta)) == ["atraso", "saldo_nao_alocado"]
-    assert resposta.json()["kpis"]["saldo_nao_alocado_kg"]["ERVA-A"] == pytest.approx(625)
+    kpis = resposta.json()["kpis"]
+    assert kpis["nao_atendido_no_prazo_kg"]["ERVA-A"] == pytest.approx(625)
+    assert kpis["falta_de_oferta_kg"]["ERVA-A"] == pytest.approx(625)
+    # Os kg aparecem uma vez só nas pendências (QA M3)
+    kg = {p["tipo"]: p["kg"] for p in resposta.json()["pendencias"]}
+    assert kg["atraso"] == pytest.approx(625) and kg["saldo_nao_alocado"] is None
 
 
 def test_demanda_vencida_nao_entra_e_futura_entra_sem_atraso(cliente, cadastro):

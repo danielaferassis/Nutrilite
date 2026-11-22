@@ -208,14 +208,28 @@ def test_invariantes_do_plano(semente):
             assert pct is None, f"{msg}: ocupação sem dia disponível deve ser None"
         else:
             assert 0 <= pct <= 100 + 0.05, f"{msg}: ocupação {pct}%"
-    for erva, kg in kpis["saldo_nao_alocado_kg"].items():
+    # Não atendido no prazo = soma dos ATRASO da erva; falta de oferta só onde há
+    # SALDO_NAO_ALOCADO, que não carrega kg (os mesmos kg não aparecem duas vezes)
+    atraso_erva = defaultdict(float)
+    for p in r.pendencias:
+        if p.tipo == TipoPendencia.ATRASO:
+            atraso_erva[p.erva] += p.kg
+    for erva, kg in kpis["nao_atendido_no_prazo_kg"].items():
         assert kg >= 0, msg
+        assert math.isclose(kg, atraso_erva[erva], abs_tol=1e-3), f"{msg}: não atendido ≠ atrasos de {erva}"
+    sem_oferta = {p.erva for p in r.pendencias if p.tipo == TipoPendencia.SALDO_NAO_ALOCADO}
+    assert set(kpis["falta_de_oferta_kg"]) == sem_oferta, msg
+    for p in r.pendencias:
+        if p.tipo == TipoPendencia.SALDO_NAO_ALOCADO:
+            assert p.kg is None, f"{msg}: falta de oferta não repete os kg do atraso"
+            assert atraso_erva[p.erva] > 0, f"{msg}: falta de oferta sem atraso em {p.erva}"
 
     # Perda: fecha com as pendências e fica dentro da oferta de cada erva
     oferta = defaultdict(float)
     perdido_erva = defaultdict(float)
     for lote in entrada.lotes:
-        if lote.erva not in incompletas:
+        entra = lote.data_chegada <= entrada.fim and vencimento(entrada, lote) >= entrada.inicio
+        if lote.erva not in incompletas and entra:
             oferta[lote.erva] += lote.kg_fresco
             perdido_erva[lote.erva] += perdido[lote.id]
     assert set(kpis["kg_perdido"]) == set(oferta), f"{msg}: toda erva com oferta aparece na perda"

@@ -88,8 +88,10 @@ def simular(entrada: EntradaPlanejamento) -> ResultadoPlano:
             demandas=[d for d in entrada.demandas if d.erva not in incompletas],
         )
 
-    _alocar(entrada, resultado)
-    resultado.kpis = _calcular_kpis(entrada, resultado)
+    alocador = _alocar(entrada, resultado)
+    resultado.kpis = _calcular_kpis(
+        entrada, resultado, oferta=alocador.oferta(), falta_de_oferta=alocador.falta_de_oferta()
+    )
     log.info(
         "Simulação concluída: %d alocação(ões), %d pendência(s)",
         len(resultado.alocacoes),
@@ -134,7 +136,7 @@ class _Plano:
     encerra_campanha: bool
 
 
-def _alocar(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> None:
+def _alocar(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> "_Alocador":
     """Alocação gulosa dia a dia. Regras e premissas no README do planner.
 
     Para cada dia do horizonte:
@@ -156,7 +158,9 @@ def _alocar(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> None:
     falta para ela ainda pode vir de oferta posterior ao horizonte (KPI
     `a_cobrir_apos_horizonte_kg`, sem pendência).
     """
-    _Alocador(entrada, resultado).executar()
+    alocador = _Alocador(entrada, resultado)
+    alocador.executar()
+    return alocador
 
 
 class _Alocador:
@@ -402,28 +406,54 @@ class _Alocador:
                 )
 
     def _registrar_sem_oferta(self) -> None:
+        """Causa dos atrasos de uma erva: a oferta do horizonte não chega à necessidade.
+
+        Os kg ficam só nos ATRASO (efeito, por demanda). Esta pendência não leva
+        `kg`, para ninguém somar a mesma falta duas vezes; o número vai na mensagem
+        e no KPI `falta_de_oferta_kg`.
+        """
+        for erva, falta in sorted(self.falta_de_oferta().items()):
+            atrasadas = [
+                p.demanda_id
+                for p in self.resultado.pendencias
+                if p.tipo == TipoPendencia.ATRASO and p.erva == erva
+            ]
+            efeito = (
+                f": explica o atraso da(s) demanda(s) {', '.join(atrasadas)} acima"
+                if atrasadas
+                else ""
+            )
+            self.resultado.pendencias.append(
+                Pendencia(
+                    tipo=TipoPendencia.SALDO_NAO_ALOCADO,
+                    mensagem=(
+                        f"Faltam {falta:.1f} kg de oferta de {erva} fresca no horizonte "
+                        f"(necessidade {self._necessidade_no_horizonte()[erva]:.1f} kg, oferta prevista "
+                        f"{self.oferta()[erva]:.1f} kg){efeito}"
+                    ),
+                    erva=erva,
+                )
+            )
+
+    def _necessidade_no_horizonte(self) -> dict[str, float]:
         necessidade: dict[str, float] = defaultdict(float)
-        oferta: dict[str, float] = defaultdict(float)
         for n in self.necessidades:
             if self._vence_no_horizonte(n):
                 necessidade[n.necessidade.erva] += n.necessidade.kg_fresco
+        return necessidade
+
+    def oferta(self) -> dict[str, float]:
+        """Por erva: kg dos lotes que podem ser secados dentro do horizonte."""
+        oferta: dict[str, float] = defaultdict(float)
         for lote in self.lotes:
             oferta[lote.lote.erva] += lote.lote.kg_fresco
+        return oferta
 
-        for erva in sorted(necessidade):
-            falta = necessidade[erva] - oferta[erva]
-            if falta > _EPS:
-                self.resultado.pendencias.append(
-                    Pendencia(
-                        tipo=TipoPendencia.SALDO_NAO_ALOCADO,
-                        mensagem=(
-                            f"Necessidade de {necessidade[erva]:.1f} kg de {erva} fresca, mas só há "
-                            f"{oferta[erva]:.1f} kg de oferta prevista no horizonte"
-                        ),
-                        erva=erva,
-                        kg=round(falta, 3),
-                    )
-                )
+    def falta_de_oferta(self) -> dict[str, float]:
+        """Por erva: necessidade com prazo no horizonte − oferta prevista, quando positiva."""
+        necessidade, oferta = self._necessidade_no_horizonte(), self.oferta()
+        faltas = {erva: necessidade[erva] - oferta[erva] for erva in necessidade}
+        return {erva: falta for erva, falta in faltas.items() if falta > _EPS}
 
 
 def _ordem_secador(candidato: tuple[str, _Plano]) -> tuple:
@@ -466,13 +496,21 @@ def _dias(inicio: date, fim: date) -> Iterator[date]:
 # ---------------------------------------------------------------------------
 
 
-def _calcular_kpis(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> dict[str, object]:
-    """Ocupação em horas por secador e saldo não alocado em kg por erva.
+def _calcular_kpis(
+    entrada: EntradaPlanejamento,
+    resultado: ResultadoPlano,
+    *,
+    oferta: dict[str, float],
+    falta_de_oferta: dict[str, float],
+) -> dict[str, object]:
+    """Ocupação em horas por secador e, por erva, kg não atendidos, falta de oferta e perda.
 
     Ocupação = (horas de secagem + setup) / (24 h × dias disponíveis). Secador
     sem nenhum dia disponível → None ("não aplicável"), nunca 0.
-    Saldo não alocado = necessidade de fresco não coberta até o prazo, das
-    demandas que vencem até o `fim`. A cobrir após o horizonte = o mesmo para
+    Não atendido no prazo = necessidade de fresco não coberta até o prazo, das
+    demandas que vencem até o `fim` (por erva, a soma dos ATRASO). Falta de
+    oferta = necessidade com prazo no horizonte − oferta prevista (a causa,
+    quando há SALDO_NAO_ALOCADO; não se soma com o não atendido). A cobrir após o horizonte = o mesmo para
     as demandas que vencem depois do `fim` (informativo, não é pendência).
     Perda = kg de erva fresca dos lotes que venceram sem secador até o `fim`
     (as pendências CAPACIDADE_EXCEDIDA). Toda erva com oferta aparece, com 0
@@ -497,18 +535,15 @@ def _calcular_kpis(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> d
         if a.demanda_id is not None:
             atendido[a.demanda_id] += a.kg_fresco
 
-    saldo: dict[str, float] = defaultdict(float)
+    nao_atendido: dict[str, float] = defaultdict(float)
     a_cobrir_depois: dict[str, float] = defaultdict(float)
     for n in resultado.necessidades:
         falta = max(0.0, n.kg_fresco - atendido[n.demanda_id])
         if n.prazo <= entrada.fim:
-            saldo[n.erva] += falta
+            nao_atendido[n.erva] += falta
         elif falta > _EPS:
             a_cobrir_depois[n.erva] += falta
 
-    oferta: dict[str, float] = defaultdict(float)
-    for lote in entrada.lotes:
-        oferta[lote.erva] += lote.kg_fresco
     perdido: dict[str, float] = {erva: 0.0 for erva in oferta}
     for p in resultado.pendencias:
         if p.tipo == TipoPendencia.CAPACIDADE_EXCEDIDA and p.lote_id is not None and p.erva in perdido:
@@ -521,7 +556,8 @@ def _calcular_kpis(entrada: EntradaPlanejamento, resultado: ResultadoPlano) -> d
             s: round(100 * horas_ocupadas[s] / h, 1) if h else None
             for s, h in horas_disponiveis.items()
         },
-        "saldo_nao_alocado_kg": {e: round(kg, 3) for e, kg in sorted(saldo.items())},
+        "nao_atendido_no_prazo_kg": {e: round(kg, 3) for e, kg in sorted(nao_atendido.items())},
+        "falta_de_oferta_kg": {e: round(kg, 3) for e, kg in sorted(falta_de_oferta.items())},
         "a_cobrir_apos_horizonte_kg": {e: round(kg, 3) for e, kg in sorted(a_cobrir_depois.items())},
         "kg_perdido": {e: round(kg, 3) for e, kg in sorted(perdido.items())},
         "perda_pct": {

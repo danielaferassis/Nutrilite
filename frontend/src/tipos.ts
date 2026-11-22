@@ -264,7 +264,10 @@ export interface Kpis {
   horas_ocupadas?: Record<string, number>;
   horas_disponiveis?: Record<string, number>;
   ocupacao_planejada_pct?: Record<string, number | null>;
-  saldo_nao_alocado_kg?: Record<string, number>;
+  /** Por erva: kg de fresco das demandas com prazo no horizonte que não foram cobertos (soma dos atrasos). */
+  nao_atendido_no_prazo_kg?: Record<string, number>;
+  /** Por erva: quanto a oferta do horizonte fica abaixo da necessidade (a causa; não somar com o não atendido). */
+  falta_de_oferta_kg?: Record<string, number>;
   /** Demandas que vencem depois do fim: o que ainda falta (informativo, não é pendência). */
   a_cobrir_apos_horizonte_kg?: Record<string, number>;
   /** Erva fresca que vence sem secador no horizonte, por erva (0 = sem perda). */
