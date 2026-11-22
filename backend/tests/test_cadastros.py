@@ -313,3 +313,31 @@ def test_exclui_secador_nunca_usado_e_recusa_com_bloqueio(cliente, cadastro, apo
     assert resposta.status_code == 409
     assert "1 bloqueio(s)" in resposta.json()["detail"]
     assert cadastro.get(Secador, 1) is not None
+
+
+
+@pytest.mark.parametrize(
+    "campos",
+    [
+        {"fresco_por_desidratado": "0.5"},  # menos fresco que desidratado: impossível (QA M8)
+        {"desidratado_por_moido": "0.9999"},
+    ],
+)
+def test_rendimento_menor_que_1_e_recusado(cliente, cadastro, campos):
+    cliente.logar(ADMIN_CADASTRO)
+
+    criar = cliente.post("/api/rendimentos", json={"erva_id": 2, **campos})
+    alterar = cliente.patch("/api/rendimentos/1", json=campos)
+
+    assert criar.status_code == alterar.status_code == 422
+    assert "maior ou igual a 1" in str(criar.json()["detail"])
+
+
+def test_rendimento_1_e_aceito(cliente, cadastro):
+    cliente.logar(ADMIN_CADASTRO)
+
+    resposta = cliente.post(
+        "/api/rendimentos", json={"erva_id": 2, "fresco_por_desidratado": "1", "desidratado_por_moido": "1"}
+    )
+
+    assert resposta.status_code == 201
