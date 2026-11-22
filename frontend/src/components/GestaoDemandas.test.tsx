@@ -117,4 +117,54 @@ describe('GestaoDemandas', () => {
     expect(screen.getByText('Demanda não encontrada')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Editar demanda #7')).toBeInTheDocument());
   });
+
+  it('demanda repetida: pergunta e só grava ao confirmar (QA M10)', async () => {
+    const usuario = userEvent.setup();
+    let tentativas = 0;
+    const { chamadas } = renderizarTela(
+      <GestaoDemandas />,
+      rotas({
+        'POST /demandas': (corpo: object) =>
+          ++tentativas === 1
+            ? new Resposta(409, { detail: 'Já existe a demanda #7 com a mesma erva, quantidade, estágio, prazo e prioridade.' })
+            : { ...DEMANDA, id: 8, ...corpo },
+      }),
+      ['demanda.gerenciar']
+    );
+
+    await usuario.click(await screen.findByRole('button', { name: 'Nova demanda' }));
+    const form = screen.getByRole('dialog', { name: 'Nova demanda' });
+    await usuario.selectOptions(within(form).getAllByRole('combobox')[0], '1');
+    await usuario.type(screen.getByLabelText('Quantidade líquida (kg)'), '120');
+    await usuario.type(screen.getByLabelText('Prazo'), '2026-12-10');
+    await usuario.click(screen.getByText('Salvar demanda'));
+
+    expect(await screen.findByText('Cadastrar demanda repetida?')).toBeInTheDocument();
+    expect(screen.getByText(/Já existe a demanda #7/)).toBeInTheDocument();
+    await usuario.click(screen.getByRole('button', { name: 'Cadastrar mesmo assim' }));
+
+    await screen.findByText('Demanda cadastrada');
+    expect(escritas(chamadas).map((c) => c.busca)).toEqual(['', '?confirmar_duplicada=true']);
+  });
+
+  it('demanda repetida: cancelar não grava e mantém o formulário', async () => {
+    const usuario = userEvent.setup();
+    const { chamadas } = renderizarTela(
+      <GestaoDemandas />,
+      rotas({ 'POST /demandas': new Resposta(409, { detail: 'Já existe a demanda #7.' }) }),
+      ['demanda.gerenciar']
+    );
+
+    await usuario.click(await screen.findByRole('button', { name: 'Nova demanda' }));
+    const form = screen.getByRole('dialog', { name: 'Nova demanda' });
+    await usuario.selectOptions(within(form).getAllByRole('combobox')[0], '1');
+    await usuario.type(screen.getByLabelText('Quantidade líquida (kg)'), '120');
+    await usuario.type(screen.getByLabelText('Prazo'), '2026-12-10');
+    await usuario.click(screen.getByText('Salvar demanda'));
+    const pergunta = await screen.findByRole('alertdialog', { name: 'Cadastrar demanda repetida?' });
+    await usuario.click(within(pergunta).getByRole('button', { name: 'Cancelar' }));
+
+    expect(escritas(chamadas)).toHaveLength(1);
+    expect(screen.getByRole('dialog', { name: 'Nova demanda' })).toBeInTheDocument();
+  });
 });

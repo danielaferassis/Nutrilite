@@ -54,13 +54,37 @@ def list_demandas(
     return demandas
 
 
+def ensure_nao_duplicada(data: DemandaCreate, db: Session) -> None:
+    """409 se já existe demanda igual (erva, kg, estágio, prazo e prioridade): seria somada duas vezes."""
+    igual = db.scalar(
+        select(Demanda.id).where(
+            Demanda.erva_id == data.erva_id,
+            Demanda.kg == data.kg,
+            Demanda.estagio == data.estagio,
+            Demanda.prazo == data.prazo,
+            Demanda.prioridade == data.prioridade,
+        )
+    )
+    if igual is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Já existe a demanda #{igual} com a mesma erva, quantidade, estágio, prazo e prioridade. "
+                "As duas seriam somadas na simulação. Se for mesmo outra demanda, confirme para gravar."
+            ),
+        )
+
+
 @router.post("", response_model=DemandaRead, status_code=201)
 def create_demanda(
     data: DemandaCreate,
+    confirmar_duplicada: bool = False,
     usuario: Usuario = Depends(pode_gerenciar),
     db: Session = Depends(get_db),
 ):
     ensure_erva_ativa(data.erva_id, db)
+    if not confirmar_duplicada:
+        ensure_nao_duplicada(data, db)
     demanda = Demanda(**data.model_dump(), criado_por_id=usuario.id)
     db.add(demanda)
     db.commit()
@@ -85,6 +109,9 @@ def update_demanda(
     campos = data.model_dump(exclude_unset=True)
     if "erva_id" in campos:
         ensure_erva_ativa(campos["erva_id"], db)
+    # Reserva só se compara depois de juntar o que veio com o que já existe
+    if campos.get("reserva_kg", demanda.reserva_kg) > campos.get("kg", demanda.kg):
+        raise HTTPException(status_code=422, detail="A reserva não pode ser maior que a demanda")
     for campo, valor in campos.items():
         setattr(demanda, campo, valor)
     db.commit()

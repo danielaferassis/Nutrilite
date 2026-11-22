@@ -196,11 +196,11 @@ export function FormularioErva({
 
         <Grupo titulo="Regime de secagem" />
         <Ajuda texto="Horas por dia em que a erva pode secar (24 = dia inteiro).">
-          <Input label="Regime (horas por dia)" type="number" min="0.01" max="24" step="0.01" placeholder="ex.: 12"
+          <Input label="Regime (horas por dia)" type="number" min="1" max="24" step="0.01" placeholder="ex.: 12"
             value={form.regime_horas_dia} onChange={alterar('regime_horas_dia')} />
         </Ajuda>
         <Ajuda texto="Dias que o fresco aguenta esperando secador; depois disso é perda.">
-          <Input label="Espera máxima do fresco (dias)" type="number" min="0" step="1" placeholder="ex.: 3"
+          <Input label="Espera máxima do fresco (dias)" type="number" min="0" max="365" step="1" placeholder="ex.: 3"
             value={form.espera_maxima_dias} onChange={alterar('espera_maxima_dias')} />
         </Ajuda>
         <div className="hidden md:block" />
@@ -427,16 +427,16 @@ export function FormularioCapacidade({
 
         <Grupo titulo="Setups (horas paradas para preparo e limpeza)" />
         <Ajuda texto="Preparo do secador ao começar a campanha desta erva.">
-          <Input label="Setup inicial (h)" type="number" min="0" step="0.01" placeholder="ex.: 1,5"
+          <Input label="Setup inicial (h)" type="number" min="0" max="24" step="0.01" placeholder="ex.: 1,5"
             value={form.setup_inicial_h} onChange={alterar('setup_inicial_h')} />
         </Ajuda>
         <Ajuda texto="Limpeza ao encerrar a campanha (antes de trocar de erva).">
-          <Input label="Setup final / limpeza (h)" type="number" min="0" step="0.01" placeholder="ex.: 2"
+          <Input label="Setup final / limpeza (h)" type="number" min="0" max="24" step="0.01" placeholder="ex.: 2"
             value={form.setup_final_h} onChange={alterar('setup_final_h')} />
         </Ajuda>
         {/* Na tabela do PCP é a coluna "Interv": 1 vez por dia */}
         <Ajuda texto='Parada de todo dia de operação (coluna "Interv" da planilha do PCP).'>
-          <Input label="Setup diário / Interv (h)" type="number" min="0" step="0.01" placeholder="ex.: 0,5"
+          <Input label="Setup diário / Interv (h)" type="number" min="0" max="24" step="0.01" placeholder="ex.: 0,5"
             value={form.setup_diario_h} onChange={alterar('setup_diario_h')} />
         </Ajuda>
         <Ajuda texto="Sim: o setup consome horas do regime da erva. Não: acontece fora dele.">
@@ -449,7 +449,7 @@ export function FormularioCapacidade({
 
         <Grupo titulo="Preferência" />
         <Ajuda texto="Ordem de escolha entre secadores para esta erva. Vazio: vai para o de maior capacidade no dia.">
-          <Input label="Prioridade (menor = preferido; vazio = sem preferência)" type="number" min="0" step="1" placeholder="ex.: 1"
+          <Input label="Prioridade (menor = preferido; vazio = sem preferência)" type="number" min="0" max="1000" step="1" placeholder="ex.: 1"
             value={form.prioridade} onChange={alterar('prioridade')} />
         </Ajuda>
         <Botoes

@@ -12,6 +12,7 @@ from pydantic import (
     model_validator,
 )
 
+from app import calendario
 from app.models import Estagio, ModoCapacidade, Origem, StatusImportacao, StatusPlano
 
 
@@ -21,6 +22,34 @@ def _assume_utc(value: datetime) -> datetime:
 
 
 UtcDatetime = Annotated[datetime, AfterValidator(_assume_utc)]
+
+# Faixa plausível para datas digitadas (prazo, chegada, recebimento, bloqueio):
+# de 1 ano antes a 2 anos depois de hoje. Pega erro de digitação como 9999 ou
+# 1990 sem travar o histórico recente.
+ANOS_PARA_TRAS = 1
+ANOS_PARA_FRENTE = 2
+
+
+def _somar_anos(dia: date, anos: int) -> date:
+    try:
+        return dia.replace(year=dia.year + anos)
+    except ValueError:  # 29/02 em ano não bissexto
+        return dia.replace(year=dia.year + anos, day=28)
+
+
+def _data_plausivel(valor: date) -> date:
+    hoje = calendario.hoje()
+    de, ate = _somar_anos(hoje, -ANOS_PARA_TRAS), _somar_anos(hoje, ANOS_PARA_FRENTE)
+    if not de <= valor <= ate:
+        raise ValueError(f"data fora do intervalo aceito ({de:%d/%m/%Y} a {ate:%d/%m/%Y})")
+    return valor
+
+
+DataPlausivel = Annotated[date, AfterValidator(_data_plausivel)]
+
+# Tetos dos inteiros (as colunas são UNSIGNED INT: sem teto, valor enorme dava 500)
+PRIORIDADE_MAXIMA = 1000
+ESPERA_MAXIMA_DIAS = 365
 
 def _normaliza_email(value: str) -> str:
     # Field(max_length=...) é ignorado em EmailStr, por isso o limite da coluna fica aqui
@@ -228,8 +257,8 @@ class ErvaCreate(BaseModel):
     codigo: str = Field(min_length=1, max_length=50)
     nome: str = Field(min_length=1, max_length=150)
     ativo: bool = True
-    regime_horas_dia: HorasCad | None = Field(default=None, gt=0, le=24)
-    espera_maxima_dias: int | None = Field(default=None, ge=0)
+    regime_horas_dia: HorasCad | None = Field(default=None, ge=1, le=24)
+    espera_maxima_dias: int | None = Field(default=None, ge=0, le=ESPERA_MAXIMA_DIAS)
 
     @field_validator("codigo")
     @classmethod
@@ -248,8 +277,8 @@ class ErvaUpdate(BaseModel):
     codigo: str | None = Field(default=None, min_length=1, max_length=50)
     nome: str | None = Field(default=None, min_length=1, max_length=150)
     ativo: bool | None = None
-    regime_horas_dia: HorasCad | None = Field(default=None, gt=0, le=24)
-    espera_maxima_dias: int | None = Field(default=None, ge=0)
+    regime_horas_dia: HorasCad | None = Field(default=None, ge=1, le=24)
+    espera_maxima_dias: int | None = Field(default=None, ge=0, le=ESPERA_MAXIMA_DIAS)
 
     _valida_nao_nulos = field_validator("codigo", "nome", "ativo")(_nao_nulo)
 
@@ -337,11 +366,11 @@ class CapacidadeCreate(BaseModel):
     kg_fresco_por_hora: KgCad | None = Field(default=None, gt=0)
     kg_por_carga: KgCad | None = Field(default=None, gt=0)
     horas_por_carga: HorasCad | None = Field(default=None, gt=0)
-    setup_inicial_h: HorasCad | None = Field(default=None, ge=0)
-    setup_final_h: HorasCad | None = Field(default=None, ge=0)
-    setup_diario_h: HorasCad | None = Field(default=None, ge=0)
+    setup_inicial_h: HorasCad | None = Field(default=None, ge=0, le=24)
+    setup_final_h: HorasCad | None = Field(default=None, ge=0, le=24)
+    setup_diario_h: HorasCad | None = Field(default=None, ge=0, le=24)
     setup_dentro_do_regime: bool | None = None
-    prioridade: int | None = Field(default=None, ge=0)
+    prioridade: int | None = Field(default=None, ge=0, le=PRIORIDADE_MAXIMA)
 
 
 class CapacidadeUpdate(BaseModel):
@@ -355,11 +384,11 @@ class CapacidadeUpdate(BaseModel):
     kg_fresco_por_hora: KgCad | None = Field(default=None, gt=0)
     kg_por_carga: KgCad | None = Field(default=None, gt=0)
     horas_por_carga: HorasCad | None = Field(default=None, gt=0)
-    setup_inicial_h: HorasCad | None = Field(default=None, ge=0)
-    setup_final_h: HorasCad | None = Field(default=None, ge=0)
-    setup_diario_h: HorasCad | None = Field(default=None, ge=0)
+    setup_inicial_h: HorasCad | None = Field(default=None, ge=0, le=24)
+    setup_final_h: HorasCad | None = Field(default=None, ge=0, le=24)
+    setup_diario_h: HorasCad | None = Field(default=None, ge=0, le=24)
     setup_dentro_do_regime: bool | None = None
-    prioridade: int | None = Field(default=None, ge=0)
+    prioridade: int | None = Field(default=None, ge=0, le=PRIORIDADE_MAXIMA)
 
 
 class CapacidadeRead(CapacidadeCreate):
@@ -414,11 +443,17 @@ class DemandaCreate(BaseModel):
     # Demanda líquida (já descontado o estoque), no estágio informado
     kg: Kg
     estagio: Estagio
-    prazo: date
+    prazo: DataPlausivel
     reserva_kg: Decimal = Field(default=Decimal(0), ge=0, max_digits=12, decimal_places=3)
     # Maior = mais prioritária
-    prioridade: int = Field(default=0, ge=0)
+    prioridade: int = Field(default=0, ge=0, le=PRIORIDADE_MAXIMA)
     observacao: Observacao
+
+    @model_validator(mode="after")
+    def valida_reserva(self):
+        if self.reserva_kg > self.kg:
+            raise ValueError("a reserva não pode ser maior que a demanda")
+        return self
 
 
 class DemandaUpdate(BaseModel):
@@ -427,9 +462,9 @@ class DemandaUpdate(BaseModel):
     erva_id: int | None = Field(default=None, gt=0)
     kg: Kg | None = None
     estagio: Estagio | None = None
-    prazo: date | None = None
+    prazo: DataPlausivel | None = None
     reserva_kg: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=3)
-    prioridade: int | None = Field(default=None, ge=0)
+    prioridade: int | None = Field(default=None, ge=0, le=PRIORIDADE_MAXIMA)
     observacao: Observacao
 
     _valida_nao_nulos = field_validator(
@@ -456,7 +491,7 @@ class DemandaRead(BaseModel):
 class PrevisaoCreate(BaseModel):
     erva_id: int = Field(gt=0)
     origem: Origem
-    data_chegada: date
+    data_chegada: DataPlausivel
     kg_fresco: Kg
     talhao: Talhao
     observacao: Observacao
@@ -467,7 +502,7 @@ class PrevisaoUpdate(BaseModel):
 
     erva_id: int | None = Field(default=None, gt=0)
     origem: Origem | None = None
-    data_chegada: date | None = None
+    data_chegada: DataPlausivel | None = None
     kg_fresco: Kg | None = None
     talhao: Talhao
     observacao: Observacao
@@ -644,8 +679,8 @@ class SecadorResumo(BaseModel):
 
 class BloqueioCreate(BaseModel):
     secador_id: int = Field(gt=0)
-    inicio: date
-    fim: date  # inclusivo
+    inicio: DataPlausivel
+    fim: DataPlausivel  # inclusivo
     motivo: str = Field(min_length=1, max_length=255)
 
     @field_validator("motivo")
@@ -664,8 +699,8 @@ class BloqueioUpdate(BaseModel):
     """Atualização parcial: só os campos enviados são alterados."""
 
     secador_id: int | None = Field(default=None, gt=0)
-    inicio: date | None = None
-    fim: date | None = None
+    inicio: DataPlausivel | None = None
+    fim: DataPlausivel | None = None
     motivo: str | None = Field(default=None, min_length=1, max_length=255)
 
     _valida_nao_nulos = field_validator("secador_id", "inicio", "fim", "motivo")(_nao_nulo)
@@ -698,7 +733,7 @@ class RecebimentoCreate(BaseModel):
     previsao_id: int | None = Field(default=None, gt=0)
     erva_id: int | None = Field(default=None, gt=0)
     origem: Origem | None = None
-    data_recebimento: date
+    data_recebimento: DataPlausivel
     kg_fresco: Kg
     observacao: Observacao
 
@@ -714,7 +749,7 @@ class RecebimentoCreate(BaseModel):
 class RecebimentoUpdate(BaseModel):
     """Corrige data, kg ou observação. Vínculo, erva e origem não mudam."""
 
-    data_recebimento: date | None = None
+    data_recebimento: DataPlausivel | None = None
     kg_fresco: Kg | None = None
     observacao: Observacao
 

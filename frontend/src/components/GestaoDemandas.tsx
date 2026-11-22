@@ -1,7 +1,7 @@
 import { CalendarClock, ChartLine, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 
-import { apiFetch, query } from '../api';
+import { ErroApi, apiFetch, query } from '../api';
 import { camposAlterados } from '../edicao';
 import { useFeedback } from '../feedback';
 import { ROTULO_ESTAGIO, formatarData, formatarKg, hojeIso } from '../formatar';
@@ -108,7 +108,20 @@ export default function GestaoDemandas() {
     setSalvando(true);
     try {
       if (editando === null) {
-        await apiFetch('/demandas', { method: 'POST', body: JSON.stringify(paraApi(form)) });
+        const corpo = JSON.stringify(paraApi(form));
+        try {
+          await apiFetch('/demandas', { method: 'POST', body: corpo });
+        } catch (err) {
+          // Demanda idêntica já cadastrada: o backend avisa e só grava se o usuário confirmar
+          if (!(err instanceof ErroApi && err.status === 409)) throw err;
+          const ok = await feedback.confirmar({
+            titulo: 'Cadastrar demanda repetida?',
+            mensagem: err.message,
+            rotuloConfirmar: 'Cadastrar mesmo assim',
+          });
+          if (!ok) return;
+          await apiFetch(`/demandas${query({ confirmar_duplicada: 'true' })}`, { method: 'POST', body: corpo });
+        }
       } else {
         const corpo = camposAlterados(paraApi(form), paraApi(paraForm(editando)));
         await apiFetch(`/demandas/${editando.id}`, { method: 'PATCH', body: JSON.stringify(corpo) });
@@ -210,9 +223,9 @@ export default function GestaoDemandas() {
                 <option key={valor} value={valor}>{rotulo}</option>
               ))}
             </Select>
-            <Input label="Reserva (kg, mesmo estágio)" type="number" min="0" step="0.001"
+            <Input label="Reserva (kg, mesmo estágio)" type="number" min="0" max={form.kg || undefined} step="0.001"
               value={form.reserva_kg} onChange={alterar('reserva_kg')} required />
-            <Input label="Prioridade (maior = mais urgente)" type="number" min="0" step="1"
+            <Input label="Prioridade (maior = mais urgente)" type="number" min="0" max="1000" step="1"
               value={form.prioridade} onChange={alterar('prioridade')} required />
             <div className="md:col-span-2">
               <Input label="Observação" maxLength={500} placeholder="ex.: pedido do lote de exportação"

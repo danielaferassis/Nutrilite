@@ -98,6 +98,33 @@ def _aplicar(registro, campos: dict) -> None:
         setattr(registro, campo, valor)
 
 
+SETUPS = (("setup_inicial_h", "inicial"), ("setup_final_h", "final"), ("setup_diario_h", "diário"))
+
+
+def _ensure_setups_cabem_no_regime(capacidades: list[Capacidade], erva: Erva) -> None:
+    """422 se um setup feito dentro do regime passa das horas de regime da erva.
+
+    Ex.: setup diário de 13 h numa erva de 12 h/dia: nunca sobraria hora para secar.
+    Sem regime cadastrado não há o que comparar (o motor já aponta PARAM_AUSENTE).
+    """
+    if erva.regime_horas_dia is None:
+        return
+    for capacidade in capacidades:
+        if not capacidade.setup_dentro_do_regime:
+            continue
+        for campo, rotulo in SETUPS:
+            horas = getattr(capacidade, campo)
+            if horas is not None and horas > erva.regime_horas_dia:
+                secador = capacidade.secador.codigo if capacidade.secador else f"secador {capacidade.secador_id}"
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"O setup {rotulo} de {erva.nome} no {secador} ({horas} h) passa do regime "
+                        f"da erva ({erva.regime_horas_dia} h/dia) e é feito dentro do regime"
+                    ),
+                )
+
+
 def _recusar_se_usado(nome: str, usos: list[tuple[str, int]]) -> None:
     """409 se o registro já foi usado em algo que é histórico; desativar é o caminho."""
     usados = [f"{qtd} {rotulo}" for rotulo, qtd in usos if qtd]
@@ -151,6 +178,10 @@ def update_erva(
     if "codigo" in campos:
         _ensure_codigo_livre(Erva, campos["codigo"], erva.id, "erva", db)
     _aplicar(erva, campos)
+    if "regime_horas_dia" in campos:
+        _ensure_setups_cabem_no_regime(
+            db.scalars(select(Capacidade).where(Capacidade.erva_id == erva.id)).all(), erva
+        )
     db.commit()
     db.refresh(erva)
     log.info("Erva %s atualizada por %s: %s", erva.id, usuario.id, sorted(campos))
@@ -270,6 +301,8 @@ def create_capacidade(
             detail=f"{erva.nome} já tem capacidade cadastrada no {secador.codigo}",
         )
     capacidade = Capacidade(**data.model_dump())
+    capacidade.secador = secador
+    _ensure_setups_cabem_no_regime([capacidade], erva)
     db.add(capacidade)
     db.commit()
     db.refresh(capacidade)
@@ -289,6 +322,7 @@ def update_capacidade(
     capacidade = _get_or_404(Capacidade, capacidade_id, "Capacidade não encontrada", db)
     campos = data.model_dump(exclude_unset=True)
     _aplicar(capacidade, campos)
+    _ensure_setups_cabem_no_regime([capacidade], capacidade.erva)
     db.commit()
     db.refresh(capacidade)
     log.info("Capacidade %s atualizada por %s: %s", capacidade.id, usuario.id, sorted(campos))

@@ -56,6 +56,28 @@ def list_bloqueios(
     return bloqueios
 
 
+def ensure_sem_sobreposicao(
+    secador_id: int, inicio: date, fim: date, db: Session, ignorar_id: int | None = None
+) -> None:
+    """409 se o secador já tem bloqueio que toca o período (o mesmo dia contaria duas vezes)."""
+    query = select(BloqueioSecador).where(
+        BloqueioSecador.secador_id == secador_id,
+        BloqueioSecador.inicio <= fim,
+        BloqueioSecador.fim >= inicio,
+    )
+    if ignorar_id is not None:
+        query = query.where(BloqueioSecador.id != ignorar_id)
+    outro = db.scalars(query.order_by(BloqueioSecador.inicio)).first()
+    if outro is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"O secador já está bloqueado de {outro.inicio:%d/%m/%Y} a {outro.fim:%d/%m/%Y} "
+                f"(bloqueio #{outro.id}: {outro.motivo}). Edite esse bloqueio em vez de criar outro."
+            ),
+        )
+
+
 @router.post("", response_model=BloqueioRead, status_code=201)
 def create_bloqueio(
     data: BloqueioCreate,
@@ -63,6 +85,7 @@ def create_bloqueio(
     db: Session = Depends(get_db),
 ):
     ensure_secador_existe(data.secador_id, db)
+    ensure_sem_sobreposicao(data.secador_id, data.inicio, data.fim, db)
     bloqueio = BloqueioSecador(**data.model_dump(), criado_por_id=usuario.id)
     db.add(bloqueio)
     db.commit()
@@ -90,6 +113,13 @@ def update_bloqueio(
     # O período só pode ser validado depois de juntar o que veio com o que já existe
     if campos.get("fim", bloqueio.fim) < campos.get("inicio", bloqueio.inicio):
         raise HTTPException(status_code=422, detail="fim não pode ser anterior ao início")
+    ensure_sem_sobreposicao(
+        campos.get("secador_id", bloqueio.secador_id),
+        campos.get("inicio", bloqueio.inicio),
+        campos.get("fim", bloqueio.fim),
+        db,
+        ignorar_id=bloqueio.id,
+    )
     for campo, valor in campos.items():
         setattr(bloqueio, campo, valor)
     db.commit()

@@ -39,6 +39,10 @@ Feitas na mesma branch, com teste de regressão. Cada teste foi rodado contra o 
 | M5: OEE conta dias futuros | **Corrigido.** Só contam os dias até hoje (disponibilidade e plano), com aviso; sem nenhum apontamento no período, disponibilidade e OEE ficam `None` (n/a), não 0%. | `test_indicadores.py` |
 | M7: lote vira oferta em dois planos seguidos | **Corrigido.** O lote que chegou antes do início entra só com o saldo: sai dele o que o plano aprovado que vale em cada dia já destinou a secar antes do início (recebimento herda o destinado à previsão; lote sem saldo sai). Premissa: o plano aprovado foi cumprido, porque o Infinity não diz de qual lote veio a carga. | `test_simulacoes.py` |
 | M8: rendimento menor que 1 | **Corrigido.** A API exige os dois rendimentos ≥ 1 (1 = sem perda) e o formulário usa `min="1"`. Valor já gravado não é alterado. | `test_cadastros.py` |
+| M9: datas absurdas aceitas | **Corrigido.** Prazo, chegada, recebimento e bloqueio só entre 1 ano antes e 2 anos depois de hoje (criar e alterar). | `test_validacoes_faixa.py` |
+| M10: duplicidades sem aviso | **Corrigido.** Bloqueio que toca outro do mesmo secador → 409 (no criar e no editar). Demanda idêntica (erva, kg, estágio, prazo e prioridade) → 409 com aviso; a tela pergunta e só grava ao confirmar. | `test_validacoes_faixa.py` e `GestaoDemandas.test.tsx` |
+| M11: faixas sem sentido físico | **Corrigido.** Reserva ≤ kg (também no PATCH, com o registro mesclado); setups ≤ 24 h e, dentro do regime, ≤ regime da erva (também ao reduzir o regime); regime ≥ 1 h. | `test_validacoes_faixa.py` |
+| M12: inteiros sem teto | **Corrigido.** Prioridades ≤ 1000 e espera ≤ 365 dias: 422 em vez de 500. | `test_validacoes_faixa.py` |
 | Rota de exemplo `/api/items` | **Removida.** O front não a usava; a tabela continua, porque só muda por migration. | `test_rotas_protegidas.py` |
 
 **Testes para pegar problemas semelhantes:**
