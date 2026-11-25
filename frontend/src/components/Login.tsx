@@ -3,6 +3,7 @@ import { FormEvent, useState } from 'react';
 
 import { apiFetch, textoDoErro } from '../api';
 import { logger } from '../logger';
+import { NOME_SISTEMA } from '../marca';
 import FundoLogin, { FUNDO_LOGIN } from './FundoLogin';
 import { Alerta, Button, Input, LogoCompleto } from './ui';
 
@@ -41,7 +42,7 @@ export default function Login() {
           {/* Faixa da marca no topo: separa o cartão do fundo claro sem pesar */}
           <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-verde-700 via-verde-600 to-lima-500" />
           <div className="mb-7 flex flex-col items-center gap-2 text-center">
-            <h1 aria-label="Nutrilite PCP" className="flex flex-col items-center gap-2">
+            <h1 aria-label={NOME_SISTEMA} className="flex flex-col items-center gap-2">
               <LogoCompleto altura={44} />
               <span className="text-sm font-semibold uppercase tracking-[0.3em] text-suave">PCP</span>
             </h1>
