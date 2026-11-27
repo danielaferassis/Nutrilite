@@ -30,7 +30,6 @@ import GestaoUsuarios from './components/GestaoUsuarios';
 import GestaoGrupos from './components/GestaoGrupos';
 import PermissoesAcesso from './components/PermissoesAcesso';
 import { Alerta, Logo } from './components/ui';
-import { NOME_SISTEMA } from './marca';
 import { FeedbackProvider } from './feedback';
 import { SessaoProvider, useSessao } from './sessao';
 
@@ -153,7 +152,7 @@ export default function App() {
             <div className="flex items-center justify-between px-5 py-5">
               <a href="/dashboard" className="flex items-center gap-2.5 text-base font-bold">
                 <Logo tamanho={34} comFundo />
-                {NOME_SISTEMA}
+                Nutrilite PCP
               </a>
               <button
                 type="button"
